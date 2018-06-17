@@ -40,7 +40,7 @@
 
 #include "mosaic.h"
 
-#define BLANK_DELAY  (1*CLOCK_FREQ)
+#define BLANK_DELAY INT64_C(1000000)
 
 /*****************************************************************************
  * Local prototypes
@@ -55,7 +55,7 @@ static int MosaicCallback   ( vlc_object_t *, char const *, vlc_value_t,
 /*****************************************************************************
  * filter_sys_t : filter descriptor
  *****************************************************************************/
-typedef struct
+struct filter_sys_t
 {
     vlc_mutex_t lock;         /* Internal filter lock */
 
@@ -79,7 +79,7 @@ typedef struct
     int i_offsets_length;
 
     mtime_t i_delay;
-} filter_sys_t;
+};
 
 /*****************************************************************************
  * Module descriptor

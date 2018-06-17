@@ -73,7 +73,7 @@ struct thread_context_t;
  *****************************************************************************/
 struct thread_context_t
 {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
 
     AVCodecContext  *p_context;
     int             (* pf_func)(AVCodecContext *c, void *arg);
@@ -88,7 +88,7 @@ struct thread_context_t
 /*****************************************************************************
  * encoder_sys_t : libavcodec encoder descriptor
  *****************************************************************************/
-typedef struct
+struct encoder_sys_t
 {
     /*
      * libavcodec properties
@@ -146,7 +146,7 @@ typedef struct
     int        i_aac_profile; /* AAC profile to use.*/
 
     AVFrame    *frame;
-} encoder_sys_t;
+};
 
 
 /* Taken from audio.c*/
@@ -727,6 +727,7 @@ int InitVideoEnc( vlc_object_t *p_this )
 
         p_context->sample_rate = p_enc->fmt_out.audio.i_rate;
         date_Init( &p_sys->buffer_date, p_enc->fmt_out.audio.i_rate, 1 );
+        date_Set( &p_sys->buffer_date, AV_NOPTS_VALUE );
         p_context->time_base.num = 1;
         p_context->time_base.den = p_context->sample_rate;
         p_context->channels      = p_enc->fmt_out.audio.i_channels;
@@ -743,7 +744,7 @@ int InitVideoEnc( vlc_object_t *p_this )
          * Copied from audio.c
          */
         const unsigned i_order_max = 8 * sizeof(p_context->channel_layout);
-        uint32_t pi_order_dst[AOUT_CHAN_MAX] = { 0 };
+        uint32_t pi_order_dst[AOUT_CHAN_MAX] = { };
         uint32_t order_mask = 0;
         int i_channels_src = 0;
 
@@ -1197,7 +1198,7 @@ static block_t *EncodeVideo( encoder_t *p_enc, picture_t *p_pict )
         /* Set the pts of the frame being encoded
          * avcodec likes pts to be in time_base units
          * frame number */
-        if( likely( p_pict->date != VLC_TS_INVALID ) )
+        if( likely( p_pict->date > VLC_TS_INVALID ) )
             frame->pts = p_pict->date * p_sys->p_context->time_base.den /
                           CLOCK_FREQ / p_sys->p_context->time_base.num;
         else
@@ -1265,15 +1266,11 @@ static block_t *handle_delay_buffer( encoder_t *p_enc, encoder_sys_t *p_sys, uns
     p_sys->frame->format     = p_sys->p_context->sample_fmt;
     p_sys->frame->nb_samples = leftover_samples + p_sys->i_samples_delay;
 
-    if( likely( date_Get( &p_sys->buffer_date ) != VLC_TS_INVALID) )
-    {
-        /* Convert to AV timing */
-        p_sys->frame->pts = date_Get( &p_sys->buffer_date ) - VLC_TS_0;
-        p_sys->frame->pts = p_sys->frame->pts * p_sys->p_context->time_base.den /
-                            CLOCK_FREQ / p_sys->p_context->time_base.num;
+    p_sys->frame->pts        = date_Get( &p_sys->buffer_date ) * p_sys->p_context->time_base.den /
+                                CLOCK_FREQ / p_sys->p_context->time_base.num;
+
+    if( likely( p_sys->frame->pts != AV_NOPTS_VALUE) )
         date_Increment( &p_sys->buffer_date, p_sys->frame->nb_samples );
-    }
-    else p_sys->frame->pts = AV_NOPTS_VALUE;
 
     if( likely( p_aout_buf ) )
     {
@@ -1290,7 +1287,8 @@ static block_t *handle_delay_buffer( encoder_t *p_enc, encoder_sys_t *p_sys, uns
 
         p_aout_buf->p_buffer     += leftover;
         p_aout_buf->i_buffer     -= leftover;
-        p_aout_buf->i_pts         = date_Get( &p_sys->buffer_date );
+        if( likely( p_sys->frame->pts != AV_NOPTS_VALUE) )
+            p_aout_buf->i_pts         = date_Get( &p_sys->buffer_date );
     }
 
     if(unlikely( ( (leftover + buffer_delay) < p_sys->i_buffer_out ) &&
@@ -1337,7 +1335,7 @@ static block_t *EncodeAudio( encoder_t *p_enc, block_t *p_aout_buf )
     //Calculate how many bytes we would need from current buffer to fill frame
     size_t leftover_samples = __MAX(0,__MIN((ssize_t)i_samples_left, (ssize_t)(p_sys->i_frame_size - p_sys->i_samples_delay)));
 
-    if( p_aout_buf && ( p_aout_buf->i_pts != VLC_TS_INVALID ) )
+    if( p_aout_buf && ( p_aout_buf->i_pts > VLC_TS_INVALID ) )
     {
         date_Set( &p_sys->buffer_date, p_aout_buf->i_pts );
         /* take back amount we have leftover from previous buffer*/
@@ -1393,14 +1391,8 @@ static block_t *EncodeAudio( encoder_t *p_enc, block_t *p_aout_buf )
         else
             p_sys->frame->nb_samples = p_sys->i_frame_size;
         p_sys->frame->format     = p_sys->p_context->sample_fmt;
-        if( likely(date_Get( &p_sys->buffer_date ) != VLC_TS_INVALID) )
-        {
-            /* Convert to AV timing */
-            p_sys->frame->pts = date_Get( &p_sys->buffer_date ) - VLC_TS_0;
-            p_sys->frame->pts = p_sys->frame->pts * p_sys->p_context->time_base.den /
-                                CLOCK_FREQ / p_sys->p_context->time_base.num;
-        }
-        else p_sys->frame->pts = AV_NOPTS_VALUE;
+        p_sys->frame->pts        = date_Get( &p_sys->buffer_date ) * p_sys->p_context->time_base.den /
+                                    CLOCK_FREQ / p_sys->p_context->time_base.num;
 
         const int in_bytes = p_sys->frame->nb_samples *
             p_sys->p_context->channels * p_sys->i_sample_bytes;
@@ -1429,7 +1421,7 @@ static block_t *EncodeAudio( encoder_t *p_enc, block_t *p_aout_buf )
         p_aout_buf->p_buffer     += in_bytes;
         p_aout_buf->i_buffer     -= in_bytes;
         p_aout_buf->i_nb_samples -= p_sys->frame->nb_samples;
-        if( likely(date_Get( &p_sys->buffer_date ) != VLC_TS_INVALID) )
+        if( likely( p_sys->frame->pts != AV_NOPTS_VALUE) )
             date_Increment( &p_sys->buffer_date, p_sys->frame->nb_samples );
 
         p_block = encode_avframe( p_enc, p_sys, p_sys->frame );

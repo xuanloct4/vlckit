@@ -63,7 +63,7 @@
 /*****************************************************************************
  * decoder_sys_t : decoder descriptor
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
 #ifdef ENABLE_PACKETIZER
     /* Module mode */
@@ -113,13 +113,13 @@ typedef struct
      */
     bool   b_formatted;
     bool   b_use_tiger;
-} decoder_sys_t;
+};
 
-typedef struct
+struct subpicture_updater_sys_t
 {
     decoder_sys_t *p_dec_sys;
     mtime_t        i_start;
-} kate_spu_updater_sys_t;
+};
 
 
 /*
@@ -436,13 +436,12 @@ static int OpenDecoder( vlc_object_t *p_this )
 static int OpenPacketizer( vlc_object_t *p_this )
 {
     decoder_t *p_dec = (decoder_t*)p_this;
-    decoder_sys_t *p_sys = p_dec->p_sys;
 
     int i_ret = OpenDecoder( p_this );
 
     if( i_ret == VLC_SUCCESS )
     {
-        p_sys->b_packetizer = true;
+        p_dec->p_sys->b_packetizer = true;
         p_dec->fmt_out.i_codec = VLC_CODEC_KATE;
     }
 
@@ -626,7 +625,7 @@ static void *ProcessPacket( decoder_t *p_dec, kate_packet *p_kp,
     decoder_sys_t *p_sys = p_dec->p_sys;
 
     /* Date management */
-    if( p_block->i_pts != VLC_TS_INVALID && p_block->i_pts != p_sys->i_pts )
+    if( p_block->i_pts > VLC_TS_INVALID && p_block->i_pts != p_sys->i_pts )
     {
         p_sys->i_pts = p_block->i_pts;
     }
@@ -755,9 +754,8 @@ static void SetupText( decoder_t *p_dec, subpicture_t *p_spu, const kate_event *
 
 static void TigerDestroySubpicture( subpicture_t *p_subpic )
 {
-    kate_spu_updater_sys_t *p_spusys = p_subpic->updater.p_sys;
-    DecSysRelease( p_spusys->p_dec_sys );
-    free( p_spusys );
+    DecSysRelease( p_subpic->updater.p_sys->p_dec_sys );
+    free( p_subpic->updater.p_sys );
 }
 /*
  * We get premultiplied alpha, but VLC doesn't expect this, so we demultiply
@@ -817,8 +815,7 @@ static int TigerValidateSubpicture( subpicture_t *p_subpic,
 {
     VLC_UNUSED(p_fmt_src); VLC_UNUSED(p_fmt_dst);
 
-    kate_spu_updater_sys_t *p_spusys = p_subpic->updater.p_sys;
-    decoder_sys_t *p_sys = p_spusys->p_dec_sys;
+    decoder_sys_t *p_sys = p_subpic->updater.p_sys->p_dec_sys;
 
     if( b_fmt_src || b_fmt_dst )
         return VLC_EGENERIC;
@@ -826,7 +823,7 @@ static int TigerValidateSubpicture( subpicture_t *p_subpic,
     PROFILE_START( TigerValidateSubpicture );
 
     /* time in seconds from the start of the stream */
-    kate_float t = (p_spusys->i_start + ts - p_subpic->i_start ) / 1000000.0f;
+    kate_float t = (p_subpic->updater.p_sys->i_start + ts - p_subpic->i_start ) / 1000000.0f;
 
     /* it is likely that the current region (if any) can be kept as is; test for this */
     vlc_mutex_lock( &p_sys->lock );
@@ -859,15 +856,14 @@ static void TigerUpdateSubpicture( subpicture_t *p_subpic,
                                    const video_format_t *p_fmt_dst,
                                    mtime_t ts )
 {
-    kate_spu_updater_sys_t *p_spusys = p_subpic->updater.p_sys;
-    decoder_sys_t *p_sys = p_spusys->p_dec_sys;
+    decoder_sys_t *p_sys = p_subpic->updater.p_sys->p_dec_sys;
     plane_t *p_plane;
     kate_float t;
     int i_ret;
 
 
     /* time in seconds from the start of the stream */
-    t = (p_spusys->i_start + ts - p_subpic->i_start ) / 1000000.0f;
+    t = (p_subpic->updater.p_sys->i_start + ts - p_subpic->i_start ) / 1000000.0f;
 
     PROFILE_START( TigerUpdateSubpicture );
 
@@ -1063,7 +1059,7 @@ static subpicture_t *DecodePacket( decoder_t *p_dec, kate_packet *p_kp, block_t 
     /* we have an event */
 
     /* Get a new spu */
-    kate_spu_updater_sys_t *p_spu_sys = NULL;
+    subpicture_updater_sys_t *p_spu_sys = NULL;
     if( p_sys->b_use_tiger)
     {
         p_spu_sys = malloc( sizeof(*p_spu_sys) );
@@ -1251,11 +1247,9 @@ static void ParseKateComments( decoder_t *p_dec )
     char *psz_name, *psz_value, *psz_comment;
     int i = 0;
 
-    decoder_sys_t *p_sys = p_dec->p_sys;
-
-    while ( i < p_sys->kc.comments )
+    while ( i < p_dec->p_sys->kc.comments )
     {
-        psz_comment = strdup( p_sys->kc.user_comments[i] );
+        psz_comment = strdup( p_dec->p_sys->kc.user_comments[i] );
         if( !psz_comment )
             break;
         psz_name = psz_comment;

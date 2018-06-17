@@ -26,7 +26,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-#import "VLCWindow.h"
+#import "Windows.h"
 #import "VLCDefaultValueSlider.h"
 #import "VLCTimeField.h"
 

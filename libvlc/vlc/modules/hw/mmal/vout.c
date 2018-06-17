@@ -27,9 +27,9 @@
 #endif
 
 #include <math.h>
-#include <stdatomic.h>
 
 #include <vlc_common.h>
+#include <vlc_atomic.h>
 #include <vlc_plugin.h>
 #include <vlc_threads.h>
 #include <vlc_vout_display.h>
@@ -301,12 +301,12 @@ static int Open(vlc_object_t *object)
     vd->prepare = vd_prepare;
     vd->display = vd_display;
     vd->control = vd_control;
+    vd->manage = vd_manage;
 
     vc_tv_register_callback(tvservice_cb, vd);
 
     if (query_resolution(vd, &sys->display_width, &sys->display_height) >= 0) {
-        vout_window_ReportSize(vd->cfg->window,
-                               sys->display_width, sys->display_height);
+        vout_display_SendEventDisplaySize(vd, sys->display_width, sys->display_height);
     } else {
         sys->display_width = vd->cfg->display.width;
         sys->display_height = vd->cfg->display.height;
@@ -314,6 +314,8 @@ static int Open(vlc_object_t *object)
 
     sys->dmx_handle = vc_dispmanx_display_open(0);
     vd->info.subpicture_chromas = subpicture_chromas;
+
+    vout_display_DeleteWindow(vd, NULL);
 
 out:
     if (ret != VLC_SUCCESS)
@@ -543,10 +545,8 @@ out:
 }
 
 static void vd_prepare(vout_display_t *vd, picture_t *picture,
-                       subpicture_t *subpicture, mtime_t date)
+                subpicture_t *subpicture)
 {
-    vd_manage(vd);
-    VLC_UNUSED(date);
     vout_display_sys_t *sys = vd->sys;
     picture_sys_t *pic_sys = picture->p_sys;
 
@@ -667,7 +667,7 @@ static void vd_manage(vout_display_t *vd)
         if (query_resolution(vd, &width, &height) >= 0) {
             sys->display_width = width;
             sys->display_height = height;
-            vout_window_ReportSize(vd->cfg->window, width, height);
+            vout_display_SendEventDisplaySize(vd, width, height);
         }
 
         sys->need_configure_display = false;
@@ -969,7 +969,7 @@ static void maintain_phase_sync(vout_display_t *vd)
     MMAL_PARAMETER_VIDEO_RENDER_STATS_T render_stats = {
         .hdr = { MMAL_PARAMETER_VIDEO_RENDER_STATS, sizeof(render_stats) },
     };
-    int32_t frame_duration = CLOCK_FREQ /
+    int32_t frame_duration = 1000000 /
         ((double)vd->sys->i_frame_rate /
         vd->sys->i_frame_rate_base);
     vout_display_sys_t *sys = vd->sys;

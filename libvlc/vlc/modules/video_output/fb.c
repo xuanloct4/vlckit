@@ -80,7 +80,8 @@ vlc_module_begin ()
     set_shortname("Framebuffer")
     set_category(CAT_VIDEO)
     set_subcategory(SUBCAT_VIDEO_VOUT)
-    add_loadfile(FB_DEV_VAR, "/dev/fb0", DEVICE_TEXT, DEVICE_LONGTEXT)
+    add_loadfile(FB_DEV_VAR, "/dev/fb0", DEVICE_TEXT, DEVICE_LONGTEXT,
+                 false)
     add_bool("fb-tty", true, TTY_TEXT, TTY_LONGTEXT, true)
     add_string( "fb-chroma", NULL, CHROMA_TEXT, CHROMA_LONGTEXT, true )
     add_obsolete_string("fb-aspect-ratio")
@@ -305,6 +306,8 @@ static int Open(vlc_object_t *object)
     vd->display = Display;
     vd->control = Control;
 
+    /* */
+    vout_display_SendEventDisplaySize(vd, fmt.i_visible_width, fmt.i_visible_height);
     return VLC_SUCCESS;
 }
 

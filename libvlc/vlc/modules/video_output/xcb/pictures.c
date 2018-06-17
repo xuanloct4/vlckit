@@ -68,20 +68,25 @@ bool XCB_shm_Check (vlc_object_t *obj, xcb_connection_t *conn)
     return false;
 }
 
-#ifdef HAVE_SYS_SHM_H
 /**
  * Release picture private data: detach the shared memory segment.
  */
-static void XCB_picture_SysV_Destroy (picture_t *pic)
+static void XCB_picture_Destroy (picture_t *pic)
 {
     shmdt (pic->p[0].p_pixels);
     free (pic);
 }
 
-static int XCB_picture_SysV_Alloc(vout_display_t *vd, picture_resource_t *res,
-                                  size_t size, xcb_connection_t *conn,
-                                  xcb_shm_seg_t segment)
+/**
+ * Initialize a picture buffer as shared memory, according to the video output
+ * format. If a attach is true, the segment is attached to
+ * the X server (MIT-SHM extension).
+ */
+int XCB_picture_Alloc (vout_display_t *vd, picture_resource_t *res,
+                       size_t size, xcb_connection_t *conn,
+                       xcb_shm_seg_t segment)
 {
+#ifdef HAVE_SYS_SHM_H
     /* Allocate shared memory segment */
     int id = shmget (IPC_PRIVATE, size, IPC_CREAT | S_IRWXU);
     if (id == -1)
@@ -130,39 +135,15 @@ static int XCB_picture_SysV_Alloc(vout_display_t *vd, picture_resource_t *res,
     }
 
     shmctl (id, IPC_RMID, NULL);
-
-    res->p_sys = (void *)(uintptr_t)segment;
-    res->pf_destroy = XCB_picture_SysV_Destroy;
-    res->p[0].p_pixels = shm;
-    return 0;
-}
 #else
-# define XCB_picture_SysV_Alloc(...) (-1)
-#endif
+    assert (segment == 0);
 
-static void XCB_picture_Destroy(picture_t *pic)
-{
-    free(pic->p[0].p_pixels);
-    free(pic);
-}
-
-/**
- * Initialize a picture buffer as shared memory, according to the video output
- * format. If a attach is true, the segment is attached to
- * the X server (MIT-SHM extension).
- */
-int XCB_picture_Alloc (vout_display_t *vd, picture_resource_t *res,
-                       size_t size, xcb_connection_t *conn,
-                       xcb_shm_seg_t segment)
-{
-    if (XCB_picture_SysV_Alloc(vd, res, size, conn, segment) == 0)
-        return 0;
-
-    void *shm = aligned_alloc(32, (size + 31) & ~31);
+    /* XXX: align on 32 bytes for VLC chroma filters */
+    void *shm = malloc (size);
     if (unlikely(shm == NULL))
         return -1;
-
-    res->p_sys = NULL;
+#endif
+    res->p_sys = (void *)(uintptr_t)segment;
     res->pf_destroy = XCB_picture_Destroy;
     res->p[0].p_pixels = shm;
     return 0;

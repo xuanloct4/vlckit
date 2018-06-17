@@ -34,8 +34,8 @@
 #include <vlc_filter.h>
 #include <vlc_picture.h>
 #include <vlc_cpu.h>
+#include <vlc_atomic.h>
 
-#include <stdatomic.h>
 #include <assert.h>
 #include "filter_picture.h"
 
@@ -100,11 +100,11 @@ static const struct
 /*****************************************************************************
  * filter_sys_t: adjust filter method descriptor
  *****************************************************************************/
-typedef struct
+struct filter_sys_t
 {
     SepiaFunction pf_sepia;
     atomic_int i_intensity;
-} filter_sys_t;
+};
 
 /*****************************************************************************
  * Create: allocates Sepia video thread output method

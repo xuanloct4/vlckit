@@ -40,12 +40,69 @@
  * Demultiplexer modules interface
  */
 
+struct demux_t
+{
+    VLC_COMMON_MEMBERS
+
+    /* Module properties */
+    module_t    *p_module;
+
+    /* eg informative but needed (we can have access+demux) */
+    char        *psz_access;
+    char        *psz_demux;
+    char        *psz_location;
+    char        *psz_file;
+
+    union {
+        /**
+         * Input stream
+         *
+         * Depending on the module capability:
+         * - "demux": input byte stream (not NULL)
+         * - "access_demux": a NULL pointer
+         * - "demux_filter": undefined
+         */
+        stream_t *s;
+        /**
+         * Input demuxer
+         *
+         * If the module capability is "demux_filter", this is the upstream
+         * demuxer or demux filter. Otherwise, this is undefined.
+         */
+        demux_t *p_next;
+    };
+
+    /* es output */
+    es_out_t    *out;   /* our p_es_out */
+
+    bool         b_preparsing; /* True if the demux is used to preparse */
+
+    /* set by demuxer */
+    int (*pf_demux)  ( demux_t * );   /* demux one frame only */
+    int (*pf_control)( demux_t *, int i_query, va_list args);
+
+    /* Demux has to maintain them uptodate
+     * when it is responsible of seekpoint/title */
+    struct
+    {
+        unsigned int i_update;  /* Demux sets them on change,
+                                   Input removes them once take into account*/
+        /* Seekpoint/Title at demux level */
+        int          i_title;       /* idem, start from 0 (could be menu) */
+        int          i_seekpoint;   /* idem, start from 0 */
+    } info;
+    demux_sys_t *p_sys;
+
+    /* Weak link to parent input */
+    input_thread_t *p_input;
+};
+
 /* pf_demux return values */
 #define VLC_DEMUXER_EOF       0
 #define VLC_DEMUXER_EGENERIC -1
 #define VLC_DEMUXER_SUCCESS   1
 
-/* DEMUX_TEST_AND_CLEAR flags */
+/* demux_t.info.i_update field */
 #define INPUT_UPDATE_TITLE      0x0010
 #define INPUT_UPDATE_SEEKPOINT  0x0020
 #define INPUT_UPDATE_META       0x0040
@@ -54,7 +111,7 @@
 /* demux_meta_t is returned by "meta reader" module to the demuxer */
 typedef struct demux_meta_t
 {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
     input_item_t *p_item; /***< the input item that is being read */
 
     vlc_meta_t *p_meta;                 /**< meta data */
@@ -153,19 +210,22 @@ enum demux_query_e
      * The unsigned* argument is set with the flags needed to be checked,
      * on return it contains the values that were reset during the call
      *
+     * This can can fail, in which case flags from demux_t.info.i_update
+     * are read/reset
+     *
      * arg1= unsigned * */
     DEMUX_TEST_AND_CLEAR_FLAGS, /* arg1= unsigned*      can fail */
 
     /** Read the title number currently playing
      *
-     * Can fail.
+     * Can fail, in which case demux_t.info.i_title is used
      *
      * arg1= int * */
     DEMUX_GET_TITLE,            /* arg1= int*           can fail */
 
     /* Read the seekpoint/chapter currently playing
      *
-     * Can fail.
+     * Can fail, in which case demux_t.info.i_seekpoint is used
      *
      * arg1= int * */
     DEMUX_GET_SEEKPOINT,        /* arg1= int*           can fail */
@@ -191,13 +251,11 @@ enum demux_query_e
      * arg4= int *pi_seekpoint_offset(0) */
     DEMUX_GET_TITLE_INFO,
 
-    /* DEMUX_SET_GROUP_* / DEMUX_SET_ES is only a hint for demuxer (mainly DVB)
-     * to avoid parsing everything (you should not use this to call
-     * es_out_Control()).
-     * If you don't know what to do with it, just IGNORE it: it is safe(r). */
-    DEMUX_SET_GROUP_DEFAULT,
-    DEMUX_SET_GROUP_ALL,
-    DEMUX_SET_GROUP_LIST,       /* arg1= size_t, arg2= const int *, can fail */
+    /* DEMUX_SET_GROUP/SET_ES only a hint for demuxer (mainly DVB) to allow not
+     * reading everything (you should not use this to call es_out_Control)
+     * if you don't know what to do with it, just IGNORE it, it is safe(r)
+     * -1 means all group, 0 default group (first es added) */
+    DEMUX_SET_GROUP,            /* arg1= int, arg2=const vlc_list_t *   can fail */
     DEMUX_SET_ES,               /* arg1= int                            can fail */
 
     /* Ask the demux to demux until the given date at the next pf_demux call
@@ -205,7 +263,7 @@ enum demux_query_e
      * XXX: not mandatory (except for subtitle demux) but will help a lot
      * for multi-input
      */
-    DEMUX_SET_NEXT_DEMUX_TIME,  /* arg1= mtime_t        can fail */
+    DEMUX_SET_NEXT_DEMUX_TIME,  /* arg1= int64_t        can fail */
     /* FPS for correct subtitles handling */
     DEMUX_GET_FPS,              /* arg1= double *       res=can fail    */
 
@@ -243,6 +301,8 @@ enum demux_query_e
     /** Checks whether the stream is actually a playlist, rather than a real
      * stream.
      *
+     * \warning The prototype is different from STREAM_IS_DIRECTORY.
+     *
      * Can fail if the stream is not a playlist (same as returning false).
      *
      * arg1= bool * */
@@ -276,13 +336,12 @@ enum demux_query_e
  * Main Demux
  *************************************************************************/
 
+/* stream_t *s could be null and then it mean a access+demux in one */
 VLC_API demux_t *demux_New( vlc_object_t *p_obj, const char *psz_name,
-                            stream_t *s, es_out_t *out );
+                            const char *psz_path, stream_t *s, es_out_t *out );
 
-static inline void demux_Delete(demux_t *demux)
-{
-    vlc_stream_Delete(demux);
-}
+VLC_API void demux_Delete( demux_t * );
+
 
 VLC_API int demux_vaControlHelper( stream_t *, int64_t i_start, int64_t i_end,
                                    int64_t i_bitrate, int i_align, int i_query, va_list args );
@@ -312,41 +371,32 @@ static inline int demux_Control( demux_t *p_demux, int i_query, ... )
  * Miscellaneous helpers for demuxers
  *************************************************************************/
 
-#ifndef __cplusplus
-static inline void demux_UpdateTitleFromStream( demux_t *demux,
-    int *restrict titlep, int *restrict seekpointp,
-    unsigned *restrict updatep )
+static inline void demux_UpdateTitleFromStream( demux_t *demux )
 {
     stream_t *s = demux->s;
     unsigned title, seekpoint;
 
     if( vlc_stream_Control( s, STREAM_GET_TITLE, &title ) == VLC_SUCCESS
-     && title != (unsigned)*titlep )
+     && title != (unsigned)demux->info.i_title )
     {
-        *titlep = title;
-        *updatep |= INPUT_UPDATE_TITLE;
+        demux->info.i_title = title;
+        demux->info.i_update |= INPUT_UPDATE_TITLE;
     }
 
     if( vlc_stream_Control( s, STREAM_GET_SEEKPOINT,
                             &seekpoint ) == VLC_SUCCESS
-     && seekpoint != (unsigned)*seekpointp )
+     && seekpoint != (unsigned)demux->info.i_seekpoint )
     {
-        *seekpointp = seekpoint;
-        *updatep |= INPUT_UPDATE_SEEKPOINT;
+        demux->info.i_seekpoint = seekpoint;
+        demux->info.i_update |= INPUT_UPDATE_SEEKPOINT;
     }
 }
-# define demux_UpdateTitleFromStream(demux) \
-     demux_UpdateTitleFromStream(demux, \
-         &((demux_sys_t *)((demux)->p_sys))->current_title, \
-         &((demux_sys_t *)((demux)->p_sys))->current_seekpoint, \
-         &((demux_sys_t *)((demux)->p_sys))->updates)
-#endif
 
 VLC_USED
 static inline bool demux_IsPathExtension( demux_t *p_demux, const char *psz_extension )
 {
-    const char *name = (p_demux->psz_filepath != NULL) ? p_demux->psz_filepath
-                                                       : p_demux->psz_location;
+    const char *name = (p_demux->psz_file != NULL) ? p_demux->psz_file
+                                                   : p_demux->psz_location;
     const char *psz_ext = strrchr ( name, '.' );
     if( !psz_ext || strcasecmp( psz_ext, psz_extension ) )
         return false;
@@ -362,7 +412,7 @@ static inline bool demux_IsContentType(demux_t *demux, const char *type)
 VLC_USED
 static inline bool demux_IsForced( demux_t *p_demux, const char *psz_name )
 {
-   if( p_demux->psz_name == NULL || strcmp( p_demux->psz_name, psz_name ) )
+   if( !p_demux->psz_demux || strcmp( p_demux->psz_demux, psz_name ) )
         return false;
     return true;
 }

@@ -46,17 +46,17 @@
  * which uses srt library internally */
 #define SRT_DEFAULT_LATENCY 125
 /* Crypto key length in bytes. */
-#define SRT_KEY_LENGTH_TEXT N_("Crypto key length in bytes")
+#define SRT_KEY_LENGTH_TEXT "Crypto key length in bytes"
 #define SRT_DEFAULT_KEY_LENGTH 16
 static const int srt_key_lengths[] = {
     16, 24, 32,
 };
 
 static const char *const srt_key_length_names[] = {
-    N_("16 bytes"), N_("24 bytes"), N_("32 bytes"),
+    "16 bytes", "24 bytes", "32 bytes",
 };
 
-typedef struct
+struct stream_sys_t
 {
     SRTSOCKET   sock;
     int         i_poll_id;
@@ -64,7 +64,7 @@ typedef struct
     bool        b_interrupted;
     char       *psz_host;
     int         i_port;
-} stream_sys_t;
+};
 
 static void srt_wait_interrupted(void *p_data)
 {
@@ -393,7 +393,7 @@ vlc_module_begin ()
     add_integer( "poll-timeout", SRT_DEFAULT_POLL_TIMEOUT,
             N_("Return poll wait after timeout milliseconds (-1 = infinite)"), NULL, true )
     add_integer( "latency", SRT_DEFAULT_LATENCY, N_("SRT latency (ms)"), NULL, true )
-    add_password("passphrase", "", N_("Password for stream encryption"), NULL)
+    add_password( "passphrase", "", "Password for stream encryption", NULL, false )
     add_integer( "key-length", SRT_DEFAULT_KEY_LENGTH,
             SRT_KEY_LENGTH_TEXT, SRT_KEY_LENGTH_TEXT, false )
         change_integer_list( srt_key_lengths, srt_key_length_names )

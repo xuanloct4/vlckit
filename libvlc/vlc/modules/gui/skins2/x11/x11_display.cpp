@@ -341,7 +341,6 @@ void X11Display::testEWMH()
     TEST_EWMH( m_net_wm_window_opacity, "_NET_WM_WINDOW_OPACITY" )
 
     TEST_EWMH( m_net_wm_pid, "_NET_WM_PID" )
-    TEST_EWMH( m_net_workarea, "_NET_WORKAREA" )
 
 #undef TEST_EWMH
 

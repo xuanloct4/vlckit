@@ -123,13 +123,13 @@ struct subsys
     int item_type;
 };
 
-typedef struct
+struct services_discovery_sys_t
 {
     const struct subsys *subsys;
     struct udev_monitor *monitor;
     vlc_thread_t         thread;
     void                *root;
-} services_discovery_sys_t;
+};
 
 /**
  * Compares two devices (to support binary search).

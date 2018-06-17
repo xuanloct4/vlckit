@@ -288,11 +288,9 @@ int main(int i_argc, const char *ppsz_argv[])
 
     libvlc_add_intf(vlc, "hotkeys,none");
 
-    if (libvlc_add_intf(vlc, NULL)) {
-        fprintf(stderr, "VLC cannot start any interface. Exiting.\n");
+    if (libvlc_add_intf(vlc, NULL))
         goto out;
-    }
-    libvlc_playlist_play(vlc);
+    libvlc_playlist_play(vlc, -1, 0, NULL);
 
     /*
      * Run the main loop. If the mac interface is not initialized, only the CoreFoundation

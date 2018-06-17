@@ -44,14 +44,14 @@ vlc_module_begin ()
 vlc_module_end ()
 
 static int TimeGet (audio_output_t *, mtime_t *);
-static void Play(audio_output_t *, block_t *, mtime_t);
+static void Play (audio_output_t *, block_t *);
 static void Flush (audio_output_t *, bool);
 static int VolumeSet (audio_output_t *, float);
 static int MuteSet (audio_output_t *, bool);
 static void VolumeChanged (void *, unsigned);
 static void PositionChanged (void *, int);
 
-typedef struct
+struct aout_sys_t
 {
     struct sio_hdl *hdl;
     int started;
@@ -59,7 +59,7 @@ typedef struct
     unsigned rate;
     unsigned volume;
     bool mute;
-} aout_sys_t;
+};
 
 /** Initializes an sndio playback stream */
 static int Start (audio_output_t *aout, audio_sample_format_t *restrict fmt)
@@ -180,7 +180,7 @@ static int Start (audio_output_t *aout, audio_sample_format_t *restrict fmt)
 
     aout->time_get = TimeGet;
     aout->play = Play;
-    aout->pause = aout_PauseDefault;
+    aout->pause = NULL;
     aout->flush = Flush;
     if (sio_onvol(sys->hdl, VolumeChanged, aout))
     {
@@ -230,14 +230,13 @@ static int TimeGet (audio_output_t *aout, mtime_t *restrict delay)
     return 0;
 }
 
-static void Play(audio_output_t *aout, block_t *block, mtime_t date)
+static void Play (audio_output_t *aout, block_t *block)
 {
     aout_sys_t *sys = aout->sys;
 
     sio_write (sys->hdl, block->p_buffer, block->i_buffer);
     sys->delay += block->i_nb_samples;
     block_Release (block);
-    (void) date;
 }
 
 static void Flush (audio_output_t *aout, bool wait)
@@ -254,13 +253,12 @@ static void Flush (audio_output_t *aout, bool wait)
 static void VolumeChanged (void *arg, unsigned volume)
 {
     audio_output_t *aout = arg;
-    aout_sys_t *p_sys = aout->sys;
     float fvol = (float)volume / (float)SIO_MAXVOL;
 
     aout_VolumeReport (aout, fvol);
     aout_MuteReport (aout, volume == 0);
     if (volume) /* remember last non-zero volume to unmute later */
-        p_sys->volume = volume;
+        aout->sys->volume = volume;
 }
 
 static int VolumeSet (audio_output_t *aout, float fvol)

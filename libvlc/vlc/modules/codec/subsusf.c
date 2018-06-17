@@ -86,7 +86,7 @@ typedef struct
     int             i_margin_percent_v;
 }  ssa_style_t;
 
-typedef struct
+struct decoder_sys_t
 {
     int                 i_original_height;
     int                 i_original_width;
@@ -97,7 +97,7 @@ typedef struct
 
     image_attach_t      **pp_images;
     int                 i_images;
-} decoder_sys_t;
+};
 
 static int           DecodeBlock   ( decoder_t *, block_t * );
 static char         *CreatePlainText( char * );
@@ -221,7 +221,7 @@ static subpicture_t *ParseText( decoder_t *p_dec, block_t *p_block )
         return NULL;
 
     /* We cannot display a subpicture with no date */
-    if( p_block->i_pts == VLC_TS_INVALID )
+    if( p_block->i_pts <= VLC_TS_INVALID )
     {
         msg_Warn( p_dec, "subtitle without a date" );
         return NULL;

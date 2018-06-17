@@ -561,13 +561,14 @@ inline void VLCProfileEditor::registerCodecs()
     ADD_VCODEC( "DIVX 2" , "DIV2" )
     ADD_VCODEC( "DIVX 3" , "DIV3" )
     ADD_VCODEC( "H-263", "H263" )
-    ADD_VCODEC( "H-264 (AVC)", "h264" )
-    ADD_VCODEC( "H-265 (HEVC)", "hevc" )
+    ADD_VCODEC( "H-264", "h264" )
+    ADD_VCODEC( "H-265", "hevc" )
     ADD_VCODEC( "VP8", "VP80" )
     ADD_VCODEC( "WMV1", "WMV1" )
     ADD_VCODEC( "WMV2" , "WMV2" )
     ADD_VCODEC( "M-JPEG", "MJPG" )
     ADD_VCODEC( "Theora", "theo" )
+    ADD_VCODEC( "Dirac", "drac" )
 #undef ADD_VCODEC
     /* can do quality */
     qpcodecsList << "h264";
@@ -606,9 +607,8 @@ inline void VLCProfileEditor::registerCodecs()
 #undef ADD_SAMPLERATE
 
 #define ADD_SCODEC( name, fourcc ) ui.valueholder_subtitles_codec->addItem( name, QVariant( fourcc ) );
-    ADD_SCODEC( "DVBS (DVB subtitles)", "dvbs" )
-    ADD_SCODEC( "tx3g (MPEG-4 timed text)", "tx3g" )
-    ADD_SCODEC( "T-REC 140 (for rtp)", "t140" )
+    ADD_SCODEC( "DVB subtitle", "dvbs" )
+    ADD_SCODEC( "T.140", "t140" )
 #undef ADD_SCODEC
 }
 

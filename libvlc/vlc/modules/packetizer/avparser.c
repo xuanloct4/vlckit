@@ -50,12 +50,12 @@ vlc_module_end ()
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     AVCodecParserContext * p_parser_ctx;
     AVCodecContext * p_codec_ctx;
     int i_offset;
-} decoder_sys_t;
+};
 
 static block_t * Packetize( decoder_t *, block_t ** );
 static block_t * PacketizeClosed( decoder_t *, block_t ** );
@@ -142,12 +142,11 @@ int avparser_OpenPacketizer( vlc_object_t *p_this )
 void avparser_ClosePacketizer( vlc_object_t *p_this )
 {
     decoder_t     *p_dec = (decoder_t*)p_this;
-    decoder_sys_t *p_sys = p_dec->p_sys;
-    if (likely( p_sys != NULL ))
+    if (likely( p_dec->p_sys != NULL ))
     {
-        avcodec_free_context( &p_sys->p_codec_ctx );
-        av_parser_close( p_sys->p_parser_ctx );
-        free( p_sys );
+        avcodec_free_context( &p_dec->p_sys->p_codec_ctx );
+        av_parser_close( p_dec->p_sys->p_parser_ctx );
+        free( p_dec->p_sys );
     }
 }
 

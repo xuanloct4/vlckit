@@ -43,7 +43,6 @@
 
 #include <vlc_codecs.h>
 #include "dmo.h"
-#include "../../video_chroma/copy.h"
 
 #ifndef NDEBUG
 # define DMO_DEBUG 1
@@ -56,6 +55,20 @@
 #endif
 
 typedef long (STDCALL *GETCLASS) ( const GUID*, const GUID*, void** );
+
+static const int pi_channels_maps[7] =
+{
+    0,
+    AOUT_CHAN_CENTER,
+    AOUT_CHAN_LEFT | AOUT_CHAN_RIGHT,
+    AOUT_CHAN_CENTER | AOUT_CHAN_LEFT | AOUT_CHAN_RIGHT,
+    AOUT_CHAN_LEFT | AOUT_CHAN_RIGHT | AOUT_CHAN_REARLEFT
+     | AOUT_CHAN_REARRIGHT,
+    AOUT_CHAN_LEFT | AOUT_CHAN_RIGHT | AOUT_CHAN_CENTER
+     | AOUT_CHAN_REARLEFT | AOUT_CHAN_REARRIGHT,
+    AOUT_CHAN_LEFT | AOUT_CHAN_RIGHT | AOUT_CHAN_CENTER
+     | AOUT_CHAN_REARLEFT | AOUT_CHAN_REARRIGHT | AOUT_CHAN_LFE
+};
 
 /*****************************************************************************
  * Module descriptor
@@ -103,7 +116,7 @@ vlc_module_end ()
 /****************************************************************************
  * Decoder descriptor declaration
  ****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     HINSTANCE hmsdmo_dll;
     IMediaObject *p_dmo;
@@ -118,7 +131,7 @@ typedef struct
     vlc_cond_t   wait_input, wait_output;
     bool         b_ready, b_works;
     block_t     *p_input;
-} decoder_sys_t;
+};
 
 const GUID IID_IWMCodecPrivateData = {0x73f0be8e, 0x57f7, 0x4f01, {0xaa, 0x66, 0x9f, 0x57, 0x34, 0xc, 0xfe, 0xe}};
 const GUID IID_IMediaObject = {0xd8ad0f58, 0x5494, 0x4102, {0x97, 0xc5, 0xec, 0x79, 0x8e, 0x59, 0xbc, 0xf4}};
@@ -447,7 +460,7 @@ static int DecOpen( decoder_t *p_dec )
         if( p_dec->fmt_in.audio.i_channels > 8 )
             goto error;
         p_dec->fmt_out.audio.i_physical_channels =
-            vlc_chan_maps[p_dec->fmt_out.audio.i_channels];
+            pi_channels_maps[p_dec->fmt_out.audio.i_channels];
 
         p_wf->wFormatTag = WAVE_FORMAT_PCM;
         p_wf->nSamplesPerSec = p_dec->fmt_out.audio.i_rate;
@@ -597,7 +610,6 @@ static int DecOpen( decoder_t *p_dec )
         date_Init( &p_sys->end_date, p_dec->fmt_in.audio.i_rate, 1 );
     else
         date_Init( &p_sys->end_date, 25 /* FIXME */, 1 );
-    date_Set( &p_sys->end_date, VLC_TS_0 );
 
     free( p_vih );
     free( p_wf );
@@ -826,18 +838,18 @@ static int DecBlock( decoder_t *p_dec, block_t **pp_block )
     p_block = *pp_block;
 
     /* Won't work with streams with B-frames, but do we have any ? */
-    if( p_block && p_block->i_pts == VLC_TS_INVALID )
+    if( p_block && p_block->i_pts <= VLC_TS_INVALID )
         p_block->i_pts = p_block->i_dts;
 
     /* Date management */
-    if( p_block && p_block->i_pts != VLC_TS_INVALID &&
+    if( p_block && p_block->i_pts > VLC_TS_INVALID &&
         p_block->i_pts != date_Get( &p_sys->end_date ) )
     {
         date_Set( &p_sys->end_date, p_block->i_pts );
     }
 
 #if 0 /* Breaks the video decoding */
-    if( date_Get( &p_sys->end_date ) == VLC_TS_INVALID )
+    if( !date_Get( &p_sys->end_date ) )
     {
         /* We've just started the stream, wait for the first PTS. */
         if( p_block ) block_Release( p_block );
@@ -979,7 +991,9 @@ static void CopyPicture( picture_t *p_pic, uint8_t *p_in )
     int i_plane, i_line, i_width, i_dst_stride;
     uint8_t *p_dst, *p_src = p_in;
 
-    picture_SwapUV( p_pic );
+    p_dst = p_pic->p[1].p_pixels;
+    p_pic->p[1].p_pixels = p_pic->p[2].p_pixels;
+    p_pic->p[2].p_pixels = p_dst;
 
     for( i_plane = 0; i_plane < p_pic->i_planes; i_plane++ )
     {
@@ -995,7 +1009,9 @@ static void CopyPicture( picture_t *p_pic, uint8_t *p_in )
         }
     }
 
-    picture_SwapUV( p_pic );
+    p_dst = p_pic->p[1].p_pixels;
+    p_pic->p[1].p_pixels = p_pic->p[2].p_pixels;
+    p_pic->p[2].p_pixels = p_dst;
 }
 
 static void *DecoderThread( void *data )
@@ -1032,7 +1048,7 @@ static void *DecoderThread( void *data )
 /****************************************************************************
  * Encoder descriptor declaration
  ****************************************************************************/
-typedef struct
+struct encoder_sys_t
 {
     HINSTANCE hmsdmo_dll;
     IMediaObject *p_dmo;
@@ -1041,7 +1057,7 @@ typedef struct
 
     date_t end_date;
 
-} encoder_sys_t;
+};
 
 /*****************************************************************************
  * EncoderOpen: open dmo codec

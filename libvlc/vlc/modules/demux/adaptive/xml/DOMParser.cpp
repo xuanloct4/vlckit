@@ -84,9 +84,7 @@ bool DOMParser::reset(stream_t *s)
         return true;
     delete root;
     root = NULL;
-
-    xml_ReaderDelete(vlc_reader);
-    vlc_reader = xml_ReaderCreate(s, s);
+    vlc_reader = xml_ReaderReset(vlc_reader, s);
     return !!vlc_reader;
 }
 

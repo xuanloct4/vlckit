@@ -41,11 +41,10 @@ static inline picture_pool_t *vout_display_Pool(vout_display_t *vd, unsigned cou
  */
 static inline void vout_display_Prepare(vout_display_t *vd,
                                         picture_t *picture,
-                                        subpicture_t *subpicture,
-                                        mtime_t date)
+                                        subpicture_t *subpicture)
 {
-    if (vd->prepare)
-        vd->prepare(vd, picture, subpicture, date);
+    if (vd->prepare )
+        vd->prepare(vd, picture, subpicture);
 }
 
 /**
@@ -73,7 +72,8 @@ typedef struct {
  * It creates a vout managed display.
  */
 vout_display_t *vout_NewDisplay( vout_thread_t *, const video_format_t *,
-    const vout_display_state_t *, const char *module);
+    const vout_display_state_t *, const char *module,
+    mtime_t double_click_timeout, mtime_t hide_timeout );
 /**
  * It destroy a vout managed display.
  */
@@ -85,7 +85,6 @@ bool vout_AreDisplayPicturesInvalid(vout_display_t *);
 
 bool vout_ManageDisplay(vout_display_t *, bool allow_reset_pictures);
 
-void vout_SetDisplaySize(vout_display_t *, unsigned width, unsigned height);
 void vout_SetDisplayFilled(vout_display_t *, bool is_filled);
 void vout_SetDisplayZoom(vout_display_t *, unsigned num, unsigned den);
 void vout_SetDisplayAspect(vout_display_t *, unsigned num, unsigned den);

@@ -233,10 +233,10 @@ bool Win32Factory::init()
     OleInitialize( NULL );
 
     // Initialize the resource path
-    char *datadir = config_GetUserDir( VLC_USERDATA_DIR );
+    char *datadir = config_GetUserDir( VLC_DATA_DIR );
     m_resourcePath.push_back( (std::string)datadir + "\\skins" );
     free( datadir );
-    datadir = config_GetSysPath(VLC_PKG_DATA_DIR, NULL);
+    datadir = config_GetDataDir();
     m_resourcePath.push_back( (std::string)datadir + "\\skins" );
     m_resourcePath.push_back( (std::string)datadir + "\\skins2" );
     m_resourcePath.push_back( (std::string)datadir + "\\share\\skins" );
@@ -384,12 +384,11 @@ int Win32Factory::getScreenHeight() const
 }
 
 
-void Win32Factory::getMonitorInfo( OSWindow *pWindow,
+void Win32Factory::getMonitorInfo( const GenericWindow &rWindow,
                                    int* p_x, int* p_y,
                                    int* p_width, int* p_height ) const
 {
-    Win32Window *pWin = (Win32Window*)pWindow;
-    HWND wnd = pWin->getHandle();
+    HWND wnd = (HWND)rWindow.getOSHandle();
     HMONITOR hmon = MonitorFromWindow( wnd, MONITOR_DEFAULTTONEAREST );
     MONITORINFO mi;
     mi.cbSize = sizeof( MONITORINFO );
@@ -465,16 +464,15 @@ void Win32Factory::changeCursor( CursorType_t type ) const
     LPCTSTR id;
     switch( type )
     {
+    default:
     case kDefaultArrow: id = IDC_ARROW;    break;
     case kResizeNWSE:   id = IDC_SIZENWSE; break;
     case kResizeNS:     id = IDC_SIZENS;   break;
     case kResizeWE:     id = IDC_SIZEWE;   break;
     case kResizeNESW:   id = IDC_SIZENESW; break;
-    case kNoCursor:
-    default: id = 0;
     }
 
-    HCURSOR hCurs = (type == kNoCursor) ? NULL : LoadCursor( NULL, id );
+    HCURSOR hCurs = LoadCursor( NULL, id );
     SetCursor( hCurs );
 }
 

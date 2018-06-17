@@ -392,7 +392,7 @@ int input_vaControl( input_thread_t *p_input, int i_query, va_list args )
             }
 
             *array = calloc( p_title->i_seekpoint, sizeof(**array) );
-            if( unlikely(*array == NULL) )
+            if( unlikely(array == NULL) )
             {
                 vlc_mutex_unlock( &priv->p_item->lock );
                 return VLC_ENOMEM;
@@ -543,7 +543,7 @@ int input_vaControl( input_thread_t *p_input, int i_query, va_list args )
             size_t *pi_vout = va_arg( args, size_t * );
 
             input_resource_HoldVouts( priv->p_resource, ppp_vout, pi_vout );
-            if( *pi_vout == 0 )
+            if( *pi_vout <= 0 )
                 return VLC_EGENERIC;
             return VLC_SUCCESS;
         }
@@ -597,7 +597,7 @@ static void UpdateBookmarksOption( input_thread_t *p_input )
     vlc_memstream_puts( &vstr, "bookmarks=" );
 
     vlc_mutex_lock( &priv->p_item->lock );
-    var_Change( p_input, "bookmark", VLC_VAR_CLEARCHOICES );
+    var_Change( p_input, "bookmark", VLC_VAR_CLEARCHOICES, 0, 0 );
 
     for( int i = 0; i < priv->i_bookmark; i++ )
     {
@@ -605,7 +605,8 @@ static void UpdateBookmarksOption( input_thread_t *p_input )
 
         /* Add bookmark to choice-list */
         var_Change( p_input, "bookmark", VLC_VAR_ADDCHOICE,
-                    (vlc_value_t){ .i_int = i }, sp->psz_name );
+                    &(vlc_value_t){ .i_int = i },
+                    &(vlc_value_t){ .psz_string = sp->psz_name } );
 
         /* Append bookmark to option-buffer */
         /* TODO: escape inappropriate values */

@@ -81,7 +81,7 @@ vlc_module_begin ()
     set_subcategory(SUBCAT_INTERFACE_MAIN)
     set_callbacks(Open, Close)
     add_shortcut("curses")
-    add_directory("browse-dir", NULL, BROWSE_TEXT, BROWSE_LONGTEXT)
+    add_directory("browse-dir", NULL, BROWSE_TEXT, BROWSE_LONGTEXT, false)
 vlc_module_end ()
 
 #include "eject.c"
@@ -713,21 +713,12 @@ static int SubDrawObject(intf_sys_t *sys, int l, vlc_object_t *p_obj, int i_leve
                   p_obj->obj.object_type, name ? name : "", (void *)p_obj);
     free(name);
 
-    size_t count = 0, size;
-    vlc_object_t **tab = NULL;
-
-    do {
-        size = count;
-        tab = xrealloc(tab, size * sizeof (*tab));
-        count = vlc_list_children(p_obj, tab, size);
-    } while (size < count);
-
-    for (size_t i = 0; i < count ; i++) {
-        l = SubDrawObject(sys, l, tab[i], i_level,
-            (i == count - 1) ? "`-" : "|-" );
-        vlc_object_release(tab[i]);
+    vlc_list_t *list = vlc_list_children(p_obj);
+    for (int i = 0; i < list->i_count ; i++) {
+        l = SubDrawObject(sys, l, list->p_values[i].p_address, i_level,
+            (i == list->i_count - 1) ? "`-" : "|-" );
     }
-    free(tab);
+    vlc_list_release(list);
     return l;
 }
 
@@ -776,14 +767,14 @@ static int DrawInfo(intf_thread_t *intf, input_thread_t *p_input)
     vlc_mutex_lock(&item->lock);
     for (int i = 0; i < item->i_categories; i++) {
         info_category_t *p_category = item->pp_categories[i];
-        info_t *p_info;
-
         if (sys->color) color_set(C_CATEGORY, NULL);
         MainBoxWrite(sys, l++, _("  [%s]"), p_category->psz_name);
         if (sys->color) color_set(C_DEFAULT, NULL);
-        info_foreach(p_info, &p_category->infos)
+        for (int j = 0; j < p_category->i_infos; j++) {
+            info_t *p_info = p_category->pp_infos[j];
             MainBoxWrite(sys, l++, _("      %s: %s"),
                          p_info->psz_name, p_info->psz_value);
+        }
     }
     vlc_mutex_unlock(&item->lock);
 
@@ -805,6 +796,7 @@ static int DrawStats(intf_thread_t *intf, input_thread_t *p_input)
 
     vlc_mutex_lock(&item->lock);
     p_stats = item->p_stats;
+    vlc_mutex_lock(&p_stats->lock);
 
     for (int i = 0; i < item->i_es ; i++) {
         i_audio += (item->es[i]->i_cat == AUDIO_ES);
@@ -850,6 +842,7 @@ static int DrawStats(intf_thread_t *intf, input_thread_t *p_input)
     }
     if (sys->color) color_set(C_DEFAULT, NULL);
 
+    vlc_mutex_unlock(&p_stats->lock);
     vlc_mutex_unlock(&item->lock);
 
     return l;
@@ -1030,7 +1023,7 @@ static int DrawStatus(intf_thread_t *intf, input_thread_t *p_input)
 {
     intf_sys_t     *sys = intf->p_sys;
     playlist_t     *p_playlist = pl_Get(intf);
-    const char *name = _("VLC media player");
+    char *name = _("VLC media player");
     const size_t name_len = strlen(name) + sizeof(PACKAGE_VERSION);
     int y = 0;
     const char *repeat, *loop, *random;
@@ -1217,7 +1210,7 @@ static inline void RemoveLastUTF8Entity(char *psz, int len)
     psz[len] = '\0';
 }
 
-static char *GetDiscDevice(const char *name)
+static char *GetDiscDevice(intf_thread_t *intf, const char *name)
 {
     static const struct { const char *s; size_t n; const char *v; } devs[] =
     {
@@ -1231,7 +1224,7 @@ static char *GetDiscDevice(const char *name)
         size_t n = devs[i].n;
         if (!strncmp(name, devs[i].s, n)) {
             if (name[n] == '@' || name[n] == '\0')
-                return config_GetPsz(devs[i].v);
+                return config_GetPsz(intf, devs[i].v);
             /* Omit the beginning MRL-selector characters */
             return strdup(name + n);
         }
@@ -1262,7 +1255,7 @@ static void Eject(intf_thread_t *intf, input_thread_t *p_input)
     }
 
     name = playlist_CurrentPlayingItem(p_playlist)->p_input->psz_name;
-    device = name ? GetDiscDevice(name) : NULL;
+    device = name ? GetDiscDevice(intf, name) : NULL;
 
     PL_UNLOCK;
 
@@ -1538,24 +1531,22 @@ static void CycleESTrack(input_thread_t *input, const char *var)
     if (!input)
         return;
 
-    vlc_value_t *list;
-    size_t count;
-
-    if (var_Change(input, var, VLC_VAR_GETCHOICES,
-                   &count, &list, (char ***)NULL) < 0)
+    vlc_value_t val;
+    if (var_Change(input, var, VLC_VAR_GETCHOICES, &val, NULL) < 0)
         return;
 
+    vlc_list_t *list = val.p_list;
     int64_t current = var_GetInteger(input, var);
 
-    size_t i;
-    for (i = 0; i < count; i++)
-        if (list[i].i_int == current)
+    int i;
+    for (i = 0; i < list->i_count; i++)
+        if (list->p_values[i].i_int == current)
             break;
 
-    if (++i >= count)
+    if (++i >= list->i_count)
         i = 0;
-    var_SetInteger(input, var, list[i].i_int);
-    free(list);
+    var_SetInteger(input, var, list->p_values[i].i_int);
+    var_FreeList(&val, NULL);
 }
 
 static void HandleCommonKey(intf_thread_t *intf, input_thread_t *input,

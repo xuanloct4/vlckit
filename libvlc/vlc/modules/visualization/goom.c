@@ -100,11 +100,11 @@ typedef struct
 
 } goom_thread_t;
 
-typedef struct
+struct filter_sys_t
 {
     goom_thread_t *p_thread;
 
-} filter_sys_t;
+};
 
 static block_t *DoWork ( filter_t *, block_t * );
 
@@ -154,7 +154,7 @@ static int Open( vlc_object_t *p_this )
 
     p_thread->i_blocks = 0;
     date_Init( &p_thread->date, p_filter->fmt_in.audio.i_rate, 1 );
-    date_Set( &p_thread->date, VLC_TS_0 );
+    date_Set( &p_thread->date, 0 );
     p_thread->i_channels = aout_FormatNbChannels( &p_filter->fmt_in.audio );
 
     if( vlc_clone( &p_thread->thread,
@@ -242,7 +242,7 @@ static int FillBuffer( int16_t *p_data, int *pi_data,
                 p_block->i_buffer / sizeof(float) / p_this->i_channels );
 
         /* Date management */
-        if( p_block->i_pts != VLC_TS_INVALID &&
+        if( p_block->i_pts > VLC_TS_INVALID &&
             p_block->i_pts != date_Get( pi_date_end ) )
         {
            date_Set( pi_date_end, p_block->i_pts );

@@ -212,7 +212,7 @@ typedef struct
 
 } xds_t;
 
-typedef struct
+struct demux_sys_t
 {
   es_out_id_t *p_video;               /* ptr to video codec */
   es_out_id_t *p_audio;               /* holds either ac3 or mpeg codec ptr */
@@ -254,7 +254,7 @@ typedef struct
   ty_seq_table_t  *seq_table;         /* table of SEQ entries from mstr chk */
   bool      eof;
   bool      b_first_chunk;
-} demux_sys_t;
+};
 
 static int get_chunk_header(demux_t *);
 static mtime_t get_pts( const uint8_t *buf );
@@ -398,7 +398,7 @@ static int Demux( demux_t *p_demux )
 
     /* did we hit EOF earlier? */
     if( p_sys->eof )
-        return VLC_DEMUXER_EOF;
+        return 0;
 
     /*
      * what we do (1 record now.. maybe more later):
@@ -418,7 +418,7 @@ static int Demux( demux_t *p_demux )
     if( p_sys->b_first_chunk || p_sys->i_cur_rec >= p_sys->i_num_recs )
     {
         if( get_chunk_header(p_demux) == 0 || p_sys->i_num_recs == 0 )
-            return VLC_DEMUXER_EOF;
+            return 0;
     }
 
     /*======================================================================
@@ -437,12 +437,12 @@ static int Demux( demux_t *p_demux )
         {
             /* no data in payload; we're done */
             p_sys->i_cur_rec++;
-            return VLC_DEMUXER_SUCCESS;
+            return 1;
         }
 
         /* read in this record's payload */
         if( !( p_block_in = vlc_stream_Block( p_demux->s, l_rec_size ) ) )
-            return VLC_DEMUXER_EOF;
+            return 0;
 
         /* set these as 'unknown' for now */
         p_block_in->i_pts =
@@ -483,7 +483,7 @@ static int Demux( demux_t *p_demux )
 
     /* */
     p_sys->i_cur_rec++;
-    return VLC_DEMUXER_SUCCESS;
+    return 1;
 }
 
 /* Control */
@@ -533,11 +533,6 @@ static int Control(demux_t *p_demux, int i_query, va_list args)
     case DEMUX_SET_TIME:      /* arg is time in microsecs */
         i64 = va_arg( args, int64_t );
         return ty_stream_seek_time(p_demux, i64 * 1000);
-    case DEMUX_CAN_PAUSE:
-    case DEMUX_SET_PAUSE_STATE:
-    case DEMUX_CAN_CONTROL_PACE:
-    case DEMUX_GET_PTS_DELAY:
-        return demux_vaControlHelper( p_demux->s, 0, -1, 0, 1, i_query, args );
     case DEMUX_GET_FPS:
     default:
         return VLC_EGENERIC;
@@ -753,7 +748,7 @@ static int DemuxRecVideo( demux_t *p_demux, ty_rec_hdr_t *rec_hdr, block_t *p_bl
             //p_sys->l_last_ty_pts += 33366667;
         }
         /* set PTS for this block before we send */
-        if (p_sys->lastVideoPTS != VLC_TS_INVALID)
+        if (p_sys->lastVideoPTS > VLC_TS_INVALID)
         {
             p_block_in->i_pts = p_sys->lastVideoPTS;
             /* PTS gets used ONCE.
@@ -789,7 +784,7 @@ static int DemuxRecVideo( demux_t *p_demux, ty_rec_hdr_t *rec_hdr, block_t *p_bl
 
     }
     /* Send the CC data */
-    if( p_block_in->i_pts != VLC_TS_INVALID && p_sys->cc.i_data > 0 )
+    if( p_block_in->i_pts > VLC_TS_INVALID && p_sys->cc.i_data > 0 )
     {
         for( i = 0; i < 4; i++ )
         {
@@ -954,7 +949,7 @@ static int DemuxRecAudio( demux_t *p_demux, ty_rec_hdr_t *rec_hdr, block_t *p_bl
         /*msg_Dbg(p_demux,
                 "Adding SA Audio Packet Size %ld", l_rec_size ); */
 
-        if (p_sys->lastAudioPTS != VLC_TS_INVALID )
+        if (p_sys->lastAudioPTS > VLC_TS_INVALID )
             p_block_in->i_pts = p_sys->lastAudioPTS;
     }
     else if( subrec_type == 0x09 )
@@ -1005,7 +1000,7 @@ static int DemuxRecAudio( demux_t *p_demux, ty_rec_hdr_t *rec_hdr, block_t *p_bl
     }
 
     /* set PCR before we send (if PTS found) */
-    if( p_block_in->i_pts != VLC_TS_INVALID )
+    if( p_block_in->i_pts > VLC_TS_INVALID )
         es_out_Control( p_demux->out, ES_OUT_SET_PCR,
                         p_block_in->i_pts );
     /* Send data */
@@ -1418,8 +1413,8 @@ static void DemuxDecodeXds( demux_t *p_demux, uint8_t d1, uint8_t d2 )
 {
     demux_sys_t *p_sys = p_demux->p_sys;
 
-    XdsParse( &p_sys->xds, d1, d2 );
-    if( p_sys->xds.b_meta_changed )
+    XdsParse( &p_demux->p_sys->xds, d1, d2 );
+    if( p_demux->p_sys->xds.b_meta_changed )
     {
         xds_meta_t *m = &p_sys->xds.meta;
         vlc_meta_t *p_meta;
@@ -1463,7 +1458,7 @@ static void DemuxDecodeXds( demux_t *p_demux, uint8_t d1, uint8_t d2 )
             }
         }
     }
-    p_sys->xds.b_meta_changed = false;
+    p_demux->p_sys->xds.b_meta_changed = false;
 }
 
 /* seek to an exact time position within the stream, if possible.

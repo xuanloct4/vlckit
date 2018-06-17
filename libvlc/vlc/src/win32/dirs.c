@@ -206,42 +206,10 @@ error:
 #endif
 }
 
-static char *config_GetDataDir(void)
+char *config_GetDataDir (void)
 {
     const char *path = getenv ("VLC_DATA_PATH");
     return (path != NULL) ? strdup (path) : config_GetLibDir ();
-}
-
-char *config_GetSysPath(vlc_sysdir_t type, const char *filename)
-{
-    char *dir = NULL;
-
-    switch (type)
-    {
-        case VLC_PKG_DATA_DIR:
-            dir = config_GetDataDir();
-            break;
-        case VLC_PKG_LIB_DIR:
-        case VLC_PKG_LIBEXEC_DIR:
-            dir = config_GetLibDir();
-            break;
-        case VLC_SYSDATA_DIR:
-            break;
-        case VLC_LOCALE_DIR:
-            dir = config_GetSysPath(VLC_PKG_DATA_DIR, "locale");
-            break;
-        default:
-            vlc_assert_unreachable();
-    }
-
-    if (filename == NULL || unlikely(dir == NULL))
-        return dir;
-
-    char *path;
-    if (unlikely(asprintf(&path, "%s/%s", dir, filename) == -1))
-        path = NULL;
-    free(dir);
-    return path;
 }
 
 static char *config_GetShellDir (int csidl)
@@ -291,7 +259,7 @@ char *config_GetUserDir (vlc_userdir_t type)
         case VLC_HOME_DIR:
             return config_GetShellDir (CSIDL_PERSONAL);
         case VLC_CONFIG_DIR:
-        case VLC_USERDATA_DIR:
+        case VLC_DATA_DIR:
             return config_GetAppDir ();
         case VLC_CACHE_DIR:
 #if !VLC_WINSTORE_APP

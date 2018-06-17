@@ -190,9 +190,6 @@ void ForgedInitSegment::setFourCC(const std::string &fcc)
             case VLC_FOURCC( 'W', 'V', 'C', '1' ):
                 es_type = VIDEO_ES;
                 break;
-            case VLC_FOURCC( 'T', 'T', 'M', 'L' ):
-                es_type = SPU_ES;
-                break;
             case VLC_FOURCC( 'A', 'A', 'C', 'L' ):
             case VLC_FOURCC( 'W', 'M', 'A', 'P' ):
             default:
@@ -267,11 +264,6 @@ block_t * ForgedInitSegment::buildMoovBox()
                     trackinfo.fmt.i_extra = i_extradata;
                 }
             }
-            break;
-
-        case SPU_ES:
-            break;
-
         default:
             break;
     }
@@ -282,7 +274,7 @@ block_t * ForgedInitSegment::buildMoovBox()
     mp4mux_trackinfo_t *p_tracks = &trackinfo;
     bo_t *box = NULL;
 
-    if(mp4mux_CanMux( NULL, &trackinfo.fmt, VLC_FOURCC('s', 'm', 'o', 'o'), true ))
+    if(mp4mux_CanMux( NULL, &trackinfo.fmt ))
        box = mp4mux_GetMoovBox(NULL, &p_tracks, 1,
                                trackTimescale.ToTime(duration.Get()),
                                true, false, false, false);

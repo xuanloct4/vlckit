@@ -67,12 +67,12 @@ vlc_module_end ()
  * Local structures
  *****************************************************************************/
 
-typedef struct
+struct services_discovery_sys_t
 {
     AvahiThreadedPoll   *poll;
     AvahiClient         *client;
     vlc_dictionary_t    services_name_to_input_item;
-} services_discovery_sys_t;
+};
 
 static const struct
 {

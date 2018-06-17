@@ -43,9 +43,7 @@
 #include <vlc_block.h>
 #include <vlc_image.h>
 #include <vlc_aout.h>
-#ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
-#endif
 
 #include <DeckLinkAPI.h>
 #include <DeckLinkAPIDispatch.cpp>
@@ -264,7 +262,7 @@ vlc_module_begin()
                 AR_INDEX_TEXT, AR_INDEX_LONGTEXT, true)
                 change_integer_list(rgi_ar_values, rgsz_ar_text)
     add_loadfile(VIDEO_CFG_PREFIX "nosignal-image", NULL,
-                 NOSIGNAL_IMAGE_TEXT, NOSIGNAL_IMAGE_LONGTEXT)
+                NOSIGNAL_IMAGE_TEXT, NOSIGNAL_IMAGE_LONGTEXT, true)
 
 
     add_submodule ()
@@ -387,7 +385,7 @@ static BMDVideoConnection getVConn(vout_display_t *vd, BMDVideoConnection mask)
     }
     else /* Pick one as default connection */
     {
-        conn = vlc_ctz(mask);
+        conn = ctz(mask);
         conn = conn ? ( 1 << conn ) : bmdVideoConnectionSDI;
     }
     return conn;
@@ -734,6 +732,8 @@ static int OpenDecklink(vout_display_t *vd, decklink_sys_t *sys)
 
     vlc_mutex_unlock(&sys->lock);
 
+    vout_display_DeleteWindow(vd, NULL);
+
     return VLC_SUCCESS;
 
 error:
@@ -865,7 +865,7 @@ static void send_AFD(uint8_t afdcode, uint8_t ar, uint8_t *buf)
 
     /* parity bit */
     for (size_t i = 3; i < len - 1; i++)
-        afd[i] |= vlc_parity((unsigned)afd[i]) ? 0x100 : 0x200;
+        afd[i] |= parity(afd[i]) ? 0x100 : 0x200;
 
     /* vanc checksum */
     uint16_t vanc_sum = 0;
@@ -889,8 +889,7 @@ static void send_AFD(uint8_t afdcode, uint8_t ar, uint8_t *buf)
     }
 }
 
-static void PrepareVideo(vout_display_t *vd, picture_t *picture, subpicture_t *,
-                         mtime_t date)
+static void PrepareVideo(vout_display_t *vd, picture_t *picture, subpicture_t *)
 {
     decklink_sys_t *sys = (decklink_sys_t *) vd->sys;
     mtime_t now = mdate();
@@ -898,7 +897,7 @@ static void PrepareVideo(vout_display_t *vd, picture_t *picture, subpicture_t *,
     if (!picture)
         return;
 
-    if (now - date > sys->video.nosignal_delay * CLOCK_FREQ) {
+    if (now - picture->date > sys->video.nosignal_delay * CLOCK_FREQ) {
         msg_Dbg(vd, "no signal");
         if (sys->video.pic_nosignal) {
             picture = sys->video.pic_nosignal;
@@ -921,7 +920,7 @@ static void PrepareVideo(vout_display_t *vd, picture_t *picture, subpicture_t *,
                 }
             }
         }
-        date = now;
+        picture->date = now;
     }
 
     HRESULT result;
@@ -984,12 +983,13 @@ static void PrepareVideo(vout_display_t *vd, picture_t *picture, subpicture_t *,
     // compute frame duration in CLOCK_FREQ units
     length = (sys->frameduration * CLOCK_FREQ) / sys->timescale;
 
-    date -= sys->offset;
+    picture->date -= sys->offset;
     result = sys->p_output->ScheduleVideoFrame(pDLVideoFrame,
-        date, length, CLOCK_FREQ);
+        picture->date, length, CLOCK_FREQ);
 
     if (result != S_OK) {
-        msg_Err(vd, "Dropped Video frame %" PRId64 ": 0x%x", date, result);
+        msg_Err(vd, "Dropped Video frame %" PRId64 ": 0x%x",
+            picture->date, result);
         goto end;
     }
 
@@ -1124,7 +1124,7 @@ static int Start(audio_output_t *aout, audio_sample_format_t *restrict fmt)
     return VLC_SUCCESS;
 }
 
-static void PlayAudio(audio_output_t *aout, block_t *audio, mtime_t systempts)
+static void PlayAudio(audio_output_t *aout, block_t *audio)
 {
     decklink_sys_t *sys = (decklink_sys_t *) aout->sys;
     vlc_mutex_lock(&sys->lock);
@@ -1139,7 +1139,7 @@ static void PlayAudio(audio_output_t *aout, block_t *audio, mtime_t systempts)
     uint32_t sampleFrameCount = audio->i_buffer / (2 * 2 /*decklink_sys->i_channels*/);
     uint32_t written;
     HRESULT result = p_output->ScheduleAudioSamples(
-            audio->p_buffer, sampleFrameCount, systempts, CLOCK_FREQ, &written);
+            audio->p_buffer, sampleFrameCount, audio->i_pts, CLOCK_FREQ, &written);
 
     if (result != S_OK)
         msg_Err(aout, "Failed to schedule audio sample: 0x%X", result);
@@ -1156,7 +1156,7 @@ static int OpenAudio(vlc_object_t *p_this)
     if(!sys)
         return VLC_ENOMEM;
 
-    aout->sys = sys;
+    aout->sys = (aout_sys_t *) sys;
 
     vlc_mutex_lock(&sys->lock);
     //decklink_sys->i_channels = var_InheritInteger(vd, AUDIO_CFG_PREFIX "audio-channels");
@@ -1169,7 +1169,7 @@ static int OpenAudio(vlc_object_t *p_this)
     aout->flush     = Flush;
     aout->time_get  = TimeGet;
 
-    aout->pause     = aout_PauseDefault;
+    aout->pause     = NULL;
     aout->stop      = NULL;
     aout->mute_set  = NULL;
     aout->volume_set= NULL;

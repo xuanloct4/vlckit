@@ -800,10 +800,6 @@ static const staticentry_t p_list_video[] = {
         A("AV32"),
     B(VLC_CODEC_BGRA, "32 bits BGRA"),
         A("BGRA"),
-    B(VLC_CODEC_RGBA10, "32 bits RGB 10bits A 2bits"),
-        A("RGA0"),
-    B(VLC_CODEC_RGBA64, "64 bits RGBA"),
-        A("RGA4"),
 
     B(VLC_CODEC_GREY, "8 bits greyscale"),
         A("GREY"),
@@ -839,9 +835,6 @@ static const staticentry_t p_list_video[] = {
 
     B(VLC_CODEC_V210, "10-bit 4:2:2 Component YCbCr"),
         A("v210"),
-
-    B(VLC_CODEC_VUYA, "Packed YUV 4:4:4, V:U:Y:A"),
-        A("VUYA"),
 
     B(VLC_CODEC_NV12, "Biplanar 4:2:0 Y/UV"),
         A("NV12"),
@@ -1004,9 +997,6 @@ static const staticentry_t p_list_video[] = {
         A("LJ2C"),
         A("LJ2K"),
 
-    B(VLC_CODEC_WEBP, "WebP Image"),
-        A("WEBP"),
-
     B(VLC_CODEC_LAGARITH, "Lagarith Lossless"),
         A("LAGS"),
 
@@ -1136,15 +1126,6 @@ static const staticentry_t p_list_video[] = {
 
     B(VLC_CODEC_PIXLET, "Apple Pixlet" ),
         A("pxlt"),
-
-    B(VLC_CODEC_MAGICYUV, "MagicYUV lossless" ),
-        A("M8RG"),
-        A("M8RA"),
-        A("M8G0"),
-        A("M8Y0"),
-        A("M8Y2"),
-        A("M8Y4"),
-        A("M8YA"),
 };
 
 static const staticentry_t p_list_audio[] = {

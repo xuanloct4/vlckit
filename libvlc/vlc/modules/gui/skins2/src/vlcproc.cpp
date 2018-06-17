@@ -156,7 +156,7 @@ VlcProc::VlcProc( intf_thread_t *pIntf ): SkinObject( pIntf ),
 
     ADD_CALLBACK( getPL(), "volume" )
     ADD_CALLBACK( getPL(), "mute" )
-    ADD_CALLBACK( getPL(), "intf-toggle-fscontrol" )
+    ADD_CALLBACK( pIntf->obj.libvlc, "intf-toggle-fscontrol" )
 
     ADD_CALLBACK( getPL(), "random" )
     ADD_CALLBACK( getPL(), "loop" )
@@ -193,7 +193,7 @@ VlcProc::~VlcProc()
 
     var_DelCallback( getPL(), "volume", onGenericCallback, this );
     var_DelCallback( getPL(), "mute",onGenericCallback, this );
-    var_DelCallback( getPL(), "intf-toggle-fscontrol",
+    var_DelCallback( getIntf()->obj.libvlc, "intf-toggle-fscontrol",
                      onGenericCallback, this );
 
     var_DelCallback( getPL(), "random", onGenericCallback, this );
@@ -483,9 +483,10 @@ void VlcProc::on_intf_event_changed( vlc_object_t* p_obj, vlc_value_t newVal )
         case INPUT_EVENT_ES:
         {
             // Do we have audio
-            size_t audio_es;
-            var_Change( pInput, "audio-es", VLC_VAR_CHOICESCOUNT, &audio_es );
-            SET_BOOL( m_cVarHasAudio, audio_es > 0 );
+            vlc_value_t audio_es;
+            var_Change( pInput, "audio-es", VLC_VAR_CHOICESCOUNT,
+                            &audio_es, NULL );
+            SET_BOOL( m_cVarHasAudio, audio_es.i_int > 0 );
             break;
         }
 
@@ -518,10 +519,10 @@ void VlcProc::on_intf_event_changed( vlc_object_t* p_obj, vlc_value_t newVal )
 
         case INPUT_EVENT_CHAPTER:
         {
-            size_t chapters_count;
+            vlc_value_t chapters_count;
             var_Change( pInput, "chapter", VLC_VAR_CHOICESCOUNT,
-                        &chapters_count );
-            SET_BOOL( m_cVarDvdActive, chapters_count > 0 );
+                        &chapters_count, NULL );
+            SET_BOOL( m_cVarDvdActive, chapters_count.i_int > 0 );
             break;
         }
 

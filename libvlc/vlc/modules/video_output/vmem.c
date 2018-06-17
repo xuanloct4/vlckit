@@ -81,10 +81,9 @@ vlc_module_end()
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
-typedef struct
-{
+struct picture_sys_t {
     void *id;
-} picture_sys_t;
+};
 
 /* NOTE: the callback prototypes must match those of LibVLC */
 struct vout_display_sys_t {
@@ -105,7 +104,7 @@ typedef unsigned (*vlc_format_cb)(void **, char *, unsigned *, unsigned *,
                                   unsigned *, unsigned *);
 
 static picture_pool_t *Pool  (vout_display_t *, unsigned);
-static void           Prepare(vout_display_t *, picture_t *, subpicture_t *, mtime_t);
+static void           Prepare(vout_display_t *, picture_t *, subpicture_t *);
 static void           Display(vout_display_t *, picture_t *, subpicture_t *);
 static int            Control(vout_display_t *, int, va_list);
 
@@ -216,6 +215,9 @@ static int Open(vlc_object_t *object)
     vd->display = Display;
     vd->control = Control;
 
+    /* */
+    vout_display_SendEventDisplaySize(vd, fmt.i_width, fmt.i_height);
+    vout_display_DeleteWindow(vd, NULL);
     return VLC_SUCCESS;
 }
 
@@ -240,10 +242,8 @@ static picture_pool_t *Pool(vout_display_t *vd, unsigned count)
     return sys->pool;
 }
 
-static void Prepare(vout_display_t *vd, picture_t *pic, subpicture_t *subpic,
-                    mtime_t date)
+static void Prepare(vout_display_t *vd, picture_t *pic, subpicture_t *subpic)
 {
-    VLC_UNUSED(date);
     vout_display_sys_t *sys = vd->sys;
     picture_resource_t rsc = { .p_sys = NULL };
     void *planes[PICTURE_PLANE_MAX];

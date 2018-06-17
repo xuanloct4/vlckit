@@ -172,7 +172,7 @@ vlc_module_begin()
         change_safe()
 
     add_shortcut("imem")
-    set_capability("access", 1)
+    set_capability("access_demux", 0)
     set_callbacks(OpenDemux, CloseDemux)
 
     add_submodule()
@@ -306,7 +306,7 @@ static int OpenAccess(vlc_object_t *object)
     access->pf_read    = NULL;
     access->pf_block   = Block;
     access->pf_seek    = NULL;
-    access->p_sys      = sys;
+    access->p_sys      = (access_sys_t*)sys;
 
     return VLC_SUCCESS;
 }
@@ -416,9 +416,6 @@ static int OpenDemux(vlc_object_t *object)
     demux_t    *demux = (demux_t *)object;
     imem_sys_t *sys;
 
-    if (demux->out == NULL)
-        return VLC_EGENERIC;
-
     if (OpenCommon(object, &sys, demux->psz_location))
         return VLC_EGENERIC;
 
@@ -495,8 +492,11 @@ static int OpenDemux(vlc_object_t *object)
     /* */
     demux->pf_control = ControlDemux;
     demux->pf_demux   = Demux;
-    demux->p_sys      = sys;
+    demux->p_sys      = (demux_sys_t*)sys;
 
+    demux->info.i_update = 0;
+    demux->info.i_title = 0;
+    demux->info.i_seekpoint = 0;
     return VLC_SUCCESS;
 }
 
@@ -549,7 +549,7 @@ static int ControlDemux(demux_t *demux, int i_query, va_list args)
         return VLC_SUCCESS;
     }
     case DEMUX_SET_NEXT_DEMUX_TIME:
-        sys->deadline = va_arg(args, mtime_t);
+        sys->deadline = va_arg(args, int64_t);
         return VLC_SUCCESS;
 
     /* */

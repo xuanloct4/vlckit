@@ -31,11 +31,6 @@
 #include <limits.h> /* _POSIX_HOST_NAME_MAX */
 
 #include <xcb/xcb.h>
-#ifdef HAVE_XKBCOMMON
-# include <xcb/xkb.h>
-# include <xkbcommon/xkbcommon-x11.h>
-# include "vlc_xkb.h"
-#endif
 typedef xcb_atom_t Atom;
 #include <X11/Xatom.h> /* XA_WM_NAME */
 
@@ -48,7 +43,10 @@ typedef xcb_atom_t Atom;
 struct vout_window_sys_t
 {
     xcb_connection_t *conn;
+    key_handler_t *keys;
     vlc_thread_t thread;
+
+    xcb_cursor_t cursor; /* blank cursor */
 
     xcb_window_t root;
     xcb_atom_t wm_state;
@@ -56,223 +54,37 @@ struct vout_window_sys_t
     xcb_atom_t wm_state_below;
     xcb_atom_t wm_state_fullscreen;
 
-#ifdef HAVE_XKBCOMMON
-    struct
-    {
-        struct xkb_context *ctx;
-        struct xkb_keymap *map;
-        struct xkb_state *state;
-        uint8_t base;
-    } xkb;
-#endif
-
     bool embedded;
 };
 
-#ifdef HAVE_XKBCOMMON
-static int InitKeyboard(vout_window_t *wnd)
-{
-    vout_window_sys_t *sys = wnd->sys;
-    xcb_connection_t *conn = sys->conn;
-
-    int32_t core = xkb_x11_get_core_keyboard_device_id(conn);
-    if (core == -1)
-        return -1;
-
-    sys->xkb.map = xkb_x11_keymap_new_from_device(sys->xkb.ctx, conn, core,
-                                                  XKB_KEYMAP_COMPILE_NO_FLAGS);
-    if (unlikely(sys->xkb.map == NULL))
-        return -1;
-
-    sys->xkb.state = xkb_x11_state_new_from_device(sys->xkb.map, conn, core);
-    if (unlikely(sys->xkb.state == NULL))
-    {
-        xkb_keymap_unref(sys->xkb.map);
-        sys->xkb.map = NULL;
-        return -1;
-    }
-    return 0;
-}
-
-static void DeinitKeyboard(vout_window_t *wnd)
+static void ProcessEvent (vout_window_t *wnd, xcb_generic_event_t *ev)
 {
     vout_window_sys_t *sys = wnd->sys;
 
-    if (sys->xkb.map == NULL)
+    if (sys->keys != NULL && XCB_keyHandler_Process (sys->keys, ev) == 0)
         return;
-
-    xkb_state_unref(sys->xkb.state);
-    xkb_keymap_unref(sys->xkb.map);
-    sys->xkb.map = NULL;
-}
-
-static void ProcessKeyboardEvent(vout_window_t *wnd,
-                                 const xcb_generic_event_t *ev)
-{
-    vout_window_sys_t *sys = wnd->sys;
-
-    switch (ev->pad0)
-    {
-        case XCB_XKB_NEW_KEYBOARD_NOTIFY:
-        case XCB_XKB_MAP_NOTIFY:
-            msg_Dbg(wnd, "refreshing keyboard mapping");
-            DeinitKeyboard(wnd);
-            InitKeyboard(wnd);
-            break;
-
-        case XCB_XKB_STATE_NOTIFY:
-            if (sys->xkb.map != NULL)
-            {
-                const xcb_xkb_state_notify_event_t *ne = (void *)ev;
-
-                xkb_state_update_mask(sys->xkb.state, ne->baseMods,
-                                      ne->latchedMods, ne->lockedMods,
-                                      ne->baseGroup, ne->latchedGroup,
-                                      ne->lockedGroup);
-            }
-            break;
-    }
-}
-
-static int InitKeyboardExtension(vout_window_t *wnd)
-{
-    vout_window_sys_t *sys = wnd->sys;
-    xcb_connection_t *conn = sys->conn;
-    uint16_t maj, min;
-
-    if (!xkb_x11_setup_xkb_extension(conn, XKB_X11_MIN_MAJOR_XKB_VERSION,
-                                     XKB_X11_MIN_MINOR_XKB_VERSION,
-                                     XKB_X11_SETUP_XKB_EXTENSION_NO_FLAGS,
-                                     &maj, &min, &sys->xkb.base, NULL))
-    {
-        msg_Err(wnd, "XKeyboard initialization error");
-        return 0;
-    }
-
-    msg_Dbg(wnd, "XKeyboard v%"PRIu16".%"PRIu16" initialized", maj, min);
-    sys->xkb.ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-    if (unlikely(sys->xkb.ctx == NULL))
-        return -1;
-
-    /* Events: new KB, keymap change, state (modifiers) change */
-    const uint16_t affect = XCB_XKB_EVENT_TYPE_NEW_KEYBOARD_NOTIFY
-                          | XCB_XKB_EVENT_TYPE_MAP_NOTIFY
-                          | XCB_XKB_EVENT_TYPE_STATE_NOTIFY;
-    /* Map event sub-types: everything except key behaviours */
-    const uint16_t map_parts = XCB_XKB_MAP_PART_KEY_TYPES
-                             | XCB_XKB_MAP_PART_KEY_SYMS
-                             | XCB_XKB_MAP_PART_MODIFIER_MAP
-                             | XCB_XKB_MAP_PART_EXPLICIT_COMPONENTS
-                             | XCB_XKB_MAP_PART_KEY_ACTIONS
-                             | XCB_XKB_MAP_PART_VIRTUAL_MODS
-                             | XCB_XKB_MAP_PART_VIRTUAL_MOD_MAP;
-    static const xcb_xkb_select_events_details_t details =
-    {
-        /* New keyboard details */
-        .affectNewKeyboard = XCB_XKB_NKN_DETAIL_KEYCODES,
-        .newKeyboardDetails = XCB_XKB_NKN_DETAIL_KEYCODES,
-        /* State event sub-types: as per xkb_state_update_mask() */
-#define STATE_PARTS  XCB_XKB_STATE_PART_MODIFIER_BASE \
-                   | XCB_XKB_STATE_PART_MODIFIER_LATCH \
-                   | XCB_XKB_STATE_PART_MODIFIER_LOCK \
-                   | XCB_XKB_STATE_PART_GROUP_BASE \
-                   | XCB_XKB_STATE_PART_GROUP_LATCH \
-                   | XCB_XKB_STATE_PART_GROUP_LOCK
-        .affectState = STATE_PARTS,
-        .stateDetails = STATE_PARTS,
-    };
-
-    int32_t core = xkb_x11_get_core_keyboard_device_id(conn);
-    if (core == -1)
-    {
-        xkb_context_unref(sys->xkb.ctx);
-        sys->xkb.ctx = NULL;
-        return -1;
-    }
-
-    xcb_xkb_select_events_aux(conn, core, affect, 0, 0, map_parts, map_parts,
-                              &details);
-
-    InitKeyboard(wnd);
-    return 0;
-}
-
-static void DeinitKeyboardExtension(vout_window_t *wnd)
-{
-    vout_window_sys_t *sys = wnd->sys;
-
-    if (sys->xkb.ctx == NULL)
-        return;
-
-    DeinitKeyboard(wnd);
-    xkb_context_unref(sys->xkb.ctx);
-}
-#else
-# define InitKeyboardExtension(w) (w, -1)
-# define DeinitKeyboardExtension(w) ((void)(w))
-#endif
-
-static xcb_cursor_t CursorCreate(xcb_connection_t *conn, xcb_window_t root)
-{
-    xcb_cursor_t cur = xcb_generate_id(conn);
-    xcb_pixmap_t pix = xcb_generate_id(conn);
-
-    xcb_create_pixmap(conn, 1, pix, root, 1, 1);
-    xcb_create_cursor(conn, cur, pix, pix, 0, 0, 0, 0, 0, 0, 1, 1);
-    return cur;
-}
-
-static int ProcessEvent(vout_window_t *wnd, xcb_generic_event_t *ev)
-{
-    vout_window_sys_t *sys = wnd->sys;
-    int ret = 0;
 
     switch (ev->response_type & 0x7f)
     {
-        case XCB_KEY_PRESS:
-        {
-#ifdef HAVE_XKBCOMMON
-            xcb_key_press_event_t *e = (xcb_key_press_event_t *)ev;
-            uint_fast32_t vk = vlc_xkb_get_one(sys->xkb.state, e->detail);
-
-            msg_Dbg(wnd, "key: 0x%08"PRIxFAST32" (X11: 0x%04"PRIx32")",
-                    vk, e->detail);
-            if (vk == KEY_UNSET)
-                break;
-
-            vout_window_ReportKeyPress(wnd, vk);
-#endif
-            break;
-        }
-
-        case XCB_KEY_RELEASE:
-            break;
-
         /* Note a direct mapping of buttons from XCB to VLC is assumed. */
         case XCB_BUTTON_PRESS:
         {
             xcb_button_release_event_t *bpe = (void *)ev;
-
             vout_window_ReportMousePressed(wnd, bpe->detail - 1);
-            ret = 1;
             break;
         }
 
         case XCB_BUTTON_RELEASE:
         {
             xcb_button_release_event_t *bre = (void *)ev;
-
             vout_window_ReportMouseReleased(wnd, bre->detail - 1);
-            ret = 1;
             break;
         }
 
         case XCB_MOTION_NOTIFY:
         {
             xcb_motion_notify_event_t *mne = (void *)ev;
-
             vout_window_ReportMouseMoved(wnd, mne->event_x, mne->event_y);
-            ret = 1;
             break;
         }
 
@@ -290,18 +102,10 @@ static int ProcessEvent(vout_window_t *wnd, xcb_generic_event_t *ev)
             break;
 
         default:
-#ifdef HAVE_XKBCOMMON
-            if (sys->xkb.ctx != NULL && ev->response_type == sys->xkb.base)
-            {
-                ProcessKeyboardEvent(wnd, ev);
-                break;
-            }
-#endif
             msg_Dbg (wnd, "unhandled event %"PRIu8, ev->response_type);
     }
 
     free (ev);
-    return ret;
 }
 
 /** Background thread for X11 events handling */
@@ -310,57 +114,21 @@ static void *Thread (void *data)
     vout_window_t *wnd = data;
     vout_window_sys_t *p_sys = wnd->sys;
     xcb_connection_t *conn = p_sys->conn;
-    struct pollfd ufd = {
-        .fd = xcb_get_file_descriptor(conn),
-        .events = POLLIN,
-    };
-    xcb_cursor_t cursor = CursorCreate(conn, p_sys->root); /* blank cursor */
-    mtime_t lifetime = var_InheritInteger(wnd, "mouse-hide-timeout")
-                       * (CLOCK_FREQ / 1000);
-    mtime_t deadline = INT64_MAX;
 
-    if (ufd.fd == -1)
+    int fd = xcb_get_file_descriptor (conn);
+    if (fd == -1)
         return NULL;
 
     for (;;)
     {
-        int timeout = -1;
+        xcb_generic_event_t *ev;
+        struct pollfd ufd = { .fd = fd, .events = POLLIN, };
 
-        if (deadline != INT64_MAX)
-        {
-            mtime_t delay = deadline - mdate();
-            timeout = (delay > 0) ? delay / (CLOCK_FREQ / 1000) : 0;
-        }
-
-        int val = poll(&ufd, 1, timeout);
+        poll (&ufd, 1, -1);
 
         int canc = vlc_savecancel ();
-
-        if (val == 0)
-        {   /* timeout: hide cursor */
-            xcb_change_window_attributes(conn, wnd->handle.xid,
-                                         XCB_CW_CURSOR, &cursor);
-            xcb_flush(conn);
-            deadline = INT64_MAX;
-        }
-        else
-        {
-            xcb_generic_event_t *ev;
-            bool show_cursor = false;
-
-            while ((ev = xcb_poll_for_event (conn)) != NULL)
-                show_cursor = ProcessEvent(wnd, ev) || show_cursor;
-
-            if (show_cursor)
-            {
-                xcb_change_window_attributes(conn, wnd->handle.xid,
-                                             XCB_CW_CURSOR,
-                                             &(uint32_t){ XCB_CURSOR_NONE });
-                xcb_flush(conn);
-                deadline = mdate() + lifetime;
-            }
-        }
-
+        while ((ev = xcb_poll_for_event (conn)) != NULL)
+            ProcessEvent(wnd, ev);
         vlc_restorecancel (canc);
 
         if (xcb_connection_has_error (conn))
@@ -448,10 +216,19 @@ static int Control (vout_window_t *wnd, int cmd, va_list ap)
         }
 
         case VOUT_WINDOW_SET_FULLSCREEN:
-        case VOUT_WINDOW_UNSET_FULLSCREEN:
-            change_wm_state (wnd, cmd == VOUT_WINDOW_SET_FULLSCREEN,
-                             p_sys->wm_state_fullscreen);
+        {
+            bool fs = va_arg (ap, int);
+            change_wm_state (wnd, fs, p_sys->wm_state_fullscreen);
             break;
+        }
+        case VOUT_WINDOW_HIDE_MOUSE:
+        {
+            xcb_cursor_t cursor = (va_arg (ap, int) ? p_sys->cursor
+                                                    : XCB_CURSOR_NONE);
+            xcb_change_window_attributes (p_sys->conn, wnd->handle.xid,
+                                          XCB_CW_CURSOR, &(uint32_t){ cursor });
+            break;
+        }
 
         default:
             msg_Err (wnd, "request %d not implemented", cmd);
@@ -532,6 +309,18 @@ xcb_atom_t get_atom (xcb_connection_t *conn, xcb_intern_atom_cookie_t ck)
     return atom;
 }
 
+static
+xcb_cursor_t CursorCreate(xcb_connection_t *conn,
+                                   const xcb_screen_t *scr)
+{
+    xcb_cursor_t cur = xcb_generate_id (conn);
+    xcb_pixmap_t pix = xcb_generate_id (conn);
+
+    xcb_create_pixmap (conn, 1, pix, scr->root, 1, 1);
+    xcb_create_cursor (conn, cur, pix, pix, 0, 0, 0, 0, 0, 0, 1, 1);
+    return cur;
+}
+
 static void CacheAtoms (vout_window_sys_t *p_sys)
 {
     xcb_connection_t *conn = p_sys->conn;
@@ -554,6 +343,10 @@ static void CacheAtoms (vout_window_sys_t *p_sys)
  */
 static int Open (vout_window_t *wnd, const vout_window_cfg_t *cfg)
 {
+    if (cfg->type != VOUT_WINDOW_TYPE_INVALID
+     && cfg->type != VOUT_WINDOW_TYPE_XID)
+        return VLC_EGENERIC;
+
     xcb_generic_error_t *err;
     xcb_void_cookie_t ck;
 
@@ -623,8 +416,10 @@ static int Open (vout_window_t *wnd, const vout_window_cfg_t *cfg)
     wnd->sys = p_sys;
 
     p_sys->conn = conn;
-    if (var_InheritBool(wnd, "keyboard-events"))
-        InitKeyboardExtension(wnd);
+    if (var_InheritBool (wnd, "keyboard-events"))
+        p_sys->keys = XCB_keyHandler_Create (VLC_OBJECT(wnd), conn);
+    else
+        p_sys->keys = NULL;
     p_sys->root = scr->root;
 
     /* ICCCM
@@ -696,9 +491,13 @@ static int Open (vout_window_t *wnd, const vout_window_cfg_t *cfg)
      * request from this thread must be completed at this point. */
     if (vlc_clone (&p_sys->thread, Thread, wnd, VLC_THREAD_PRIORITY_LOW))
     {
-        DeinitKeyboardExtension(wnd);
+        if (p_sys->keys != NULL)
+            XCB_keyHandler_Destroy (p_sys->keys);
         goto error;
     }
+
+    /* Create cursor */
+    p_sys->cursor = CursorCreate(conn, scr);
 
     xcb_flush (conn); /* Make sure map_window is sent (should be useless) */
     return VLC_SUCCESS;
@@ -721,8 +520,9 @@ static void Close (vout_window_t *wnd)
 
     vlc_cancel (p_sys->thread);
     vlc_join (p_sys->thread, NULL);
+    if (p_sys->keys != NULL)
+        XCB_keyHandler_Destroy (p_sys->keys);
 
-    DeinitKeyboardExtension(wnd);
     xcb_disconnect (conn);
     free (wnd->display.x11);
     free (p_sys);
@@ -809,6 +609,10 @@ static void ReleaseDrawable (vlc_object_t *obj, xcb_window_t window)
  */
 static int EmOpen (vout_window_t *wnd, const vout_window_cfg_t *cfg)
 {
+    if (cfg->type != VOUT_WINDOW_TYPE_INVALID
+     && cfg->type != VOUT_WINDOW_TYPE_XID)
+        return VLC_EGENERIC;
+
     xcb_window_t window = var_InheritInteger (wnd, "drawable-xid");
     if (window == 0)
         return VLC_EGENERIC;
@@ -851,9 +655,14 @@ static int EmOpen (vout_window_t *wnd, const vout_window_cfg_t *cfg)
 
     /* Try to subscribe to keyboard and mouse events (only one X11 client can
      * subscribe to input events, so this can fail). */
-    if (var_InheritBool(wnd, "keyboard-events")
-     && InitKeyboardExtension(wnd) == 0)
-        value |= XCB_EVENT_MASK_KEY_PRESS;
+    if (var_InheritBool (wnd, "keyboard-events"))
+    {
+        p_sys->keys = XCB_keyHandler_Create (VLC_OBJECT(wnd), conn);
+        if (p_sys->keys != NULL)
+            value |= XCB_EVENT_MASK_KEY_PRESS;
+    }
+    else
+        p_sys->keys = NULL;
 
     if (var_InheritBool(wnd, "mouse-events"))
         value |= XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE;
@@ -864,7 +673,8 @@ static int EmOpen (vout_window_t *wnd, const vout_window_cfg_t *cfg)
     CacheAtoms (p_sys);
     if (vlc_clone (&p_sys->thread, Thread, wnd, VLC_THREAD_PRIORITY_LOW))
     {
-        DeinitKeyboardExtension(wnd);
+        if (p_sys->keys != NULL)
+            XCB_keyHandler_Destroy (p_sys->keys);
         goto error;
     }
 

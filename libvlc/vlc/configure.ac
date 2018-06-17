@@ -2,18 +2,18 @@ dnl Autoconf settings for vlc
 
 AC_COPYRIGHT([Copyright 1999-2018 VLC authors and VideoLAN])
 
-AC_INIT(vlc, 4.0.0-dev)
-VERSION_MAJOR=4
+AC_INIT(vlc, 3.0.4)
+VERSION_MAJOR=3
 VERSION_MINOR=0
-VERSION_REVISION=0
+VERSION_REVISION=4
 VERSION_EXTRA=0
-VERSION_DEV=dev
+VERSION_DEV=
 
 PKGDIR="vlc"
 AC_SUBST(PKGDIR)
 
 CONFIGURE_LINE="`echo "$0 $ac_configure_args" | sed -e 's/\\\/\\\\\\\/g'`"
-CODENAME="Otto Chriek"
+CODENAME="Vetinari"
 COPYRIGHT_YEARS="1996-2018"
 
 AC_CONFIG_SRCDIR(src/libvlc.c)
@@ -29,6 +29,16 @@ AC_CONFIG_HEADERS([config.h])
 
 AM_SILENT_RULES([yes])
 AM_MAINTAINER_MODE([enable])
+
+dnl
+dnl Directories
+dnl
+dnl vlcincludedir="\${includedir}/\${PKGDIR}"
+dnl AC_SUBST(vlcincludedir)
+vlcdatadir="\${datadir}/\${PKGDIR}"
+AC_SUBST(vlcdatadir)
+vlclibdir="\${libdir}/\${PKGDIR}"
+AC_SUBST(vlclibdir)
 
 dnl
 dnl Check for tools
@@ -47,6 +57,7 @@ AC_DEFINE([_THREAD_SAFE],, [Same as _REENTANT for some other OSes.])
 AC_DEFINE([__LIBVLC__],, [Define within the LibVLC source code tree.])
 AC_DEFINE([WIN32_LEAN_AND_MEAN],, [Define to limit the scope of <windows.h>.])
 
+AM_PROG_CC_C_O
 AC_PROG_CXX
 AC_PROG_CPP
 AC_PROG_OBJC
@@ -208,9 +219,8 @@ case "${host_os}" in
     AC_CHECK_TOOL(WINDRES, windres, :)
     AC_CHECK_TOOL(OBJCOPY, objcopy, :)
     AH_TOP([#if defined(_WIN32) && !defined(_WIN32_WINNT)])
-    AH_TOP([# define _WIN32_WINNT 0x0601 /* Windows 7 */])
+    AH_TOP([# define _WIN32_WINNT 0x0502 /* Windows XP SP2 */])
     AH_TOP([#endif])
-    AC_DEFINE([_WIN32_WINNT], 0x0601, [Define to '0x0601' for Windows 7 APIs.])
     AC_DEFINE([_WIN32_IE], 0x0600, [Define to '0x0600' for IE 6.0 (and shell) APIs.])
     AC_DEFINE([_UNICODE], [1], [Define to 1 for Unicode (Wide Chars) APIs.])
     AC_DEFINE([UNICODE], [1], [Define to 1 for Unicode (Wide Chars) APIs.])
@@ -503,17 +513,17 @@ dnl Check for broken versions of mingw-runtime compatability library
     AC_PREPROC_IFELSE([AC_LANG_SOURCE([
 #include <_mingw.h>
 #if defined(__MINGW64_VERSION_MAJOR)
-# if __MINGW64_VERSION_MAJOR < 5
-#  error Update your mingw-w64! This one is too old.
+# if __MINGW64_VERSION_MAJOR < 3
+#  error Attempting to use mingw-runtime with broken vsnprintf support
 # endif
-#else
-# error You cannot compile with Mingw. Use Mingw-w64!
+#elif __MINGW32_MAJOR_VERSION == 3 && __MINGW32_MINOR_VERSION < 15
+# error Attempting to use mingw-runtime with broken vsnprintf support
 #endif
     ])], [
         AC_MSG_RESULT([ok])
     ], [
         AC_MSG_RESULT([present])
-        AC_MSG_ERROR([LibVLC requires Mingw-w64 version 5.0 or higher!])
+        AC_MSG_ERROR([LibVLC requires mingw-runtime version 3.15 or higher, or mingw-w64 version 3.0 or higher!])
     ])
 
     dnl force use of mingw provided c99 *printf over msvcrt
@@ -531,22 +541,21 @@ dnl Check for broken versions of mingw-runtime compatability library
     ])
 
     dnl Check for fnative-struct or mms-bitfields support for mingw32
-    AX_CHECK_COMPILE_FLAG([-mms-bitfields], [
-        AX_APPEND_FLAG([-mms-bitfields], [CFLAGS])
-        AX_APPEND_FLAG([-mms-bitfields], [CXXFLAGS])
-        # Check for the warning flag without "-Wno-", GCC accepts
-        # -Wno-<anything> for unsupported warnings, which can trigger
-        # other warnings instead.
-        AX_CHECK_COMPILE_FLAG([-Wincompatible-ms-struct], [
-            AX_APPEND_FLAG([-Wno-incompatible-ms-struct], [CFLAGS])
-            AX_APPEND_FLAG([-Wno-incompatible-ms-struct], [CXXFLAGS])
-        ])
-    ], [
-        AX_CHECK_COMPILE_FLAG([-fnative-struct], [
-            AX_APPEND_FLAG([-fnative-struct], [CFLAGS])
-            AX_APPEND_FLAG([-fnative-struct], [CXXFLAGS])
-        ])
-    ])
+    VLC_SAVE_FLAGS
+    CFLAGS="${CFLAGS} -mms-bitfields"
+    CXXFLAGS="${CXXFLAGS} -mms-bitfields"
+    AC_CACHE_CHECK([if \$CC accepts -mms-bitfields],
+        [ac_cv_c_mms_bitfields],
+        [AC_TRY_COMPILE([],,ac_cv_c_mms_bitfields=yes, ac_cv_c_mms_bitfields=no)])
+    if test "${ac_cv_c_mms_bitfields}" = "no"; then
+        VLC_RESTORE_FLAGS
+        CFLAGS="${CFLAGS} -fnative-struct"
+        CXXFLAGS="${CXXFLAGS} -fnative-struct"
+        AC_CACHE_CHECK([if \$CC accepts -fnative-struct],
+            [ac_cv_c_fnative_struct],
+            [AC_TRY_COMPILE([],,ac_cv_c_fnative_struct=yes, ac_cv_c_fnative_struct=no)])
+        "${ac_cv_c_fnative_struct}" = "no" && VLC_RESTORE_FLAGS
+    fi
 ])
 
 
@@ -581,8 +590,8 @@ dnl Check for system libs needed
 need_libc=false
 
 dnl Check for usual libc functions
-AC_CHECK_FUNCS([accept4 daemon fcntl flock fstatvfs fork getenv getpwuid_r isatty memalign mkostemp mmap open_memstream newlocale openat pipe2 pread posix_fadvise posix_madvise posix_memalign setlocale stricmp strnicmp strptime uselocale])
-AC_REPLACE_FUNCS([aligned_alloc atof atoll dirfd fdopendir flockfile fsync getdelim getpid lldiv memrchr nrand48 poll recvmsg rewind sendmsg setenv strcasecmp strcasestr strdup strlcpy strndup strnlen strnstr strsep strtof strtok_r strtoll swab tdestroy tfind timegm timespec_get strverscmp pathconf])
+AC_CHECK_FUNCS([accept4 daemon fcntl flock fstatvfs fork getenv getpwuid_r isatty lstat memalign mkostemp mmap open_memstream openat pipe2 pread posix_fadvise posix_madvise posix_memalign setlocale stricmp strnicmp strptime tdestroy uselocale])
+AC_REPLACE_FUNCS([aligned_alloc atof atoll dirfd fdopendir ffsll flockfile fsync getdelim getpid lldiv memrchr nrand48 poll recvmsg rewind sendmsg setenv strcasecmp strcasestr strdup strlcpy strndup strnlen strnstr strsep strtof strtok_r strtoll swab tfind timegm timespec_get strverscmp pathconf])
 AC_REPLACE_FUNCS([gettimeofday])
 AC_CHECK_FUNC(fdatasync,,
   [AC_DEFINE(fdatasync, fsync, [Alias fdatasync() to fsync() if missing.])
@@ -613,7 +622,7 @@ AC_FUNC_STRCOLL
 dnl Check for non-standard system calls
 case "$SYS" in
   "linux")
-    AC_CHECK_FUNCS([eventfd vmsplice sched_getaffinity recvmmsg memfd_create])
+    AC_CHECK_FUNCS([eventfd vmsplice sched_getaffinity recvmmsg])
     ;;
   "mingw32")
     AC_CHECK_FUNCS([_lock_file])
@@ -649,7 +658,7 @@ AC_SEARCH_LIBS(connect, [socket], [
   ])
 ], [
   AS_IF([test "${SYS}" = "mingw32"], [
-    SOCKET_LIBS="-lws2_32 -liphlpapi"
+    SOCKET_LIBS="-lws2_32"
   ])
 ])
 
@@ -662,11 +671,10 @@ AC_SEARCH_LIBS([inet_pton], [nsl], [
 LIBS="${LIBS} ${SOCKET_LIBS}"
 AC_LINK_IFELSE([
     AC_LANG_PROGRAM([#ifdef _WIN32
-        #include <ws2tcpip.h>
-        #include <windows.h>
         # if _WIN32_WINNT < 0x600
         #  error Needs vista+
         # endif
+        #include <ws2tcpip.h>
         #else
         #include <sys/socket.h>
         #include <arpa/inet.h>
@@ -674,7 +682,7 @@ AC_LINK_IFELSE([
         char dst[[sizeof(struct in_addr)]];
         inet_pton(AF_INET, "127.0.0.1", dst);
     ])],[AC_DEFINE([HAVE_INET_PTON],[1],[Define to 1 if you have inet_pton function])],[AC_LIBOBJ([inet_pton])])
-AC_CHECK_FUNCS([if_nameindex])
+AC_CHECK_FUNCS([if_nameindex if_nametoindex])
 VLC_RESTORE_FLAGS
 AC_SUBST(SOCKET_LIBS)
 
@@ -844,18 +852,6 @@ AC_CHECK_HEADERS([features.h getopt.h linux/dccp.h linux/magic.h mntent.h sys/ev
 dnl  MacOS
 AC_CHECK_HEADERS([xlocale.h])
 
-dnl Check if C++ headers define locale_t
-AC_LANG_PUSH(C++)
-AC_CACHE_CHECK([if C++ headers define locale_t],
-  [ac_cv_cxx_locale_t],
-  [ac_cv_cxx_locale_t=no
-   AC_TRY_COMPILE([#include <locale>], [locale_t loc;],
-                    [ac_cv_cxx_locale_t=yes])])
-if test "${ac_cv_cxx_locale_t}" != "no"; then
-  AC_DEFINE(HAVE_CXX_LOCALE_T, 1, Define to 1 if C++ headers define locale_t)
-fi
-AC_LANG_POP(C++)
-
 dnl LP64 and LLP64 architectures had better define ssize_t by themselves...
 AH_TEMPLATE(ssize_t, [Define to `int' if <stddef.h> does not define.]) dnl ` (fix VIM syntax highlight
 AC_CHECK_TYPE(ssize_t,, [
@@ -879,14 +875,23 @@ AS_IF([test -n "${PKG_CONFIG}" ],[
 
 
 dnl
-dnl Check for zlib.h and -lz if available
+dnl Check for zlib.h and -lz along with system -lminizip if available
 dnl
 AC_CHECK_HEADERS(zlib.h, [ have_zlib=yes ], [ have_zlib=no ])
 AM_CONDITIONAL(HAVE_ZLIB, [ test "${have_zlib}" = "yes" ])
 if test "${have_zlib}" = "yes"
 then
   VLC_ADD_LIBS([sap],[-lz])
+  PKG_CHECK_MODULES([MINIZIP], [minizip] , [ have_minizip=yes ], [
+    AC_CHECK_HEADERS([unzip.h], [
+      have_minizip=yes
+      MINIZIP_LIBS="-lminizip -lz"
+    ], [
+      have_minizip=no
+    ])
+  ])
 fi
+AM_CONDITIONAL(HAVE_MINIZIP, [ test "${have_minizip}" = "yes" ])
 
 
 dnl
@@ -933,10 +938,10 @@ dnl
 dnl  Compiler warnings
 dnl
 
-AX_APPEND_COMPILE_FLAGS([-Wall -Wextra -Wsign-compare -Wundef -Wpointer-arith -Wvolatile-register-var -Wformat -Wformat-security -Wduplicated-branches -Wduplicated-cond], [CFLAGS])
-AX_APPEND_COMPILE_FLAGS([-Wall -Wextra -Wsign-compare -Wundef -Wpointer-arith -Wvolatile-register-var -Wformat -Wformat-security -Wduplicated-branches -Wduplicated-cond], [CXXFLAGS])
+AX_APPEND_COMPILE_FLAGS([-Wall -Wextra -Wsign-compare -Wundef -Wpointer-arith -Wvolatile-register-var -Wformat -Wformat-security], [CFLAGS])
+AX_APPEND_COMPILE_FLAGS([-Wall -Wextra -Wsign-compare -Wundef -Wpointer-arith -Wvolatile-register-var -Wformat -Wformat-security], [CXXFLAGS])
 
-AX_APPEND_COMPILE_FLAGS([-Wbad-function-cast -Wwrite-strings -Wmissing-prototypes -Werror-implicit-function-declaration -Winit-self -Wlogical-op -Wshadow=local -Wmultistatement-macros], [CFLAGS])
+AX_APPEND_COMPILE_FLAGS([-Wbad-function-cast -Wwrite-strings -Wmissing-prototypes -Werror-implicit-function-declaration -Winit-self -Wlogical-op -Wshadow=local], [CFLAGS])
 AX_APPEND_COMPILE_FLAGS([-pipe], [CFLAGS])
 
 dnl
@@ -1027,8 +1032,8 @@ AS_VAR_IF(with_sanitizer, no, [], [
     AX_APPEND_FLAG([-g], [CXXFLAGS])
 
     AS_IF([test -z "${with_sanitizer##*address*}" ], [
-       AX_APPEND_COMPILE_FLAGS([-fsanitize-address-use-after-scope -fno-omit-frame-pointer -fsanitize=pointer-compare -fsanitize=pointer-subtract])
-       AX_APPEND_COMPILE_FLAGS([-fsanitize-address-use-after-scope -fno-omit-frame-pointer -fsanitize=pointer-compare -fsanitize=pointer-subtract], [CXXFLAGS])
+       AX_APPEND_COMPILE_FLAGS([-fsanitize-address-use-after-scope -fno-omit-frame-pointer])
+       AX_APPEND_COMPILE_FLAGS([-fsanitize-address-use-after-scope -fno-omit-frame-pointer], [CXXFLAGS])
     ])
     AS_IF([test -z "${with_sanitizer##*memory*}" ], [
         AX_APPEND_COMPILE_FLAGS([-fPIE -pie])
@@ -1114,35 +1119,13 @@ AH_BOTTOM([
     AS_IF([test "${ac_cv_c_omit_frame_pointer}" = "no"], [VLC_RESTORE_FLAGS])
   ])
 
-])
-
-AC_ARG_ENABLE(ssp, [
-  AS_HELP_STRING([--disable-ssp],
-  [disable stack smashing protection (default enabled for optimized builds)])
-],,[enable_ssp="yes"])
-
-AS_IF([test "${enable_ssp}" != "no" -a "${enable_optimizations}" != "no"], [
-  VLC_SAVE_FLAGS
   AX_APPEND_COMPILE_FLAGS([-fstack-protector-strong])
   AX_APPEND_COMPILE_FLAGS([-fstack-protector-strong], [CXXFLAGS])
   dnl Win32 requires linking to ssp for stack-protection
   AS_IF([test "${SYS}" = "mingw32"], [
       LDFLAGS="${LDFLAGS} -lssp"
-      AC_CACHE_CHECK([if linker supports stack protectors], [ac_cv_ld_ssp], [
-        AC_TRY_LINK([#include <stdio.h>],[char buf[100]; fgets(buf, sizeof(buf), stdin);], [
-          ac_cv_ld_ssp="yes"
-        ], [
-          ac_cv_ld_ssp="no"
-        ])
-      ])
-      AS_IF([test "${ac_cv_ld_ssp}" = "no"], [VLC_RESTORE_FLAGS])
+      AS_IF([test "${vlc_winstore_app}" != 1], [LDFLAGS="${LDFLAGS} -ladvapi32"])
   ])
-])
-
-AS_IF([test "${SYS}" = "mingw32"], [
-    dnl library for BCrypt APIs
-    AS_IF([test "${vlc_winstore_app}" = 1],
-          [LDFLAGS="${LDFLAGS} -lbcrypt"])
 ])
 
 VLC_SAVE_FLAGS
@@ -1185,10 +1168,6 @@ dnl
 case "${host_cpu}" in
   "")
     ARCH=unknown
-    ;;
-  armv*)
-    ARCH="arm"
-    host_cpu="arm"
     ;;
   *)
     ARCH="${host_cpu}"
@@ -1855,7 +1834,8 @@ PKG_ENABLE_MODULES_VLC([OPENCV], [opencv_example opencv_wrapper], [opencv > 2.0]
 dnl
 dnl  libsmbclient plugin
 dnl
-PKG_ENABLE_MODULES_VLC([SMBCLIENT], [smbc], [smbclient], (SMB/CIFS support), [auto])
+PKG_ENABLE_MODULES_VLC([SMBCLIENT], [smb], [smbclient], (SMB/CIFS support), [auto])
+AS_IF([test "${SYS}" = "mingw32" -a "${enable_winstore_app}" != "yes"], [ VLC_ADD_PLUGIN([smb]) ])
 
 dnl
 dnl  liBDSM access module
@@ -1879,7 +1859,7 @@ AC_ARG_ENABLE(v4l2, [AS_HELP_STRING([--disable-v4l2],
   [disable Video4Linux version 2 (default auto)])])
 have_v4l2="no"
 AS_IF([test "$enable_v4l2" != "no"], [
-  AC_CHECK_HEADERS([linux/videodev2.h], [
+  AC_CHECK_HEADERS([linux/videodev2.h sys/videoio.h], [
     have_v4l2="yes"
   ])
 ])
@@ -2146,13 +2126,7 @@ fi
 dnl
 dnl  matroska demux plugin
 dnl
-PKG_WITH_MODULES([MATROSKA], [libebml libmatroska], [
-       VLC_ADD_PLUGIN([mkv])
-       VLC_ADD_CFLAGS([mkv], [$MATROSKA_CFLAGS])
-       VLC_ADD_LIBS([mkv], [$MATROSKA_LIBS])
-       have_matroska="yes"
-   ],,[MKV format support], [auto])
-AM_CONDITIONAL([HAVE_MATROSKA], [test "${have_matroska}" = "yes"])
+PKG_ENABLE_MODULES_VLC([MATROSKA], [mkv], [libebml libmatroska], [MKV format support], [auto])
 
 dnl
 dnl  modplug demux plugin
@@ -2221,14 +2195,24 @@ then
 fi
 
 dnl
+dnl openmax il vout plugin
+dnl
+AC_ARG_ENABLE(omxil-vout,
+  [  --enable-omxil-vout     openmax il video output module (default disabled)])
+if test "${enable_omxil_vout}" = "yes"
+then
+  VLC_ADD_PLUGIN([omxil_vout])
+fi
+
+dnl
 dnl raspberry pi openmax il configuration
 dnl
 AC_ARG_ENABLE(rpi-omxil,
   [  --enable-rpi-omxil     openmax il configured for raspberry pi (default disabled)])
 if test "${enable_rpi_omxil}" = "yes"
 then
-  VLC_ADD_PLUGIN([omxil])
-  VLC_ADD_CFLAGS([omxil],[-DRPI_OMX])
+  VLC_ADD_PLUGIN([omxil omxil_vout])
+  VLC_ADD_CFLAGS([omxil omxil_vout],[-DRPI_OMX])
 fi
 
 dnl
@@ -2839,12 +2823,36 @@ dnl x265 encoder
 PKG_ENABLE_MODULES_VLC([X265],, [x265], [HEVC/H.265 encoder], [auto])
 
 dnl
+dnl H264 encoder plugin (10-bit lib264)
+dnl
+AC_ARG_ENABLE(x26410b,
+  [  --enable-x26410b           H264 10-bit encoding support with static libx264 (default disabled)])
+if test "${enable_x26410b}" != "no"; then
+    PKG_CHECK_MODULES(X26410B, x26410b, [
+        VLC_ADD_PLUGIN([x26410b])
+        VLC_ADD_LIBS([x26410b],[${X26410B_LIBS}])
+        AS_IF([test -n "${ac_cv_ld_bsymbolic}"], [
+          VLC_ADD_LDFLAGS([x26410b],[${ac_cv_ld_bsymbolic}])
+        ])
+        VLC_ADD_CFLAGS([x26410b],[${X26410B_CFLAGS}])
+        if echo ${X26410B_LIBS} |grep -q 'pthreadGC2'; then
+          VLC_ADD_CFLAGS([x26410b], [-DPTW32_STATIC_LIB])
+        fi
+    ], [
+       if test "${enable_x26410b}" = "yes"; then
+        AC_MSG_ERROR([x26410b module doesn't work without staticly compiled libx264.a])
+       fi
+    ])
+fi
+
+
+dnl
 dnl H264 encoder plugin (using libx264)
 dnl
 AC_ARG_ENABLE(x264,
   [  --enable-x264           H264 encoding support with libx264 (default enabled)])
 if test "${enable_x264}" != "no"; then
-      PKG_CHECK_MODULES(X264,x264 >= 0.148, [
+      PKG_CHECK_MODULES(X264,x264 >= 0.86, [
         VLC_ADD_PLUGIN([x264])
         VLC_ADD_LIBS([x264],[${X264_LIBS}])
 
@@ -2862,32 +2870,6 @@ if test "${enable_x264}" != "no"; then
           fi
       ])
 fi
-
-dnl
-dnl H264 encoder plugin (libx264 > 153)
-dnl
-AC_ARG_ENABLE(x26410b,
-  [  --enable-x26410b           H264 10-bit encoding support with libx264 (default enabled)])
-if test "${enable_x26410b}" != "no"; then
-      PKG_CHECK_MODULES(X26410b,x264 >= 0.153, [
-        VLC_ADD_PLUGIN([x26410b])
-        VLC_ADD_LIBS([x26410b],[${X264_LIBS}])
-
-        AS_IF([test -n "${ac_cv_ld_bsymbolic}"], [
-          VLC_ADD_LDFLAGS([x26410b],[${ac_cv_ld_bsymbolic}])
-        ])
-
-        VLC_ADD_CFLAGS([x26410b],[${X264_CFLAGS}])
-        if echo ${X264_LIBS} |grep -q 'pthreadGC2'; then
-          VLC_ADD_CFLAGS([x26410b], [-DPTW32_STATIC_LIB])
-        fi
-      ],[
-        if test "${enable_x26410b}" = "yes"; then
-            AC_MSG_ERROR([${X264_PKG_ERRORS}: you may get it from http://www.videolan.org/x264.html])
-          fi
-      ])
-fi
-
 
 dnl
 dnl Intel QuickSync (aka MediaSDK) H264/H262 encoder
@@ -3043,9 +3025,6 @@ PKG_CHECK_MODULES([GL], [gl], [
   AC_MSG_RESULT([${have_gl}])
 ])
 AM_CONDITIONAL([HAVE_GL], [test "${have_gl}" = "yes"])
-AS_IF([test "${have_gl}" = "yes"], [
-  AC_DEFINE([HAVE_GL], 1, [Defined if having OpenGL])
-])
 
 dnl OpenGL ES 2: depends on EGL 1.1
 PKG_ENABLE_MODULES_VLC([GLES2], [], [glesv2], [OpenGL ES v2 support], [disabled])
@@ -3068,54 +3047,38 @@ AC_ARG_ENABLE(xcb,
     enable_xcb="no"
   ])
 ])
+AC_ARG_ENABLE(xvideo,
+  [  --enable-xvideo         XVideo support (default enabled)],, [
+    enable_xvideo="$enable_xcb"
+])
 
 have_xcb="no"
-have_xkbcommon_x11="no"
 have_xcb_keysyms="no"
+have_xcb_randr="no"
+have_xcb_xvideo="no"
 AS_IF([test "${enable_xcb}" != "no"], [
-  xcb_err=""
-
   dnl libxcb
-  PKG_CHECK_MODULES([XCB], [xcb >= 1.6],, [
-    xcb_err="$xcb_err ${XCB_PKG_ERRORS}."])
-  PKG_CHECK_MODULES([XCB_COMPOSITE], [xcb-composite],, [
-    xcb_err="$xcb_err ${XCB_COMPOSITE_PKG_ERRORS}."])
-  PKG_CHECK_MODULES([XCB_RANDR], [xcb-randr >= 1.3],, [
-    xcb_err="$xcb_err ${XCB_RANDR_PKG_ERRORS}."])
-  PKG_CHECK_MODULES([XCB_SHM], [xcb-shm],, [
-    xcb_err="$xcb_err ${XCB_SHM_PKG_ERRORS}."])
-  PKG_CHECK_MODULES([XCB_XKB], [xcb-xkb],, [
-    xcb_err="$xcb_err ${XCB_XKB_PKG_ERRORS}."])
-  PKG_CHECK_MODULES([XCB_XV], [xcb-xv >= 1.1.90.1],, [
-    xcb_err="$xcb_err ${XCB_XV_PKG_ERRORS}."])
+  PKG_CHECK_MODULES(XCB, [xcb >= 1.6])
+  have_xcb="yes"
+  PKG_CHECK_MODULES(XCB_SHM, [xcb-shm])
+  PKG_CHECK_MODULES(XCB_COMPOSITE, [xcb-composite])
+  PKG_CHECK_MODULES(XPROTO, [xproto])
 
-  dnl xproto
-  PKG_CHECK_MODULES(XPROTO, [xproto],, [
-    xcb_err="$xcb_err ${XPROTO_PKG_ERRORS}."])
-
-  AS_IF([test -n "$xcb_err"], [
-    AC_MSG_ERROR([$xcb_err Pass --disable-xcb to skip X11 support.])
+  AS_IF([test "${enable_xvideo}" != "no"], [
+    PKG_CHECK_MODULES(XCB_XV, [xcb-xv >= 1.1.90.1], [have_xcb_xvideo="yes"])
   ])
 
-  dnl xkbcommon
-  PKG_CHECK_MODULES([XKBCOMMON_X11], [xkbcommon-x11], [
-    have_xkbcommon_x11="yes"
-  ], [
-    AC_MSG_WARN([${XKBCOMMON_X11_PKG_ERRORS}. Hotkeys are disabled.])
-  ])
+  PKG_CHECK_MODULES(XCB_RANDR, [xcb-randr >= 1.3], [have_xcb_randr="yes"])
 
   dnl xcb-utils
-  PKG_CHECK_MODULES([XCB_KEYSYMS], [xcb-keysyms >= 0.3.4], [
-    have_xcb_keysyms="yes"
-  ], [
-    AC_MSG_WARN([${XCB_KEYSYMS_PKG_ERRORS}. Global hotkeys are disabled.])
+  PKG_CHECK_MODULES(XCB_KEYSYMS, [xcb-keysyms >= 0.3.4], [have_xcb_keysyms="yes"], [
+    AC_MSG_WARN([${XCB_KEYSYMS_PKG_ERRORS}. Hotkeys will not work.])
   ])
-
-  have_xcb="yes"
 ])
 AM_CONDITIONAL([HAVE_XCB], [test "${have_xcb}" = "yes"])
-AM_CONDITIONAL([HAVE_XKBCOMMON_X11], [test "${have_xkbcommon_x11}" = "yes"])
 AM_CONDITIONAL([HAVE_XCB_KEYSYMS], [test "${have_xcb_keysyms}" = "yes"])
+AM_CONDITIONAL([HAVE_XCB_RANDR], [test "${have_xcb_randr}" = "yes"])
+AM_CONDITIONAL([HAVE_XCB_XVIDEO], [test "${have_xcb_xvideo}" = "yes"])
 
 
 dnl
@@ -3163,55 +3126,48 @@ dnl  Wayland
 dnl
 AC_ARG_ENABLE(wayland,
   [AS_HELP_STRING([--enable-wayland], [Wayland support (default auto)])])
-
 have_wayland="no"
+have_wayland_egl="no"
+
 AS_IF([test "${enable_wayland}" != "no"], [
-  wl_err=""
-
-  dnl wayland
-  PKG_CHECK_MODULES([WAYLAND_CLIENT], [wayland-client >= 1.5.91],, [
-    wl_err="$wl_err ${WAYLAND_CLIENT_PKG_ERRORS}."
-  ])
-  PKG_CHECK_MODULES([WAYLAND_CURSOR], [wayland-cursor],, [
-    wl_err="$wl_err ${WAYLAND_CURSOR_PKG_ERRORS}."
-  ])
-  PKG_CHECK_MODULES([WAYLAND_EGL], [wayland-egl],, [
-    wl_err="$wl_err ${WAYLAND_EGL_PKG_ERRORS}."
-  ])
-  PKG_CHECK_MODULES([WAYLAND_SCANNER], [wayland-scanner >= 1.15], [
-    WAYLAND_SCANNER="$(${PKG_CONFIG} wayland-scanner --variable wayland_scanner)"
-  ], [
-    wl_err="$wl_err ${WAYLAND_SCANNER_PKG_ERRORS}."
-  ])
-
-  dnl wayland-protocols
-  PKG_CHECK_MODULES([WAYLAND_PROTOCOLS], [wayland-protocols >= 1.12], [
-    WAYLAND_PROTOCOLS="$(${PKG_CONFIG} wayland-protocols --variable pkgdatadir)"
-  ], [
-    wl_err="$wl_err ${WAYLAND_PROTOCOLS_PKG_ERRORS}."
-  ])
-
-  AS_IF([test -n "$wl_err"], [
-    AS_IF([test -n "$enable_wayland"], [
-      AC_MSG_ERROR([$wl_err])
+  PKG_CHECK_MODULES([WAYLAND_CLIENT], [wayland-client >= 1.5.91], [
+    AC_MSG_CHECKING([for the Wayland protocols])
+    PKG_CHECK_EXISTS([wayland-protocols >= 1.4], [
+      WAYLAND_PROTOCOLS="$(${PKG_CONFIG} wayland-protocols --variable pkgdatadir)"
+      AC_MSG_RESULT([${WAYLAND_PROTOCOLS}])
     ], [
-      AC_MSG_WARN([$wl_err])
+      AC_MSG_RESULT([not found])
+      AC_MSG_ERROR([$(${PKG_CONFIG} --print-errors 'wayland-protocols >= 1.4')])
+    ])
+
+    AC_MSG_CHECKING([for the Wayland scanner])
+    PKG_CHECK_EXISTS([wayland-scanner], [
+      WAYLAND_SCANNER="$(${PKG_CONFIG} wayland-scanner --variable wayland_scanner)"
+      AC_MSG_RESULT([${WAYLAND_SCANNER}])
+    ], [
+      AC_MSG_RESULT([not found])
+      AC_MSG_ERROR([$(${PKG_CONFIG} --print-errors wayland-scanner)])
+    ])
+
+    have_wayland="yes"
+
+    AS_IF([test "${have_egl}" = "yes"], [
+      PKG_CHECK_MODULES([WAYLAND_EGL], [wayland-egl], [
+        have_wayland_egl="yes"
+      ], [
+        AC_MSG_ERROR([${WAYLAND_EGL_PKG_ERRORS}.])
+      ])
     ])
   ], [
-    have_wayland="yes"
-  ])
-
-  dnl xkbcommon
-  PKG_CHECK_MODULES([XKBCOMMON], [xkbcommon], [
-    have_xkbcommon="yes"
-  ], [
-    AC_MSG_WARN([${XKBCOMMON_PKG_ERRORS}. Hotkeys are disabled.])
+    AS_IF([test -n "${enable_wayland}"], [
+      AC_MSG_ERROR([${WAYLAND_CLIENT_PKG_ERRORS}.])
+    ])
   ])
 ])
-AM_CONDITIONAL([HAVE_WAYLAND], [test "${have_wayland}" = "yes"])
 AC_SUBST([WAYLAND_PROTOCOLS])
 AC_SUBST([WAYLAND_SCANNER])
-AM_CONDITIONAL([HAVE_XKBCOMMON], [test "${have_xkbcommon}" = "yes"])
+AM_CONDITIONAL([HAVE_WAYLAND], [test "${have_wayland}" = "yes"])
+AM_CONDITIONAL([HAVE_WAYLAND_EGL], [test "${have_wayland_egl}" = "yes"])
 
 
 dnl
@@ -3391,6 +3347,21 @@ AC_CHECK_HEADER([linux/fb.h], [
   VLC_ADD_PLUGIN([fb])
 ])
 
+
+dnl
+dnl  AA plugin
+dnl
+AC_ARG_ENABLE(aa,
+  [  --enable-aa             aalib output (default disabled)])
+if test "${enable_aa}" = "yes"
+then
+  AC_CHECK_HEADER(aalib.h,have_aa="true",have_aa="false")
+  if test "${have_aa}" = "true"
+  then
+    VLC_ADD_PLUGIN([aa])
+  fi
+fi
+
 dnl
 dnl  libcaca plugin
 dnl
@@ -3447,6 +3418,25 @@ if test "${enable_mmal}" != "no"; then
   VLC_RESTORE_FLAGS
 fi
 AM_CONDITIONAL([HAVE_MMAL], [test "${have_mmal}" = "yes"])
+
+dnl
+dnl evas plugin
+dnl
+AC_ARG_ENABLE(evas,
+  [AS_HELP_STRING([--enable-evas],
+    [use evas output module (default disabled)])])
+have_evas="no"
+AS_IF([test "${enable_evas}" = "yes"], [
+  PKG_CHECK_MODULES(EVAS, [evas >= 1.15.99 ecore >= 1.15.99], [
+      have_evas="yes"
+      AC_DEFINE([HAVE_EVAS], [1], [Define to 1 if evas is enabled.])
+    ],[
+    AS_IF([test "x${enable_evas}" != "x"], [
+      AC_MSG_ERROR([$EVAS_PKG_ERRORS. libevas and libecore 1.15.99 or later required.])
+    ])
+  ])
+])
+AM_CONDITIONAL([HAVE_EVAS], [test "${have_evas}" = "yes"])
 
 dnl
 dnl  Audio plugins
@@ -3760,10 +3750,9 @@ AS_IF([test "${enable_skins2}" != "no"], [
   ], [
     PKG_CHECK_MODULES([XPM], [xpm],, [have_skins_deps="no"])
     PKG_CHECK_MODULES([XINERAMA], [xinerama],, [have_skins_deps="no"])
-    PKG_CHECK_MODULES([XCURSOR], [xcursor],, [have_skins_deps="no"])
     PKG_CHECK_MODULES([XEXT], [xext],, [have_skins_deps="no"])
     VLC_ADD_CPPFLAGS([skins2],[${X_CFLAGS} ${XEXT_CFLAGS} ${XPM_CFLAGS} -DX11_SKINS])
-    VLC_ADD_LIBS([skins2],[${X_LIBS} ${X_PRE_LIBS} ${XEXT_LIBS} ${XPM_LIBS} ${XINERAMA_LIBS} ${XCURSOR_LIBS} -lX11])
+    VLC_ADD_LIBS([skins2],[${X_LIBS} ${X_PRE_LIBS} ${XEXT_LIBS} ${XPM_LIBS} ${XINERAMA_LIBS} -lX11])
   ])
 
   dnl we need freetype
@@ -3775,7 +3764,7 @@ AS_IF([test "${enable_skins2}" != "no"], [
     AS_IF([test "x${enable_skins2}" = "x"], [
       AC_MSG_WARN([Skins2 interface disabled due to missing dependencies.])
     ], [
-      AC_MSG_ERROR([Skins2 interface requires FreeType, libxcursor, libxpm, libxext and libxinerama])
+      AC_MSG_ERROR([Skins2 interface requires FreeType, libxpm, libxext and libxinerama])
     ])
     enable_skins2="no"
   ], [
@@ -4122,11 +4111,15 @@ dnl
 dnl OS X notification plugin
 dnl
 AC_ARG_ENABLE(osx_notifications,
-  [AS_HELP_STRING([--enable-osx-notifications],
-    [macOS notification plugin (default disabled)])],,
+  [  --enable-osx-notifications          osx notification plugin (default disabled)],,
   [enable_osx_notifications=no])
 AS_IF([test "${enable_osx_notifications}" != "no"], [
-  VLC_ADD_PLUGIN([osx_notifications])
+  if test -d ${CONTRIB_DIR}/Growl.framework -o -d ${CONTRIB_DIR}/Frameworks/Growl.framework
+  then
+      VLC_ADD_PLUGIN([osx_notifications])
+      VLC_ADD_LIBS([osx_notifications], [-Wl,-framework,Growl,-framework,Foundation])
+      VLC_ADD_OBJCFLAGS([osx_notifications], [-fobjc-exceptions] )
+  fi
 ])
 
 dnl
@@ -4188,42 +4181,6 @@ AS_IF([test "${with_kde_solid}" != "no"], [
 ])
 AC_SUBST(soliddatadir)
 AM_CONDITIONAL(KDE_SOLID, [test "x${soliddatadir}" != "x"])
-
-dnl
-dnl  Find tools for win32 packaging
-dnl
-AS_IF([test "${SYS}" = "mingw32"], [
-    dnl
-    dnl Find makensis required to build the NSIS installer
-    dnl
-    nsis_major_required="3"
-    nsis_version_ok="no"
-    AC_PATH_PROG([MAKENSIS], [makensis], [no])
-    AS_IF([test "$MAKENSIS" != "no"], [
-        # Check version
-        AC_MSG_CHECKING([makensis version])
-        nsis_version=$($MAKENSIS -VERSION)
-        AC_MSG_RESULT([$nsis_version])
-        nsis_version_major=$(echo "$nsis_version" | awk -F \. '{print $1}' | sed 's/v//')
-        # Check if major version is a valid number
-        AS_IF([test -n "$nsis_version_major" && \
-               test "$nsis_version_major" -eq "$nsis_version_major" 2> /dev/null], [
-            # Do the version check using major version
-            AS_IF([test "$nsis_version_major" -lt "$nsis_major_required"], [
-                AC_MSG_WARN([makensis too old, (needs ${nsis_major_required}.x, have ${nsis_version_major}.x)])
-            ], [
-                nsis_version_ok="yes"
-            ])
-        ], [
-            AC_MSG_WARN([failed to check the makensis version])
-        ])
-    ])
-    dnl
-    dnl Find 7zip
-    dnl
-    AC_PATH_PROG([SEVENZIP], [7z], [7z])
-])
-AM_CONDITIONAL(HAVE_MAKENSIS, [test "x$MAKENSIS" != "xno" && test "$nsis_version_ok" = "yes"])
 
 dnl
 dnl Check wether we have the PROCESS_MITIGATION_IMAGE_LOAD_POLICY 

@@ -46,7 +46,6 @@ lua: lua-$(LUA_VERSION).tar.gz .sum-lua
 	$(APPLY) $(SRC)/lua/luac-32bits.patch
 	$(APPLY) $(SRC)/lua/no-localeconv.patch
 	$(APPLY) $(SRC)/lua/lua-ios-support.patch
-	$(APPLY) $(SRC)/lua/implib.patch
 ifdef HAVE_WINSTORE
 	$(APPLY) $(SRC)/lua/lua-winrt.patch
 endif
@@ -74,7 +73,7 @@ endif
 .lua: lua
 	cd $< && $(HOSTVARS_PIC) $(MAKE) $(LUA_TARGET)
 ifdef HAVE_WIN32
-	cd $< && $(HOSTVARS) $(MAKE) -C src liblua.a
+	cd $</src && $(HOSTVARS) $(MAKE) liblua.a
 endif
 	cd $< && $(HOSTVARS) $(MAKE) install INSTALL_TOP="$(PREFIX)"
 ifdef HAVE_WIN32

@@ -95,6 +95,8 @@ find VLC.app/Contents/Frameworks -type f -name "*.txt" -exec rm '{}' \;
 
 info "Signing frameworks"
 
+sign "VLC.app/Contents/Frameworks/Growl.framework/Versions/A" "com.growl.growlframework"
+
 sign "VLC.app/Contents/Frameworks/Sparkle.framework/Versions/A/Resources/Autoupdate.app/Contents/MacOS/fileop"
 sign "VLC.app/Contents/Frameworks/Sparkle.framework/Resources/Autoupdate.app" "org.sparkle-project.Sparkle.Autoupdate"
 sign "VLC.app/Contents/Frameworks/Sparkle.framework/Versions/A" "org.sparkle-project.Sparkle"
@@ -161,11 +163,6 @@ do
     sign "$i"
 done
 
-for i in $(find VLC.app/Contents/MacOS/lua -type f -exec echo {} \;)
-do
-    sign "$i"
-done
-
 info "Signing the executable"
 sign "VLC.app" "org.videolan.vlc"
 
@@ -177,6 +174,7 @@ if [ -e "VLC.app/Contents/Frameworks/Breakpad.framework" ]; then
     codesign --verify -vv VLC.app/Contents/Frameworks/Breakpad.framework
 fi
 
+codesign --verify -vv VLC.app/Contents/Frameworks/Growl.framework
 codesign --verify -vv VLC.app/Contents/Frameworks/Sparkle.framework
 
 info "Validating autoupdate app"

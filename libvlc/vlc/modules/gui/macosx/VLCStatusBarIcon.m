@@ -81,7 +81,7 @@
 
     if (self) {
         msg_Dbg(getIntf(), "Loading VLCStatusBarIcon");
-        [[NSBundle mainBundle] loadNibNamed:@"VLCStatusBarIconMainMenu" owner:self topLevelObjects:nil];
+        [NSBundle loadNibNamed:@"VLCStatusBarIconMainMenu" owner:self];
     }
 
     return self;
@@ -97,10 +97,18 @@
     [self configurationChanged:nil];
 
     // Set Accessibility Attributes for Image Buttons
-    backwardsButton.accessibilityLabel = _NS("Go to previous item");
-    playPauseButton.accessibilityLabel = _NS("Toggle Play/Pause");
-    forwardButton.accessibilityLabel = _NS("Go to next item");
-    randButton.accessibilityLabel = _NS("Toggle random order playback");
+    [backwardsButton.cell accessibilitySetOverrideValue:_NS("Go to previous item")
+                                           forAttribute:NSAccessibilityDescriptionAttribute];
+
+    [playPauseButton.cell accessibilitySetOverrideValue:_NS("Toggle Play/Pause")
+                                           forAttribute:NSAccessibilityDescriptionAttribute];
+
+    [forwardButton.cell accessibilitySetOverrideValue:_NS("Go to next item")
+                                         forAttribute:NSAccessibilityDescriptionAttribute];
+
+    [randButton.cell accessibilitySetOverrideValue:_NS("Toggle random order playback")
+                                      forAttribute:NSAccessibilityDescriptionAttribute];
+    
 
     // Populate menu items with localized strings
     [showMainWindowItem setTitle:_NS("Show Main Window")];
@@ -135,7 +143,7 @@
 
         // Sync status bar visibility with VLC setting
         msg_Dbg(getIntf(), "Status bar icon visibility changed to %i", isVisible);
-        config_PutInt("macosx-statusicon", isVisible ? 1 : 0);
+        config_PutInt(getIntf(), "macosx-statusicon", isVisible ? 1 : 0);
     } else {
         [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
     }

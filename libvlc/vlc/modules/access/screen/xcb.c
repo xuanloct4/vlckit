@@ -71,7 +71,7 @@ vlc_module_begin ()
     set_description (N_("Screen capture (with X11/XCB)"))
     set_category (CAT_INPUT)
     set_subcategory (SUBCAT_INPUT_ACCESS)
-    set_capability ("access", 0)
+    set_capability ("access_demux", 0)
     set_callbacks (Open, Close)
 
     add_float ("screen-fps", 2.0, FPS_TEXT, FPS_LONGTEXT, true)
@@ -101,7 +101,7 @@ static int Control (demux_t *, int, va_list);
 static es_out_id_t *InitES (demux_t *, uint_fast16_t, uint_fast16_t,
                             uint_fast8_t, uint8_t *);
 
-typedef struct
+struct demux_sys_t
 {
     /* All owned by timer thread while timer is armed: */
     xcb_connection_t *conn; /**< XCB connection */
@@ -118,7 +118,7 @@ typedef struct
     uint16_t          cur_w, cur_h; /**< Actual capture pixel dimensions */
     /* Timer does not use this, only input thread: */
     vlc_timer_t       timer;
-} demux_sys_t;
+};
 
 /** Checks MIT-SHM shared memory support */
 static bool CheckSHM (xcb_connection_t *conn)
@@ -142,10 +142,8 @@ static bool CheckSHM (xcb_connection_t *conn)
 static int Open (vlc_object_t *obj)
 {
     demux_t *demux = (demux_t *)obj;
-    if (demux->out == NULL)
-        return VLC_EGENERIC;
-
     demux_sys_t *p_sys = malloc (sizeof (*p_sys));
+
     if (p_sys == NULL)
         return VLC_ENOMEM;
     demux->p_sys = p_sys;
@@ -163,7 +161,7 @@ static int Open (vlc_object_t *obj)
     p_sys->conn = conn;
 
    /* Find configured screen */
-    if (!strcasecmp(demux->psz_name, "screen"))
+    if (!strcmp (demux->psz_access, "screen"))
     {
         const xcb_setup_t *setup = xcb_get_setup (conn);
         const xcb_screen_t *scr = NULL;
@@ -186,7 +184,7 @@ static int Open (vlc_object_t *obj)
     }
     else
     /* Determine capture window */
-    if (!strcasecmp(demux->psz_name, "window"))
+    if (!strcmp (demux->psz_access, "window"))
     {
         char *end;
         unsigned long ul = strtoul (demux->psz_location, &end, 0);

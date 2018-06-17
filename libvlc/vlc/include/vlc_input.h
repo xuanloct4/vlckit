@@ -27,7 +27,6 @@
 
 /**
  * \defgroup input Input
- * \ingroup vlc
  * Input thread
  * @{
  * \file
@@ -93,7 +92,7 @@ typedef struct input_title_t
 {
     char        *psz_name;
 
-    mtime_t     i_length;   /* Length(microsecond) if known, else 0 */
+    int64_t     i_length;   /* Length(microsecond) if known, else 0 */
 
     unsigned    i_flags;    /* Is it a menu or a normal entry */
 
@@ -225,7 +224,7 @@ typedef struct input_resource_t input_resource_t;
  */
 struct input_thread_t
 {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
 };
 
 /**

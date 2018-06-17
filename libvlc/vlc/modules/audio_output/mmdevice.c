@@ -18,6 +18,11 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston MA 02110-1301, USA.
  *****************************************************************************/
 
+#if !defined(_WIN32_WINNT) || _WIN32_WINNT < _WIN32_WINNT_VISTA
+# undef _WIN32_WINNT
+# define _WIN32_WINNT _WIN32_WINNT_VISTA
+#endif
+
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
@@ -37,6 +42,7 @@ DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName, 0xa45c254e, 0xdf1c, 0x4efd,
    0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14);
 
 #include <vlc_common.h>
+#include <vlc_memory.h>
 #include <vlc_atomic.h>
 #include <vlc_plugin.h>
 #include <vlc_aout.h>
@@ -74,7 +80,7 @@ static void LeaveMTA(void)
 static wchar_t default_device[1] = L"";
 static char default_device_b[1] = "";
 
-typedef struct
+struct aout_sys_t
 {
     aout_stream_t *stream; /**< Underlying audio output stream */
     module_t *module;
@@ -99,7 +105,7 @@ typedef struct
     CONDITION_VARIABLE work;
     CONDITION_VARIABLE ready;
     vlc_thread_t thread; /**< Thread for audio session control */
-} aout_sys_t;
+};
 
 /* NOTE: The Core Audio API documentation totally fails to specify the thread
  * safety (or lack thereof) of the interfaces. This code takes the most
@@ -136,7 +142,7 @@ static int TimeGet(audio_output_t *aout, mtime_t *restrict delay)
     return SUCCEEDED(hr) ? 0 : -1;
 }
 
-static void Play(audio_output_t *aout, block_t *block, mtime_t date)
+static void Play(audio_output_t *aout, block_t *block)
 {
     aout_sys_t *sys = aout->sys;
     HRESULT hr;
@@ -146,7 +152,6 @@ static void Play(audio_output_t *aout, block_t *block, mtime_t date)
     LeaveMTA();
 
     vlc_FromHR(aout, hr);
-    (void) date;
 }
 
 static void Pause(audio_output_t *aout, bool paused, mtime_t date)
@@ -777,10 +782,9 @@ static int DeviceRestartLocked(audio_output_t *aout)
 
 static int DeviceSelect(audio_output_t *aout, const char *id)
 {
-    aout_sys_t *sys = aout->sys;
-    EnterCriticalSection(&sys->lock);
+    EnterCriticalSection(&aout->sys->lock);
     int ret = DeviceSelectLocked(aout, id);
-    LeaveCriticalSection(&sys->lock);
+    LeaveCriticalSection(&aout->sys->lock);
     return ret;
 }
 
@@ -1162,13 +1166,11 @@ static int Start(audio_output_t *aout, audio_sample_format_t *restrict fmt)
 
     for (;;)
     {
-        char *modlist = var_InheritString(aout, "mmdevice-backend");
         HRESULT hr;
         s->owner.device = sys->dev;
 
-        sys->module = vlc_module_load(s, "aout stream", modlist,
+        sys->module = vlc_module_load(s, "aout stream", "$mmdevice-backend",
                                       false, aout_stream_Start, s, fmt, &hr);
-        free(modlist);
 
         int ret = -1;
         if (hr == AUDCLNT_E_ALREADY_INITIALIZED)
@@ -1396,7 +1398,8 @@ static void Reload_DevicesEnum_Added(void *data, LPCWSTR wid, IMMDevice *dev)
     list->count = new_count;
 }
 
-static int ReloadAudioDevices(char const *name, char ***values, char ***descs)
+static int ReloadAudioDevices(vlc_object_t *this, char const *name,
+                              char ***values, char ***descs)
 {
     (void) name;
 
@@ -1473,7 +1476,8 @@ vlc_module_begin()
     set_subcategory(SUBCAT_AUDIO_AOUT)
     set_callbacks(Open, Close)
     add_module("mmdevice-backend", "aout stream", "any",
-               N_("Output back-end"), N_("Audio output back-end interface."))
+               N_("Output back-end"), N_("Audio output back-end interface."),
+               true)
     add_integer( "mmdevice-passthrough", MM_PASSTHROUGH_DEFAULT,
                  MM_PASSTHROUGH_TEXT, MM_PASSTHROUGH_LONGTEXT, false )
         change_integer_list( pi_mmdevice_passthrough_values,

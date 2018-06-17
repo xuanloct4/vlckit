@@ -46,7 +46,7 @@ static void Close( vlc_object_t * );
 vlc_module_begin ()
     set_shortname( N_("VCD"))
     set_description( N_("VCD input") )
-    set_capability( "access", 0 )
+    set_capability( "access", 60 )
     set_callbacks( Open, Close )
     set_category( CAT_INPUT )
     set_subcategory( SUBCAT_INPUT_ACCESS )
@@ -63,7 +63,7 @@ vlc_module_end ()
 #define VCD_BLOCKS_ONCE 20
 #define VCD_DATA_ONCE   (VCD_BLOCKS_ONCE * VCD_DATA_SIZE)
 
-typedef struct
+struct access_sys_t
 {
     vcddev_t    *vcddev;                            /* vcd device descriptor */
     uint64_t    offset;
@@ -80,7 +80,7 @@ typedef struct
 
     int         i_sector;                                  /* Current Sector */
     int         *p_sectors;                                 /* Track sectors */
-} access_sys_t;
+};
 
 static block_t *Block( stream_t *, bool * );
 static int      Seek( stream_t *, uint64_t );

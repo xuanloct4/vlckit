@@ -50,7 +50,7 @@
 
 #define CDG_SCREEN_PITCH CDG_SCREEN_WIDTH
 
-typedef struct
+struct decoder_sys_t
 {
     uint8_t  color[16][3];
     unsigned i_offseth;
@@ -59,7 +59,7 @@ typedef struct
     uint8_t  *p_screen;
 
     int      i_packet;
-} decoder_sys_t;
+};
 
 #define CDG_PACKET_SIZE 24u
 
@@ -177,7 +177,7 @@ static int Decode( decoder_t *p_dec, block_t *p_block )
             goto exit;
 
         Render( p_sys, p_pic );
-        p_pic->date = p_block->i_pts != VLC_TS_INVALID ? p_block->i_pts : p_block->i_dts;
+        p_pic->date = p_block->i_pts > VLC_TS_INVALID ? p_block->i_pts : p_block->i_dts;
     }
 
 exit:

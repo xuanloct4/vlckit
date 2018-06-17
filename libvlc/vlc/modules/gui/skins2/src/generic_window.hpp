@@ -27,7 +27,6 @@
 
 #include "skin_common.hpp"
 #include "../utils/var_bool.hpp"
-#include "vlc_vout_window.h"
 
 class OSWindow;
 class EvtGeneric;
@@ -112,20 +111,16 @@ public:
     /// Window type, mainly useful when overloaded (for VoutWindow)
     virtual std::string getType() const { return "Generic"; }
 
-    /// window handle
-    void updateWindowConfiguration( vout_window_t *pWnd ) const;
-
-    /// window type
-    WindowType_t getType() { return m_type; }
+    /// windows handle
+    vlc_wnd_type getOSHandle() const;
 
     /// reparent
     void setParent( GenericWindow* pParent,
                     int x = 0, int y = 0, int w = -1, int h = -1 );
 
+protected:
     /// Get the OS window
     OSWindow *getOSWindow() const { return m_pOsWindow; }
-
-protected:
 
     /// These methods do not need to be public since they are accessed
     /// only by the window manager or by inheritant classes.
@@ -162,7 +157,6 @@ protected:
     virtual void onUpdate( Subject<VarBool> &rVariable , void*);
 
 private:
-    WindowType_t m_type;
     /// Window position and size
     int m_left, m_top, m_width, m_height;
     /// OS specific implementation

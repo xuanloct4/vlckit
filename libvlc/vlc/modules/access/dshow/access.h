@@ -33,8 +33,6 @@
 #include <wrl/client.h>
 using Microsoft::WRL::ComPtr;
 
-typedef struct demux_sys_t demux_sys_t;
-
 /****************************************************************************
  * Crossbar stuff
  ****************************************************************************/
@@ -48,8 +46,6 @@ struct CrossbarRoute
     LONG        AudioInputIndex;
     LONG        AudioOutputIndex;
 };
-
-struct access_sys_t;
 
 void DeleteCrossbarRoutes( access_sys_t * );
 HRESULT FindCrossbarRoutes( vlc_object_t *, access_sys_t *,

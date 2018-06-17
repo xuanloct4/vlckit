@@ -27,11 +27,11 @@
 #include <assert.h>
 #include <dlfcn.h>
 #include <stdbool.h>
-#include <stdatomic.h>
 
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_aout.h>
+#include <vlc_atomic.h>
 
 #include "audio_io.h"
 #include "sound_manager.h"
@@ -39,8 +39,7 @@
 static int  Open( vlc_object_t * );
 static void Close( vlc_object_t * );
 
-typedef struct
-{
+struct aout_sys_t {
     /* sw gain */
     float               soft_gain;
     bool                soft_mute;
@@ -56,7 +55,7 @@ typedef struct
 
     int (*pf_audio_out_drain)( audio_out_h output );
     int (*pf_audio_out_flush)( audio_out_h output );
-} aout_sys_t;
+};
 
 /* Soft volume helper */
 #include "audio_output/volume.h"
@@ -265,7 +264,7 @@ Stop( audio_output_t *p_aout )
 }
 
 static void
-Play( audio_output_t *p_aout, block_t *p_block, mtime_t date )
+Play( audio_output_t *p_aout, block_t *p_block )
 {
     aout_sys_t *p_sys = p_aout->sys;
 
@@ -295,7 +294,6 @@ Play( audio_output_t *p_aout, block_t *p_block, mtime_t date )
             }
         }
     }
-    (void) date;
 }
 
 static void

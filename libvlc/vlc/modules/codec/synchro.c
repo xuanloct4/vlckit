@@ -150,8 +150,8 @@ struct decoder_synchro_t
 };
 
 /* Error margins */
-#define DELTA                   ((CLOCK_FREQ * 3) / 40)
-#define MAX_VALID_TAU           ((CLOCK_FREQ * 3) / 10)
+#define DELTA                   (int)(0.075*CLOCK_FREQ)
+#define MAX_VALID_TAU           (int)(0.3*CLOCK_FREQ)
 
 #define DEFAULT_NB_P            5
 #define DEFAULT_NB_B            1
@@ -217,7 +217,7 @@ bool decoder_SynchroChoose( decoder_synchro_t * p_synchro, int i_coding_type,
     mtime_t         now, period;
     mtime_t         pts;
     bool      b_decode = 0;
-    float     i_current_rate;
+    int       i_current_rate;
 
     if ( p_synchro->b_no_skip )
         return 1;
@@ -225,7 +225,8 @@ bool decoder_SynchroChoose( decoder_synchro_t * p_synchro, int i_coding_type,
     i_current_rate = decoder_GetDisplayRate( p_synchro->p_dec );
 
     now = mdate();
-    period = CLOCK_FREQ * 1001 / p_synchro->i_frame_rate * i_current_rate;
+    period = CLOCK_FREQ * 1001 / p_synchro->i_frame_rate
+                     * i_current_rate / INPUT_RATE_DEFAULT;
 
     p_synchro->i_render_time = i_render_time;
 
@@ -258,7 +259,7 @@ bool decoder_SynchroChoose( decoder_synchro_t * p_synchro, int i_coding_type,
         {
             b_decode = (pts - now) > (TAU_PRIME(I_CODING_TYPE) + DELTA);
         }
-        if( pts == VLC_TS_INVALID )
+        if( pts <= VLC_TS_INVALID )
             b_decode = 1;
 
         if( !b_decode && !p_synchro->b_quiet )
@@ -309,7 +310,7 @@ bool decoder_SynchroChoose( decoder_synchro_t * p_synchro, int i_coding_type,
         {
             b_decode = 0;
         }
-        if( p_synchro->i_nb_ref >= 1 && pts == VLC_TS_INVALID )
+        if( p_synchro->i_nb_ref >= 1 && pts <= VLC_TS_INVALID )
             b_decode = 1;
         break;
 
@@ -328,7 +329,7 @@ bool decoder_SynchroChoose( decoder_synchro_t * p_synchro, int i_coding_type,
         {
             b_decode = 0;
         }
-        if( p_synchro->i_nb_ref >= 2 && pts == VLC_TS_INVALID )
+        if( p_synchro->i_nb_ref >= 2 && pts <= VLC_TS_INVALID )
             b_decode = 1;
         break;
     }
@@ -406,7 +407,7 @@ void decoder_SynchroNewPicture( decoder_synchro_t * p_synchro, int i_coding_type
                                 int i_repeat_field, mtime_t next_pts,
                                 mtime_t next_dts, bool b_low_delay )
 {
-    mtime_t         period = CLOCK_FREQ * 1001 / p_synchro->i_frame_rate;
+    mtime_t         period = 1000000 * 1001 / p_synchro->i_frame_rate;
 #if 0
     mtime_t         now = mdate();
 #endif

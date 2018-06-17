@@ -26,6 +26,12 @@
 
 #include <vlc_vout_display.h>
 
+/* keys.c */
+typedef struct key_handler_t key_handler_t;
+key_handler_t *XCB_keyHandler_Create (vlc_object_t *, xcb_connection_t *);
+void XCB_keyHandler_Destroy (key_handler_t *);
+int XCB_keyHandler_Process (key_handler_t *, xcb_generic_event_t *);
+
 /* events.c */
 
 /**

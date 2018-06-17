@@ -109,8 +109,7 @@ typedef struct {
     mtime_t  i_stop_trigger;
 } dust_t;
 
-typedef struct
-{
+struct filter_sys_t {
 
     /* general data */
     bool b_init;
@@ -144,7 +143,7 @@ typedef struct
     /* dust on lens */
     mtime_t    i_dust_trigger;
     dust_t    *p_dust[MAX_DUST];
-} filter_sys_t;
+};
 
 /*****************************************************************************
  * Prototypes

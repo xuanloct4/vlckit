@@ -50,7 +50,7 @@ vlc_module_begin ()
     set_subcategory(SUBCAT_INPUT_VCODEC)
 vlc_module_end ()
 
-typedef struct
+struct encoder_sys_t
 {
     x265_encoder    *h;
     x265_param      param;
@@ -62,7 +62,7 @@ typedef struct
 #ifndef NDEBUG
     mtime_t         start;
 #endif
-} encoder_sys_t;
+};
 
 static block_t *Encode(encoder_t *p_enc, picture_t *p_pict)
 {

@@ -80,12 +80,13 @@ static int vlclua_input_item_info( lua_State *L )
     for( i = 0; i < i_cat; i++ )
     {
         info_category_t *p_category = p_item->pp_categories[i];
-        info_t *p_info;
-
+        int i_infos = p_category->i_infos;
+        int j;
         lua_pushstring( L, p_category->psz_name );
-        lua_newtable( L );
-        info_foreach(p_info, &p_category->infos)
+        lua_createtable( L, 0, i_infos );
+        for( j = 0; j < i_infos; j++ )
         {
+            info_t *p_info = p_category->pp_infos[j];
             lua_pushstring( L, p_info->psz_name );
             lua_pushstring( L, p_info->psz_value );
             lua_settable( L, -3 );
@@ -197,6 +198,7 @@ static int vlclua_input_item_stats( lua_State *L )
     input_stats_t *p_stats = p_item->p_stats;
     if( p_stats != NULL )
     {
+        vlc_mutex_lock( &p_item->p_stats->lock );
 #define STATS_INT( n ) lua_pushinteger( L, p_item->p_stats->i_ ## n ); \
                        lua_setfield( L, -2, #n );
 #define STATS_FLOAT( n ) lua_pushnumber( L, p_item->p_stats->f_ ## n ); \
@@ -204,19 +206,25 @@ static int vlclua_input_item_stats( lua_State *L )
         STATS_INT( read_packets )
         STATS_INT( read_bytes )
         STATS_FLOAT( input_bitrate )
+        STATS_FLOAT( average_input_bitrate )
         STATS_INT( demux_read_packets )
         STATS_INT( demux_read_bytes )
         STATS_FLOAT( demux_bitrate )
+        STATS_FLOAT( average_demux_bitrate )
         STATS_INT( demux_corrupted )
         STATS_INT( demux_discontinuity )
         STATS_INT( decoded_audio )
         STATS_INT( decoded_video )
         STATS_INT( displayed_pictures )
         STATS_INT( lost_pictures )
+        STATS_INT( sent_packets )
+        STATS_INT( sent_bytes )
+        STATS_FLOAT( send_bitrate )
         STATS_INT( played_abuffers )
         STATS_INT( lost_abuffers )
 #undef STATS_INT
 #undef STATS_FLOAT
+        vlc_mutex_unlock( &p_item->p_stats->lock );
     }
     vlc_mutex_unlock( &p_item->lock );
     return 1;
@@ -339,7 +347,7 @@ static int vlclua_input_item_name( lua_State *L )
 static int vlclua_input_item_duration( lua_State *L )
 {
     mtime_t duration = input_item_GetDuration( vlclua_input_item_get_internal( L ) );
-    lua_pushnumber( L, ((double)duration)/(double)CLOCK_FREQ );
+    lua_pushnumber( L, ((double)duration)/1000000. );
     return 1;
 }
 

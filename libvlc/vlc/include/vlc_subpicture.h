@@ -118,6 +118,7 @@ VLC_API subpicture_region_t *subpicture_region_Copy( subpicture_region_t *p_regi
 /**
  *
  */
+typedef struct subpicture_updater_sys_t subpicture_updater_sys_t;
 typedef struct
 {
     /** Optional pre update callback, usually useful on video format change.
@@ -136,7 +137,7 @@ typedef struct
                          mtime_t );
     /** Optional callback for subpicture private data cleanup */
     void (*pf_destroy) ( subpicture_t * );
-    void *p_sys;
+    subpicture_updater_sys_t *p_sys;
 } subpicture_updater_t;
 
 typedef struct subpicture_private_t subpicture_private_t;
@@ -233,4 +234,4 @@ VLC_API unsigned picture_BlendSubpicture( picture_t *, filter_t *p_blend, subpic
 
 /**@}*/
 
-#endif /* _VLC_SUBPICTURE_H */
+#endif /* _VLC_VIDEO_H */

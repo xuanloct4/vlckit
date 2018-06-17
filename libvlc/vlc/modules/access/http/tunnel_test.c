@@ -31,17 +31,13 @@
 
 #include <sys/types.h>
 #include <unistd.h>
-#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
-#endif
 #ifndef SOCK_CLOEXEC
 # define SOCK_CLOEXEC 0
 # define accept4(a,b,c,d) accept(a,b,c)
 #endif
 #include <netinet/in.h>
-#ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
-#endif
 
 #include <vlc_common.h>
 #include <vlc_tls.h>

@@ -111,143 +111,63 @@
 /* FIXME to remove once aout.h is cleaned a bit more */
 #include <vlc_block.h>
 
-struct vlc_audio_output_events {
-    void (*volume_report)(audio_output_t *, float);
-    void (*mute_report)(audio_output_t *, bool);
-    void (*policy_report)(audio_output_t *, bool);
-    void (*device_report)(audio_output_t *, const char *);
-    void (*hotplug_report)(audio_output_t *, const char *, const char *);
-    void (*restart_request)(audio_output_t *, unsigned);
-    int (*gain_request)(audio_output_t *, float);
-};
-
-/** Audio output object
- *
- * The audio output object is the abstraction for rendering decoded
- * (or pass-through) audio samples. In addition to playing samples,
- * the abstraction exposes controls for pause/resume, flush/drain,
- * changing the volume or mut flag, and listing and changing output device.
- *
- * An audio output can be in one of three different states:
- * stopped, playing or paused.
- * The audio output is always created in stopped state and is always destroyed
- * in that state also. It is moved from stopped to playing state by start(),
- * and from playing or paused states back to stopped state by stop().
- **/
+/** Audio output object */
 struct audio_output
 {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
 
-    void *sys; /**< Private data for callbacks */
+    struct aout_sys_t *sys; /**< Private data for callbacks */
 
     int (*start)(audio_output_t *, audio_sample_format_t *fmt);
     /**< Starts a new stream (mandatory, cannot be NULL).
-      *
-      * This callback changes the audio output from stopped to playing state
-      * (if succesful). After the callback returns, time_get(), play(),
-      * pause(), flush() and eventually stop() callbacks may be called.
-      *
       * \param fmt input stream sample format upon entry,
       *            output stream sample format upon return [IN/OUT]
       * \return VLC_SUCCESS on success, non-zero on failure
-      *
-      * \note This callback can only be called while the audio output is in
-      * stopped state. There can be only one stream per audio output at a time.
-      *
-      * \note This callbacks needs not be reentrant.
+      * \note No other stream may be already started when called.
       */
-
     void (*stop)(audio_output_t *);
     /**< Stops the existing stream (optional, may be NULL).
-      *
-      * This callback terminates the current audio stream,
-      * and returns the audio output to stopped state.
-      *
-      * \note This callback needs not be reentrant.
+      * \note A stream must have been started when called.
       */
-
     int (*time_get)(audio_output_t *, mtime_t *delay);
-    /**< Estimates playback buffer latency (mandatory, cannot be NULL).
-      *
-      * This callback computes an estimation of the delay until the current
-      * tail of the audio output buffer would be rendered. This is essential
-      * for (lip) synchronization and long term drift between the audio output
-      * clock and the media upstream clock (if any).
-      *
-      * If the audio output clock is exactly synchronized with the system
-      * monotonic clock (i.e. mdate()), then aout_TimeGetDefault() can
-      * implement this callback.
-      *
+    /**< Estimates playback buffer latency (optional, may be NULL).
       * \param delay pointer to the delay until the next sample to be written
       *              to the playback buffer is rendered [OUT]
       * \return 0 on success, non-zero on failure or lack of data
-      *
-      * \note This callback cannot be called in stopped state.
+      * \note A stream must have been started when called.
       */
-
-    void (*play)(audio_output_t *, block_t *block, mtime_t date);
+    void (*play)(audio_output_t *, block_t *);
     /**< Queues a block of samples for playback (mandatory, cannot be NULL).
-      *
-      * \param block block of audio samples
-      * \param date intended system time to render the first sample
-      *
-      * \note This callback cannot be called in stopped state.
+      * \note A stream must have been started when called.
       */
-
     void (*pause)( audio_output_t *, bool pause, mtime_t date);
-    /**< Pauses or resumes playback (mandatory, cannot be NULL).
-      *
-      * This callback pauses or resumes audio playback as quickly as possible.
-      * When pausing, it is desirable to stop producing sound immediately, but
-      * retain already queued audio samples in the buffer to play when later
-      * when resuming.
-      *
-      * If pausing is impossible, then aout_PauseDefault() can provide a
-      * fallback implementation of this callback.
-      *
+    /**< Pauses or resumes playback (optional, may be NULL).
       * \param pause pause if true, resume from pause if false
       * \param date timestamp when the pause or resume was requested
-      *
-      * \note This callback cannot be called in stopped state.
+      * \note A stream must have been started when called.
       */
-
     void (*flush)( audio_output_t *, bool wait);
     /**< Flushes or drains the playback buffers (mandatory, cannot be NULL).
-      *
       * \param wait true to wait for playback of pending buffers (drain),
       *             false to discard pending buffers (flush)
-      *
-      * \note This callback cannot be called in stopped state.
+      * \note A stream must have been started when called.
       */
-
     int (*volume_set)(audio_output_t *, float volume);
     /**< Changes playback volume (optional, may be NULL).
-      *
       * \param volume requested volume (0. = mute, 1. = nominal)
-      *
       * \note The volume is always a positive number.
-      *
       * \warning A stream may or may not have been started when called.
-      * \warning This callback may be called concurrently with
-      * time_get(), play(), pause() or flush().
-      * It will however be protected against concurrent calls to
-      * start(), stop(), volume_set(), mute_set() or device_select().
       */
-
     int (*mute_set)(audio_output_t *, bool mute);
     /**< Changes muting (optinal, may be NULL).
-      *
       * \param mute true to mute, false to unmute
-      * \warning The same constraints apply as with volume_set().
+      * \warning A stream may or may not have been started when called.
       */
-
     int (*device_select)(audio_output_t *, const char *id);
     /**< Selects an audio output device (optional, may be NULL).
-      *
       * \param id nul-terminated device unique identifier.
       * \return 0 on success, non-zero on failure.
-      *
-      * \warning The same constraints apply as with volume_set().
+      * \warning A stream may or may not have been started when called.
       */
 
     struct {
@@ -256,7 +176,15 @@ struct audio_output
     } current_sink_info;
     /**< Current sink informations set by the module from the start() function */
 
-    const struct vlc_audio_output_events *events;
+    struct {
+        void (*volume_report)(audio_output_t *, float);
+        void (*mute_report)(audio_output_t *, bool);
+        void (*policy_report)(audio_output_t *, bool);
+        void (*device_report)(audio_output_t *, const char *);
+        void (*hotplug_report)(audio_output_t *, const char *, const char *);
+        int (*gain_request)(audio_output_t *, float);
+        void (*restart_request)(audio_output_t *, unsigned);
+    } event;
 };
 
 typedef enum
@@ -353,7 +281,7 @@ VLC_API void aout_ChannelExtract( void *p_dst, int i_dst_channels, const void *p
 /* */
 static inline unsigned aout_FormatNbChannels(const audio_sample_format_t *fmt)
 {
-    return vlc_popcount(fmt->i_physical_channels);
+    return popcount(fmt->i_physical_channels);
 }
 
 VLC_API unsigned int aout_BitsPerSample( vlc_fourcc_t i_format ) VLC_USED;
@@ -380,7 +308,7 @@ VLC_API int aout_DevicesList (audio_output_t *, char ***, char ***);
  */
 static inline void aout_VolumeReport(audio_output_t *aout, float volume)
 {
-    aout->events->volume_report(aout, volume);
+    aout->event.volume_report(aout, volume);
 }
 
 /**
@@ -388,7 +316,7 @@ static inline void aout_VolumeReport(audio_output_t *aout, float volume)
  */
 static inline void aout_MuteReport(audio_output_t *aout, bool mute)
 {
-    aout->events->mute_report(aout, mute);
+    aout->event.mute_report(aout, mute);
 }
 
 /**
@@ -397,7 +325,7 @@ static inline void aout_MuteReport(audio_output_t *aout, bool mute)
  */
 static inline void aout_PolicyReport(audio_output_t *aout, bool cork)
 {
-    aout->events->policy_report(aout, cork);
+    aout->event.policy_report(aout, cork);
 }
 
 /**
@@ -405,7 +333,7 @@ static inline void aout_PolicyReport(audio_output_t *aout, bool cork)
  */
 static inline void aout_DeviceReport(audio_output_t *aout, const char *id)
 {
-    aout->events->device_report(aout, id);
+    aout->event.device_report(aout, id);
 }
 
 /**
@@ -416,7 +344,7 @@ static inline void aout_DeviceReport(audio_output_t *aout, const char *id)
 static inline void aout_HotplugReport(audio_output_t *aout,
                                       const char *id, const char *name)
 {
-    aout->events->hotplug_report(aout, id, name);
+    aout->event.hotplug_report(aout, id, name);
 }
 
 /**
@@ -426,37 +354,12 @@ static inline void aout_HotplugReport(audio_output_t *aout,
  */
 static inline int aout_GainRequest(audio_output_t *aout, float gain)
 {
-    return aout->events->gain_request(aout, gain);
+    return aout->event.gain_request(aout, gain);
 }
 
 static inline void aout_RestartRequest(audio_output_t *aout, unsigned mode)
 {
-    aout->events->restart_request(aout, mode);
-}
-
-/**
- * Default implementation for audio_output_t.time_get
- */
-static inline int aout_TimeGetDefault(audio_output_t *aout,
-                                      mtime_t *restrict delay)
-{
-    (void) aout; (void) delay;
-    return -1;
-}
-
-/**
- * Default implementation for audio_output_t.pause
- *
- * \warning This default callback implementation is suboptimal as it will
- * discard some audio samples.
- * Do not use this unless there are really no possible better alternatives.
- */
-static inline void aout_PauseDefault(audio_output_t *aout, bool paused,
-                                     mtime_t date)
-{
-    if (paused && aout->flush != NULL)
-        aout->flush(aout, false);
-    (void) date;
+    aout->event.restart_request(aout, mode);
 }
 
 /* Audio output filters */
@@ -494,7 +397,7 @@ VLC_API void aout_FiltersDelete(vlc_object_t *, aout_filters_t *);
 #define aout_FiltersDelete(o,f) \
         aout_FiltersDelete(VLC_OBJECT(o),f)
 VLC_API bool aout_FiltersAdjustResampling(aout_filters_t *, int);
-VLC_API block_t *aout_FiltersPlay(aout_filters_t *, block_t *, float rate);
+VLC_API block_t *aout_FiltersPlay(aout_filters_t *, block_t *, int rate);
 VLC_API block_t *aout_FiltersDrain(aout_filters_t *);
 VLC_API void     aout_FiltersFlush(aout_filters_t *);
 VLC_API void     aout_FiltersChangeViewpoint(aout_filters_t *, const vlc_viewpoint_t *vp);

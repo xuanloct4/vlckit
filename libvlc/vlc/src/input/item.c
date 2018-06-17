@@ -486,7 +486,11 @@ void input_item_Release( input_item_t *p_item )
 
     free( p_item->psz_name );
     free( p_item->psz_uri );
-    free( p_item->p_stats );
+    if( p_item->p_stats != NULL )
+    {
+        vlc_mutex_destroy( &p_item->p_stats->lock );
+        free( p_item->p_stats );
+    }
 
     if( p_item->p_meta != NULL )
         vlc_meta_Delete( p_item->p_meta );
@@ -731,7 +735,7 @@ char *input_item_GetInfo( input_item_t *p_i,
     const info_category_t *p_cat = InputItemFindCat( p_i, NULL, psz_cat );
     if( p_cat )
     {
-        info_t *p_info = info_category_FindInfo( p_cat, psz_name );
+        info_t *p_info = info_category_FindInfo( p_cat, NULL, psz_name );
         if( p_info && p_info->psz_value )
         {
             char *psz_ret = strdup( p_info->psz_value );
@@ -847,11 +851,9 @@ void input_item_MergeInfos( input_item_t *p_item, info_category_t *p_cat )
     info_category_t *p_old = InputItemFindCat( p_item, NULL, p_cat->psz_name );
     if( p_old )
     {
-        info_t *info;
-
-        info_foreach(info, &p_cat->infos)
-            info_category_ReplaceInfo( p_old, info );
-        vlc_list_init( &p_cat->infos );
+        for( int i = 0; i < p_cat->i_infos; i++ )
+            info_category_ReplaceInfo( p_old, p_cat->pp_infos[i] );
+        TAB_CLEAN( p_cat->i_infos, p_cat->pp_infos );
         info_category_Delete( p_cat );
     }
     else
@@ -1666,7 +1668,7 @@ static int rdh_unflatten(struct vlc_readdir_helper *p_rdh,
                 psz_subpathname = p_rdh_dir->psz_path;
 
             input_item_t *p_item =
-                input_item_NewExt("vlc://nop", psz_subpathname, VLC_TS_INVALID,
+                input_item_NewExt("vlc://nop", psz_subpathname, -1,
                                   ITEM_TYPE_DIRECTORY, i_net);
             if (p_item == NULL)
             {
@@ -1806,7 +1808,7 @@ int vlc_readdir_helper_additem(struct vlc_readdir_helper *p_rdh,
             return i_ret;
     }
 
-    input_item_t *p_item = input_item_NewExt(psz_uri, psz_filename, VLC_TS_INVALID, i_type,
+    input_item_t *p_item = input_item_NewExt(psz_uri, psz_filename, -1, i_type,
                                              i_net);
     if (p_item == NULL)
         return VLC_ENOMEM;

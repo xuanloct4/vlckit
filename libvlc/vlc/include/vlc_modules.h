@@ -46,23 +46,15 @@ VLC_API void vlc_module_unload( vlc_object_t *obj, module_t *,
 
 VLC_API module_t * module_need( vlc_object_t *, const char *, const char *, bool ) VLC_USED;
 #define module_need(a,b,c,d) module_need(VLC_OBJECT(a),b,c,d)
-
-VLC_USED
-static inline module_t *module_need_var(vlc_object_t *obj, const char *cap,
-                                        const char *varname)
-{
-    char *list = var_InheritString(obj, varname);
-    module_t *m = module_need(obj, cap, list, false);
-
-    free(list);
-    return m;
-}
-#define module_need_var(a,b,c) module_need_var(VLC_OBJECT(a),b,c)
-
 VLC_API void module_unneed( vlc_object_t *, module_t * );
 #define module_unneed(a,b) module_unneed(VLC_OBJECT(a),b)
 VLC_API bool module_exists(const char *) VLC_USED;
 VLC_API module_t * module_find(const char *) VLC_USED;
+
+int module_start(vlc_object_t *, const module_t *);
+#define module_start(o, m) module_start(VLC_OBJECT(o),m)
+void module_stop(vlc_object_t *, const module_t *);
+#define module_stop(o, m) module_stop(VLC_OBJECT(o),m)
 
 VLC_API module_config_t * module_config_get( const module_t *, unsigned * ) VLC_USED;
 VLC_API void module_config_free( module_config_t * );

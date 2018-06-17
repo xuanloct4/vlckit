@@ -53,7 +53,7 @@
 
 static int  Open (vlc_object_t *);
 static void Close (vlc_object_t *);
-static int EnumAdaptors(const char *, int64_t **, char ***);
+static int EnumAdaptors (vlc_object_t *, const char *, int64_t **, char ***);
 
 /*
  * Module descriptor
@@ -80,6 +80,7 @@ vlc_module_end ()
 struct vout_display_sys_t
 {
     xcb_connection_t *conn;
+    vout_window_t *embed;/* VLC window */
 
     xcb_window_t window; /* drawable X window */
     xcb_gcontext_t gc;   /* context to put images */
@@ -140,7 +141,7 @@ static vlc_fourcc_t ParseFormat (vlc_object_t *obj,
         switch (f->num_planes)
         {
           case 1:
-            switch (vlc_popcount (f->red_mask | f->green_mask | f->blue_mask))
+            switch (popcount (f->red_mask | f->green_mask | f->blue_mask))
             {
               case 24:
                 if (f->bpp == 32 && f->depth == 32)
@@ -368,7 +369,8 @@ static int Open (vlc_object_t *obj)
     /* Connect to X */
     xcb_connection_t *conn;
     const xcb_screen_t *screen;
-    if (vlc_xcb_parent_Create(vd, &conn, &screen) == NULL)
+    p_sys->embed = vlc_xcb_parent_Create(vd, &conn, &screen);
+    if (p_sys->embed == NULL)
     {
         free (p_sys);
         return VLC_EGENERIC;
@@ -390,7 +392,7 @@ static int Open (vlc_object_t *obj)
     /* Cache adaptors infos */
     xcb_xv_query_adaptors_reply_t *adaptors =
         xcb_xv_query_adaptors_reply (conn,
-            xcb_xv_query_adaptors (conn, vd->cfg->window->handle.xid), NULL);
+            xcb_xv_query_adaptors (conn, p_sys->embed->handle.xid), NULL);
     if (adaptors == NULL)
         goto error;
 
@@ -486,7 +488,7 @@ static int Open (vlc_object_t *obj)
 
             xcb_create_pixmap (conn, f->depth, pixmap, screen->root, 1, 1);
             c = xcb_create_window_checked (conn, f->depth, p_sys->window,
-                 vd->cfg->window->handle.xid, place.x, place.y,
+                 p_sys->embed->handle.xid, place.x, place.y,
                  place.width, place.height, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT,
                  f->visual, mask, list);
             xcb_map_window (conn, p_sys->window);
@@ -586,6 +588,7 @@ static void Close (vlc_object_t *obj)
 
     free (p_sys->att);
     xcb_disconnect (p_sys->conn);
+    vout_display_DeleteWindow (vd, p_sys->embed);
     free (p_sys);
 }
 
@@ -624,14 +627,17 @@ static void PoolAlloc (vout_display_t *vd, unsigned requested_count)
         for (unsigned i = 1; i < num_planes; i++)
             res.p[i].p_pixels = res.p[0].p_pixels + offsets[i];
 
+        if (p_sys->swap_uv)
+        {   /* YVU: swap U and V planes */
+            uint8_t *buf = res.p[2].p_pixels;
+            res.p[2].p_pixels = res.p[1].p_pixels;
+            res.p[1].p_pixels = buf;
+        }
+
         pic_array[count] = XCB_picture_NewFromResource (&vd->fmt, &res,
                                                         p_sys->conn);
         if (unlikely(pic_array[count] == NULL))
             break;
-
-        if (p_sys->swap_uv)
-            /* YVU: swap U and V planes */
-            picture_SwapUV( pic_array[count] );
     }
     xcb_flush (p_sys->conn);
 
@@ -752,10 +758,11 @@ static int Control (vout_display_t *vd, int query, va_list ap)
     }
 }
 
-static int EnumAdaptors(const char *var, int64_t **vp, char ***tp)
+static int EnumAdaptors (vlc_object_t *obj, const char *var,
+                         int64_t **vp, char ***tp)
 {
     /* Connect to X */
-    char *display = config_GetPsz("x11-display");
+    char *display = var_InheritString (obj, "x11-display");
     xcb_connection_t *conn;
     int snum;
 
@@ -829,6 +836,6 @@ static int EnumAdaptors(const char *var, int64_t **vp, char ***tp)
         *(texts++) = strndup (xcb_xv_adaptor_info_name (a), a->name_size);
     }
     free (adaptors);
-    (void) var;
+    (void) obj; (void) var;
     return values - *vp;
 }

@@ -35,9 +35,8 @@
 
 #include <stdlib.h>                                      /* malloc(), free() */
 #include <string.h>
-#include <stdatomic.h>
-
 #include <vlc_common.h>
+#include <vlc_atomic.h>
 #include <vlc_actions.h>
 #include <vlc_dialog.h>
 #include <vlc_url.h>
@@ -96,7 +95,7 @@ int OpenIntf (vlc_object_t *p_this)
             [VLCApplication sharedApplication];
             [VLCMain sharedInstance];
 
-            [[NSBundle mainBundle] loadNibNamed:@"MainMenu" owner:[[VLCMain sharedInstance] mainMenu] topLevelObjects:nil];
+            [NSBundle loadNibNamed:@"MainMenu" owner:[[VLCMain sharedInstance] mainMenu]];
             [[[VLCMain sharedInstance] mainWindow] makeKeyAndOrderFront:nil];
 
             msg_Dbg(p_intf, "Finished loading macosx interface");
@@ -231,13 +230,13 @@ static VLCMain *sharedInstance = nil;
         _mainmenu = [[VLCMainMenu alloc] init];
         _statusBarIcon = [[VLCStatusBarIcon  alloc] init];
 
-        _voutProvider = [[VLCVideoOutputProvider alloc] init];
+        _voutController = [[VLCVoutWindowController alloc] init];
         _playlist = [[VLCPlaylist alloc] init];
 
         _mainWindowController = [[NSWindowController alloc] initWithWindowNibName:@"MainWindow"];
 
-        var_AddCallback(pl_Get(p_intf), "intf-toggle-fscontrol", ShowController, (__bridge void *)self);
-        var_AddCallback(pl_Get(p_intf), "intf-show", ShowController, (__bridge void *)self);
+        var_AddCallback(p_intf->obj.libvlc, "intf-toggle-fscontrol", ShowController, (__bridge void *)self);
+        var_AddCallback(p_intf->obj.libvlc, "intf-show", ShowController, (__bridge void *)self);
 
         // Load them here already to apply stored profiles
         _videoEffectsPanel = [[VLCVideoEffectsWindowController alloc] init];
@@ -255,8 +254,8 @@ static VLCMain *sharedInstance = nil;
              * Note: this icon doesn't represent an endorsement of The Coca-Cola Company.
              */
             NSCalendar *gregorian =
-            [[NSCalendar alloc] initWithCalendarIdentifier:NSCalendarIdentifierGregorian];
-            NSUInteger dayOfYear = [gregorian ordinalityOfUnit:NSCalendarUnitDay inUnit:NSCalendarUnitYear forDate:[NSDate date]];
+            [[NSCalendar alloc] initWithCalendarIdentifier:NSGregorianCalendar];
+            NSUInteger dayOfYear = [gregorian ordinalityOfUnit:NSDayCalendarUnit inUnit:NSYearCalendarUnit forDate:[NSDate date]];
 
             if (dayOfYear >= 354)
                 [[VLCApplication sharedApplication] setApplicationIconImage: [NSImage imageNamed:@"VLC-Xmas"]];
@@ -340,17 +339,17 @@ static VLCMain *sharedInstance = nil;
     [[self audioEffectsPanel] saveCurrentProfileAtTerminate];
 
     /* Save some interface state in configuration, at module quit */
-    config_PutInt("random", var_GetBool(p_playlist, "random"));
-    config_PutInt("loop", var_GetBool(p_playlist, "loop"));
-    config_PutInt("repeat", var_GetBool(p_playlist, "repeat"));
+    config_PutInt(p_intf, "random", var_GetBool(p_playlist, "random"));
+    config_PutInt(p_intf, "loop", var_GetBool(p_playlist, "loop"));
+    config_PutInt(p_intf, "repeat", var_GetBool(p_playlist, "repeat"));
 
-    var_DelCallback(pl_Get(p_intf), "intf-toggle-fscontrol", ShowController, (__bridge void *)self);
-    var_DelCallback(pl_Get(p_intf), "intf-show", ShowController, (__bridge void *)self);
+    var_DelCallback(p_intf->obj.libvlc, "intf-toggle-fscontrol", ShowController, (__bridge void *)self);
+    var_DelCallback(p_intf->obj.libvlc, "intf-show", ShowController, (__bridge void *)self);
 
     [[NSNotificationCenter defaultCenter] removeObserver: self];
 
     // closes all open vouts
-    _voutProvider = nil;
+    _voutController = nil;
 
     /* write cached user defaults to disk */
     [[NSUserDefaults standardUserDefaults] synchronize];

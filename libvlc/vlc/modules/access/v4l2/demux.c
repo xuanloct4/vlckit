@@ -42,7 +42,7 @@
 
 #include "v4l2.h"
 
-typedef struct
+struct demux_sys_t
 {
     int fd;
     vlc_thread_t thread;
@@ -62,7 +62,7 @@ typedef struct
 #ifdef ZVBI_COMPILED
     vlc_v4l2_vbi_t *vbi;
 #endif
-} demux_sys_t;
+};
 
 static void *UserPtrThread (void *);
 static void *MmapThread (void *);
@@ -73,8 +73,6 @@ static int InitVideo (demux_t *, int fd, uint32_t caps);
 int DemuxOpen( vlc_object_t *obj )
 {
     demux_t *demux = (demux_t *)obj;
-    if (demux->out == NULL)
-        return VLC_EGENERIC;
 
     demux_sys_t *sys = malloc (sizeof (*sys));
     if (unlikely(sys == NULL))
@@ -107,6 +105,9 @@ int DemuxOpen( vlc_object_t *obj )
     sys->start = mdate ();
     demux->pf_demux = NULL;
     demux->pf_control = DemuxControl;
+    demux->info.i_update = 0;
+    demux->info.i_title = 0;
+    demux->info.i_seekpoint = 0;
     return VLC_SUCCESS;
 error:
     free (sys);

@@ -65,7 +65,7 @@ static int DecodeBlock( decoder_t *, block_t * );
 static void Flush( decoder_t * );
 static void DoReordering( uint32_t *, uint32_t *, int, int, uint8_t * );
 
-typedef struct
+struct decoder_sys_t
 {
     /* faad handler */
     NeAACDecHandle *hfaad;
@@ -80,7 +80,7 @@ typedef struct
     uint32_t pi_channel_positions[MPEG4_ASC_MAX_INDEXEDPOS];
 
     bool b_sbr, b_ps, b_discontinuity;
-} decoder_sys_t;
+};
 
 #if MPEG4_ASC_MAX_INDEXEDPOS != LFE_CHANNEL
     #error MPEG4_ASC_MAX_INDEXEDPOS != LFE_CHANNEL
@@ -128,6 +128,8 @@ static int Open( vlc_object_t *p_this )
     }
 
     /* Misc init */
+    date_Set( &p_sys->date, 0 );
+
     p_dec->fmt_out.audio.channel_type = p_dec->fmt_in.audio.channel_type;
 
     if( p_dec->fmt_in.i_extra > 0 )
@@ -158,7 +160,6 @@ static int Open( vlc_object_t *p_this )
         /* Will be initalised from first frame */
         p_dec->fmt_out.audio.i_rate = 0;
         p_dec->fmt_out.audio.i_channels = 0;
-        date_Set( &p_sys->date, VLC_TS_INVALID );
     }
 
     p_dec->fmt_out.i_codec = HAVE_FPU ? VLC_CODEC_FL32 : VLC_CODEC_S16N;
@@ -316,11 +317,11 @@ static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
         date_Init( &p_sys->date, i_rate, 1 );
     }
 
-    if( i_pts != VLC_TS_INVALID && i_pts != date_Get( &p_sys->date ) )
+    if( i_pts > VLC_TS_INVALID && i_pts != date_Get( &p_sys->date ) )
     {
         date_Set( &p_sys->date, i_pts );
     }
-    else if( date_Get( &p_sys->date ) == VLC_TS_INVALID )
+    else if( !date_Get( &p_sys->date ) )
     {
         /* We've just started the stream, wait for the first PTS. */
         FlushBuffer( p_sys, SIZE_MAX );
@@ -544,7 +545,7 @@ static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
         b_reorder = aout_CheckChannelReorder( pi_faad_channels_positions, NULL,
             p_dec->fmt_out.audio.i_physical_channels, pi_neworder_table );
 
-        p_dec->fmt_out.audio.i_channels = vlc_popcount(p_dec->fmt_out.audio.i_physical_channels);
+        p_dec->fmt_out.audio.i_channels = popcount(p_dec->fmt_out.audio.i_physical_channels);
 
         if( !decoder_UpdateAudioFormat( p_dec ) && p_dec->fmt_out.audio.i_channels > 0 )
             p_out = decoder_NewAudioBuffer( p_dec, frame.samples / p_dec->fmt_out.audio.i_channels );
@@ -559,7 +560,7 @@ static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
             if ( p_dec->fmt_out.audio.channel_type == AUDIO_CHANNEL_TYPE_BITMAP )
             {
                 /* Don't kill speakers if some weird mapping does not gets 1:1 */
-                if( vlc_popcount(p_dec->fmt_out.audio.i_physical_channels) != frame.channels )
+                if( popcount(p_dec->fmt_out.audio.i_physical_channels) != frame.channels )
                     memset( p_out->p_buffer, 0, p_out->i_buffer );
             }
 

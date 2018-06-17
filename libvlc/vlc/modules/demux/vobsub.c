@@ -71,7 +71,7 @@ typedef struct
 
 typedef struct
 {
-    mtime_t i_start;
+    int64_t i_start;
     int     i_vobsub_location;
 } subtitle_t;
 
@@ -87,10 +87,10 @@ typedef struct
     int64_t     i_delay;
 } vobsub_track_t;
 
-typedef struct
+struct demux_sys_t
 {
-    mtime_t        i_next_demux_date;
-    mtime_t        i_length;
+    int64_t        i_next_demux_date;
+    int64_t        i_length;
 
     text_t         txt;
     stream_t       *p_vobsub_stream;
@@ -103,7 +103,7 @@ typedef struct
     int            i_original_frame_height;
     bool           b_palette;
     uint32_t       palette[16];
-} demux_sys_t;
+};
 
 
 static int Demux( demux_t * );
@@ -179,8 +179,7 @@ static int Open ( vlc_object_t *p_this )
         }
     }
 
-    psz_vobname = strdup( p_demux->psz_url );
-    if( psz_vobname == NULL )
+    if( asprintf( &psz_vobname, "%s://%s", p_demux->psz_access, p_demux->psz_location ) == -1 )
         goto error;
 
     i_len = strlen( psz_vobname );
@@ -327,13 +326,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             return VLC_SUCCESS;
 
         case DEMUX_SET_NEXT_DEMUX_TIME:
-            p_sys->i_next_demux_date = va_arg( args, mtime_t );
+            p_sys->i_next_demux_date = va_arg( args, int64_t );
             return VLC_SUCCESS;
-
-        case DEMUX_CAN_PAUSE:
-        case DEMUX_SET_PAUSE_STATE:
-        case DEMUX_CAN_CONTROL_PACE:
-            return demux_vaControlHelper( p_demux->s, 0, -1, 0, 1, i_query, args );
 
         case DEMUX_GET_PTS_DELAY:
         case DEMUX_GET_FPS:
@@ -356,7 +350,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 static int Demux( demux_t *p_demux )
 {
     demux_sys_t *p_sys = p_demux->p_sys;
-    mtime_t i_maxdate;
+    int64_t i_maxdate;
     int i_read;
 
     for( int i = 0; i < p_sys->i_tracks; i++ )

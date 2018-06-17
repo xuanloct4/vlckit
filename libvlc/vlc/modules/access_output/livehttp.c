@@ -131,10 +131,10 @@ vlc_module_begin ()
                 INDEXURL_TEXT, INDEXURL_LONGTEXT, false )
     add_string( SOUT_CFG_PREFIX "key-uri", NULL,
                 KEYURI_TEXT, KEYURI_TEXT, true )
-    add_loadfile(SOUT_CFG_PREFIX "key-file", NULL,
-                 KEYFILE_TEXT, KEYFILE_LONGTEXT)
-    add_loadfile(SOUT_CFG_PREFIX "key-loadfile", NULL,
-                 KEYLOADFILE_TEXT, KEYLOADFILE_LONGTEXT)
+    add_loadfile( SOUT_CFG_PREFIX "key-file", NULL,
+                KEYFILE_TEXT, KEYFILE_LONGTEXT, true )
+    add_loadfile( SOUT_CFG_PREFIX "key-loadfile", NULL,
+                KEYLOADFILE_TEXT, KEYLOADFILE_LONGTEXT, true )
     set_callbacks( Open, Close )
 vlc_module_end ()
 
@@ -173,7 +173,7 @@ typedef struct output_segment
     uint8_t aes_ivs[16];
 } output_segment_t;
 
-typedef struct
+struct sout_access_out_sys_t
 {
     char *psz_cursegPath;
     char *psz_indexPath;
@@ -205,7 +205,7 @@ typedef struct
     uint8_t stuffing_bytes[16];
     ssize_t stuffing_size;
     vlc_array_t segments_t;
-} sout_access_out_sys_t;
+};
 
 static int LoadCryptFile( sout_access_out_t *p_access);
 static int CryptSetup( sout_access_out_t *p_access, char *keyfile );

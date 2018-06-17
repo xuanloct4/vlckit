@@ -29,10 +29,10 @@
 #endif
 
 #include <vlc_common.h>
+#include <vlc_atomic.h>
 
 #include "libvlc.h"
 #include <stdarg.h>
-#include <stdatomic.h>
 #include <signal.h>
 #include <errno.h>
 #include <time.h>
@@ -51,15 +51,61 @@
 # include <sys/pset.h>
 #endif
 
+#if !defined (_POSIX_TIMERS)
+# define _POSIX_TIMERS (-1)
+#endif
+#if !defined (_POSIX_CLOCK_SELECTION)
+/* Clock selection was defined in 2001 and became mandatory in 2008. */
+# define _POSIX_CLOCK_SELECTION (-1)
+#endif
+#if !defined (_POSIX_MONOTONIC_CLOCK)
+# define _POSIX_MONOTONIC_CLOCK (-1)
+#endif
+
+#if (_POSIX_TIMERS > 0)
 static unsigned vlc_clock_prec;
+
+# if (_POSIX_MONOTONIC_CLOCK > 0) && (_POSIX_CLOCK_SELECTION > 0)
+/* Compile-time POSIX monotonic clock support */
+#  define vlc_clock_id (CLOCK_MONOTONIC)
+
+# elif (_POSIX_MONOTONIC_CLOCK == 0) && (_POSIX_CLOCK_SELECTION > 0)
+/* Run-time POSIX monotonic clock support (see clock_setup() below) */
+static clockid_t vlc_clock_id;
+
+# else
+/* No POSIX monotonic clock support */
+#   define vlc_clock_id (CLOCK_REALTIME)
+#   warning Monotonic clock not available. Expect timing issues.
+
+# endif /* _POSIX_MONOTONIC_CLOKC */
 
 static void vlc_clock_setup_once (void)
 {
+# if (_POSIX_MONOTONIC_CLOCK == 0)
+    long val = sysconf (_SC_MONOTONIC_CLOCK);
+    assert (val != 0);
+    vlc_clock_id = (val < 0) ? CLOCK_REALTIME : CLOCK_MONOTONIC;
+# endif
+
     struct timespec res;
-    if (unlikely(clock_getres(CLOCK_MONOTONIC, &res) != 0 || res.tv_sec != 0))
+    if (unlikely(clock_getres (vlc_clock_id, &res) != 0 || res.tv_sec != 0))
         abort ();
     vlc_clock_prec = (res.tv_nsec + 500) / 1000;
 }
+
+static pthread_once_t vlc_clock_once = PTHREAD_ONCE_INIT;
+
+# define vlc_clock_setup() \
+    pthread_once(&vlc_clock_once, vlc_clock_setup_once)
+
+#else /* _POSIX_TIMERS */
+
+# include <sys/time.h> /* gettimeofday() */
+
+# define vlc_clock_setup() (void)0
+# warning Monotonic clock not available. Expect timing issues.
+#endif /* _POSIX_TIMERS */
 
 static struct timespec mtime_to_ts (mtime_t date)
 {
@@ -187,11 +233,14 @@ void vlc_cond_init (vlc_cond_t *p_condvar)
 {
     pthread_condattr_t attr;
 
-    if (unlikely(pthread_condattr_init (&attr))
-     || unlikely(pthread_condattr_setclock(&attr, CLOCK_MONOTONIC))
-     || unlikely(pthread_cond_init (p_condvar, &attr)))
+    if (unlikely(pthread_condattr_init (&attr)))
         abort ();
-
+#if (_POSIX_CLOCK_SELECTION > 0)
+    vlc_clock_setup ();
+    pthread_condattr_setclock (&attr, vlc_clock_id);
+#endif
+    if (unlikely(pthread_cond_init (p_condvar, &attr)))
+        abort ();
     pthread_condattr_destroy (&attr);
 }
 
@@ -316,12 +365,6 @@ void vlc_rwlock_unlock (vlc_rwlock_t *lock)
 {
     int val = pthread_rwlock_unlock (lock);
     VLC_THREAD_ASSERT ("releasing R/W lock");
-}
-
-void vlc_once(vlc_once_t *once, void (*cb)(void))
-{
-    int val = pthread_once(once, cb);
-    VLC_THREAD_ASSERT("initializing once");
 }
 
 int vlc_threadvar_create (vlc_threadvar_t *key, void (*destr) (void *))
@@ -507,10 +550,12 @@ vlc_thread_t vlc_thread_self (void)
     return thread;
 }
 
-VLC_WEAK unsigned long vlc_thread_id(void)
+#if !defined (__linux__)
+unsigned long vlc_thread_id (void)
 {
      return -1;
 }
+#endif
 
 int vlc_set_priority (vlc_thread_t th, int priority)
 {
@@ -580,28 +625,44 @@ void vlc_control_cancel (int cmd, ...)
 
 mtime_t mdate (void)
 {
+#if (_POSIX_TIMERS > 0)
     struct timespec ts;
 
-    if (unlikely(clock_gettime(CLOCK_MONOTONIC, &ts) != 0))
+    vlc_clock_setup ();
+    if (unlikely(clock_gettime (vlc_clock_id, &ts) != 0))
         abort ();
 
-    static_assert(INT64_C(1000000) == CLOCK_FREQ, "CLOCK_FREQ mismatch");
     return (INT64_C(1000000) * ts.tv_sec) + (ts.tv_nsec / 1000);
+
+#else
+    struct timeval tv;
+
+    if (unlikely(gettimeofday (&tv, NULL) != 0))
+        abort ();
+    return (INT64_C(1000000) * tv.tv_sec) + tv.tv_usec;
+
+#endif
 }
 
 #undef mwait
 void mwait (mtime_t deadline)
 {
-    static pthread_once_t vlc_clock_once = PTHREAD_ONCE_INIT;
-
+#if (_POSIX_CLOCK_SELECTION > 0)
+    vlc_clock_setup ();
     /* If the deadline is already elapsed, or within the clock precision,
      * do not even bother the system timer. */
-    pthread_once(&vlc_clock_once, vlc_clock_setup_once);
     deadline -= vlc_clock_prec;
 
     struct timespec ts = mtime_to_ts (deadline);
 
-    while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &ts, NULL) == EINTR);
+    while (clock_nanosleep (vlc_clock_id, TIMER_ABSTIME, &ts, NULL) == EINTR);
+
+#else
+    deadline -= mdate ();
+    if (deadline > 0)
+        msleep (deadline);
+
+#endif
 }
 
 #undef msleep
@@ -609,7 +670,15 @@ void msleep (mtime_t delay)
 {
     struct timespec ts = mtime_to_ts (delay);
 
-    while (clock_nanosleep(CLOCK_MONOTONIC, 0, &ts, &ts) == EINTR);
+#if (_POSIX_CLOCK_SELECTION > 0)
+    vlc_clock_setup ();
+    while (clock_nanosleep (vlc_clock_id, 0, &ts, &ts) == EINTR);
+
+#else
+    while (nanosleep (&ts, &ts) == -1)
+        assert (errno == EINTR);
+
+#endif
 }
 
 unsigned vlc_GetCPUCount(void)

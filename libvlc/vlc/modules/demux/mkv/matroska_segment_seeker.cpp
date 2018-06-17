@@ -271,12 +271,16 @@ SegmentSeeker::get_seekpoints_around( mtime_t target_pts, track_ids_t const& pri
 
             if( cluster.fpos > points.first.fpos )
             {
-                points.first = Seekpoint( cluster.fpos, cluster.pts );
+                points.first.fpos = cluster.fpos;
+                points.first.pts  = cluster.pts;
 
                 // do we need to update the max point? //
 
                 if( points.second.fpos < points.first.fpos )
-                    points.second = Seekpoint( cluster.fpos + cluster.size, cluster.pts + cluster.duration );
+                {
+                    points.second.fpos = cluster.fpos + cluster.size;
+                    points.second.pts  = cluster.pts  + cluster.duration;
+                }
             }
         }
     }
@@ -456,40 +460,32 @@ void
 SegmentSeeker::mkv_jump_to( matroska_segment_c& ms, fptr_t fpos )
 {
     fptr_t i_cluster_pos = -1;
+    ms.cluster = NULL;
 
-    if ( fpos != std::numeric_limits<SegmentSeeker::fptr_t>::max() )
+    if (!_cluster_positions.empty())
     {
-        ms.cluster = NULL;
-        if ( !_cluster_positions.empty() )
-        {
-            cluster_positions_t::iterator cluster_it = greatest_lower_bound(
-              _cluster_positions.begin(), _cluster_positions.end(), fpos
-            );
+        cluster_positions_t::iterator cluster_it = greatest_lower_bound(
+          _cluster_positions.begin(), _cluster_positions.end(), fpos
+        );
 
-            ms.es.I_O().setFilePointer( *cluster_it );
-            ms.ep.reconstruct( &ms.es, ms.segment, &ms.sys.demuxer );
-        }
-
-        while( ms.cluster == NULL || (
-              ms.cluster->IsFiniteSize() && ms.cluster->GetEndPosition() < fpos ) )
-        {
-            if( !( ms.cluster = static_cast<KaxCluster*>( ms.ep.Get() ) ) )
-            {
-                msg_Err( &ms.sys.demuxer, "unable to read KaxCluster during seek, giving up" );
-                return;
-            }
-
-            i_cluster_pos = ms.cluster->GetElementPosition();
-
-            add_cluster_position( i_cluster_pos );
-
-            mark_range_as_searched( Range( i_cluster_pos, ms.es.I_O().getFilePointer() ) );
-        }
+        ms.es.I_O().setFilePointer( *cluster_it );
+        ms.ep.reconstruct( &ms.es, ms.segment, &ms.sys.demuxer );
     }
-    else if (ms.cluster != NULL)
+
+    while( ms.cluster == NULL || (
+          ms.cluster->IsFiniteSize() && ms.cluster->GetEndPosition() < fpos ) )
     {
-        // make sure we start reading after the Cluster start
-        ms.es.I_O().setFilePointer(ms.cluster->GetDataStart());
+        if( !( ms.cluster = static_cast<KaxCluster*>( ms.ep.Get() ) ) )
+        {
+            msg_Err( &ms.sys.demuxer, "unable to read KaxCluster during seek, giving up" );
+            return;
+        }
+
+        i_cluster_pos = ms.cluster->GetElementPosition();
+
+        add_cluster_position( i_cluster_pos );
+
+        mark_range_as_searched( Range( i_cluster_pos, ms.es.I_O().getFilePointer() ) );
     }
 
     ms.ep.Down();
@@ -517,7 +513,6 @@ SegmentSeeker::mkv_jump_to( matroska_segment_c& ms, fptr_t fpos )
 
     /* jump to desired position */
 
-    if ( fpos != std::numeric_limits<SegmentSeeker::fptr_t>::max() )
-        ms.es.I_O().setFilePointer( fpos );
+    ms.es.I_O().setFilePointer( fpos );
 }
 

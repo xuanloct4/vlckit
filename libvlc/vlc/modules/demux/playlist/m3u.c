@@ -83,7 +83,7 @@ int Import_M3U( vlc_object_t *p_this )
     int offset = 0;
 
     CHECK_FILE(p_stream);
-    i_peek = vlc_stream_Peek( p_stream->s, &p_peek, 1024 );
+    i_peek = vlc_stream_Peek( p_stream->p_source, &p_peek, 1024 );
     if( i_peek < 8 )
         return VLC_EGENERIC;
 
@@ -105,7 +105,7 @@ int Import_M3U( vlc_object_t *p_this )
     }
 
     /* File type: playlist, or not (HLS manifest or whatever else) */
-    char *type = stream_MimeType(p_stream->s);
+    char *type = stream_MimeType(p_stream->p_source);
     bool match;
 
     if (p_stream->obj.force)
@@ -138,7 +138,7 @@ int Import_M3U( vlc_object_t *p_this )
     if (!match)
         return VLC_EGENERIC;
 
-    if (offset != 0 && vlc_stream_Seek(p_stream->s, offset))
+    if (offset != 0 && vlc_stream_Seek(p_stream->p_source, offset))
         return VLC_EGENERIC;
 
     msg_Dbg( p_stream, "found valid M3U playlist" );
@@ -227,7 +227,7 @@ static int ReadDir( stream_t *p_demux, input_item_node_t *p_subitems )
 
     input_item_t *p_current_input = GetCurrentItem(p_demux);
 
-    psz_line = vlc_stream_ReadLine( p_demux->s );
+    psz_line = vlc_stream_ReadLine( p_demux->p_source );
     while( psz_line )
     {
         char *psz_parse = psz_line;
@@ -255,7 +255,7 @@ static int ReadDir( stream_t *p_demux, input_item_node_t *p_subitems )
                 FREENULL( psz_artist );
                 parseEXTINF( psz_parse, &psz_artist, &psz_name, &i_parsed_duration );
                 if( i_parsed_duration >= 0 )
-                    i_duration = i_parsed_duration * CLOCK_FREQ;
+                    i_duration = i_parsed_duration * INT64_C(1000000);
                 if( psz_name )
                     psz_name = pf_dup( psz_name );
                 if( psz_artist )
@@ -328,7 +328,7 @@ static int ReadDir( stream_t *p_demux, input_item_node_t *p_subitems )
 
         /* Fetch another line */
         free( psz_line );
-        psz_line = vlc_stream_ReadLine( p_demux->s );
+        psz_line = vlc_stream_ReadLine( p_demux->p_source );
         if( !psz_line ) b_cleanup = true;
 
         if( b_cleanup )
@@ -341,7 +341,7 @@ static int ReadDir( stream_t *p_demux, input_item_node_t *p_subitems )
             FREENULL( psz_artist );
             FREENULL( psz_album_art );
             i_parsed_duration = 0;
-            i_duration = VLC_TS_INVALID;
+            i_duration = -1;
 
             b_cleanup = false;
         }

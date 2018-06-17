@@ -51,8 +51,9 @@ config_ChainParse
 config_ChainParseOptions
 config_ExistIntf
 config_FindConfig
+config_GetDataDir
+config_GetLibDir
 config_GetFloat
-config_GetSysPath
 config_GetUserDir
 config_GetInt
 config_GetIntChoices
@@ -69,10 +70,18 @@ config_StringEscape
 config_StringUnescape
 date_Change
 date_Decrement
+date_Get
 date_Increment
 date_Init
+date_Move
+date_Set
 decoder_AbortPictures
+decoder_GetDisplayDate
+decoder_GetDisplayRate
+decoder_GetInputAttachments
 decoder_NewAudioBuffer
+decoder_NewSubpicture
+demux_Delete
 demux_PacketizerDestroy
 demux_PacketizerNew
 demux_New
@@ -270,7 +279,6 @@ vlc_strerror
 vlc_strerror_c
 vlc_obj_malloc
 vlc_obj_calloc
-vlc_obj_strdup
 vlc_obj_free
 msleep
 mwait
@@ -406,6 +414,7 @@ vlc_stream_NewMRL
 vlc_stream_NewURL
 vlc_stream_vaControl
 vlc_stream_ReadDir
+vlc_stream_FilterDefaultReadDir
 vlc_stream_fifo_New
 vlc_stream_fifo_Queue
 vlc_stream_fifo_Write
@@ -425,9 +434,6 @@ text_segment_NewInheritStyle
 text_segment_Delete
 text_segment_ChainDelete
 text_segment_Copy
-text_segment_FromRuby
-text_segment_ruby_New
-text_segment_ruby_ChainDelete
 vlc_tls_ClientCreate
 vlc_tls_ServerCreate
 vlc_tls_Delete
@@ -487,6 +493,7 @@ var_Create
 var_DelCallback
 var_DelListCallback
 var_Destroy
+var_FreeList
 var_Get
 var_GetAndSet
 var_GetChecked
@@ -611,6 +618,7 @@ vlc_interrupt_unregister
 vlc_killed
 vlc_join
 vlc_list_children
+vlc_list_release
 vlc_meta_AddExtra
 vlc_meta_CopyExtraNames
 vlc_meta_Delete
@@ -636,7 +644,6 @@ vlc_object_find_name
 vlc_object_hold
 vlc_object_release
 vlc_object_get_name
-vlc_once
 vlc_rand_bytes
 vlc_drand48
 vlc_lrand48
@@ -699,6 +706,7 @@ vlm_MessageNew
 vlm_MessageSimpleNew
 vlm_New
 vout_ChangeAspectRatio
+vout_Close
 vout_GetPicture
 vout_PutPicture
 vout_PutSubpicture
@@ -710,6 +718,7 @@ vout_OSDMessage
 vout_OSDEpg
 vout_OSDSlider
 vout_OSDText
+vout_Request
 vout_window_New
 vout_window_Delete
 vout_display_GetDefaultDisplaySize
@@ -725,6 +734,7 @@ text_style_New
 xml_Delete
 xml_ReaderCreate
 xml_ReaderDelete
+xml_ReaderReset
 vlc_xml_decode
 vlc_xml_encode
 vlc_keycode2str

@@ -72,8 +72,6 @@ typedef struct
 #define LIBVLC_NEED_CONDVAR
 #define LIBVLC_NEED_SEMAPHORE
 #define LIBVLC_NEED_RWLOCK
-typedef INIT_ONCE vlc_once_t;
-#define VLC_STATIC_ONCE INIT_ONCE_STATIC_INIT
 typedef struct vlc_threadvar *vlc_threadvar_t;
 typedef struct vlc_timer *vlc_timer_t;
 
@@ -125,12 +123,6 @@ typedef struct
 #define VLC_STATIC_COND { NULLHANDLE, 0, NULLHANDLE, 0 }
 #define LIBVLC_NEED_SEMAPHORE
 #define LIBVLC_NEED_RWLOCK
-typedef struct
-{
-    unsigned done;
-    vlc_mutex_t mutex;
-} vlc_once_t;
-#define VLC_STATIC_ONCE { 0, VLC_STATIC_MUTEX }
 typedef struct vlc_threadvar *vlc_threadvar_t;
 typedef struct vlc_timer *vlc_timer_t;
 
@@ -179,8 +171,7 @@ typedef struct vlc_thread *vlc_thread_t;
 #define VLC_THREAD_CANCELED NULL
 typedef pthread_mutex_t vlc_mutex_t;
 #define VLC_STATIC_MUTEX PTHREAD_MUTEX_INITIALIZER
-typedef pthread_once_t  vlc_once_t;
-#define VLC_STATIC_ONCE   PTHREAD_ONCE_INIT
+
 typedef pthread_key_t   vlc_threadvar_t;
 typedef struct vlc_timer *vlc_timer_t;
 
@@ -230,8 +221,6 @@ typedef pthread_cond_t vlc_cond_t;
 typedef semaphore_t     vlc_sem_t;
 typedef pthread_rwlock_t vlc_rwlock_t;
 #define VLC_STATIC_RWLOCK PTHREAD_RWLOCK_INITIALIZER
-typedef pthread_once_t  vlc_once_t;
-#define VLC_STATIC_ONCE   PTHREAD_ONCE_INIT
 typedef pthread_key_t   vlc_threadvar_t;
 typedef struct vlc_timer *vlc_timer_t;
 
@@ -318,19 +307,6 @@ typedef pthread_rwlock_t vlc_rwlock_t;
  * Static initializer for (static) read/write lock.
  */
 #define VLC_STATIC_RWLOCK PTHREAD_RWLOCK_INITIALIZER
-
-/**
- * One-time initialization.
- *
- * A one-time initialization object must always be initialized assigned to
- * \ref VLC_STATIC_ONCE before use.
- */
-typedef pthread_once_t  vlc_once_t;
-
-/**
- * Static initializer for one-time initialization.
- */
-#define VLC_STATIC_ONCE   PTHREAD_ONCE_INIT
 
 /**
  * Thread-local key handle.
@@ -609,24 +585,6 @@ VLC_API void vlc_rwlock_wrlock(vlc_rwlock_t *);
 VLC_API void vlc_rwlock_unlock(vlc_rwlock_t *);
 
 /**
- * Executes a function one time.
- *
- * The first time this function is called with a given one-time initialization
- * object, it executes the provided callback.
- * Any further call with the same object will be a no-op.
- *
- * In the corner case that the first time execution is ongoing in another
- * thread, then the function will wait for completion on the other thread
- * (and then synchronize memory) before it returns.
- * This ensures that, no matter what, the callback has been executed exactly
- * once and its side effects are visible after the function returns.
- *
- * \param once a one-time initialization object
- * \param cb callback to execute (the first time)
- */
-VLC_API void vlc_once(vlc_once_t *restrict once, void (*cb)(void));
-
-/**
  * Allocates a thread-specific variable.
  *
  * @param key where to store the thread-specific variable handle
@@ -864,8 +822,8 @@ VLC_API void mwait(mtime_t deadline);
  */
 VLC_API void msleep(mtime_t delay);
 
-#define VLC_HARD_MIN_SLEEP  (CLOCK_FREQ/100) /* 10 milliseconds = 1 tick at 100Hz */
-#define VLC_SOFT_MIN_SLEEP  (9*CLOCK_FREQ)   /* 9 seconds */
+#define VLC_HARD_MIN_SLEEP   10000 /* 10 milliseconds = 1 tick at 100Hz */
+#define VLC_SOFT_MIN_SLEEP 9000000 /* 9 seconds */
 
 #if defined (__GNUC__) && !defined (__clang__)
 /* Linux has 100, 250, 300 or 1000Hz

@@ -50,7 +50,7 @@ static const char *const ppsz_mux_options[] = {
 /*****************************************************************************
  * mux_sys_t: mux descriptor
  *****************************************************************************/
-typedef struct
+struct sout_mux_sys_t
 {
     AVIOContext     *io;
     int             io_buffer_size;
@@ -64,7 +64,7 @@ typedef struct
 #if LIBAVFORMAT_VERSION_CHECK( 57, 7, 0, 40, 100 )
     bool     b_header_done;
 #endif
-} sout_mux_sys_t;
+};
 
 /*****************************************************************************
  * Local prototypes
@@ -474,8 +474,7 @@ static int Control( sout_mux_t *p_mux, int i_query, va_list args )
     case MUX_GET_MIME:
     {
         char **ppsz = va_arg( args, char ** );
-        sout_mux_sys_t *p_sys = p_mux->p_sys;
-        *ppsz = strdup( p_sys->oc->oformat->mime_type );
+        *ppsz = strdup( p_mux->p_sys->oc->oformat->mime_type );
         return VLC_SUCCESS;
     }
 

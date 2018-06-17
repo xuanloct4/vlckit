@@ -204,7 +204,7 @@ void InterfacePreviewWidget::setPreview( enum_style e_style )
 void
 VStringConfigControl::doApply()
 {
-    config_PutPsz( getName(), qtu( getValue() ) );
+    config_PutPsz( p_this, getName(), qtu( getValue() ) );
 }
 
 /*********** String **************/
@@ -434,7 +434,8 @@ void StringListConfigControl::finish(module_config_t *p_module_config )
     if(!p_module_config) return;
 
     char **values, **texts;
-    ssize_t count = config_GetPszChoices( p_item->psz_name, &values, &texts );
+    ssize_t count = config_GetPszChoices( p_this, p_item->psz_name,
+                                          &values, &texts );
     for( ssize_t i = 0; i < count && texts; i++ )
     {
         if( texts[i] == NULL || values[i] == NULL )
@@ -475,7 +476,8 @@ void setfillVLCConfigCombo( const char *configname, intf_thread_t *p_intf,
     if( (p_config->i_type & 0xF0) == CONFIG_ITEM_STRING )
     {
         char **values, **texts;
-        ssize_t count = config_GetPszChoices(configname, &values, &texts);
+        ssize_t count = config_GetPszChoices(VLC_OBJECT(p_intf),
+                                             configname, &values, &texts);
         for( ssize_t i = 0; i < count; i++ )
         {
             combo->addItem( qtr(texts[i]), QVariant(qfu(values[i])) );
@@ -491,7 +493,8 @@ void setfillVLCConfigCombo( const char *configname, intf_thread_t *p_intf,
     {
         int64_t *values;
         char **texts;
-        ssize_t count = config_GetIntChoices(configname, &values, &texts);
+        ssize_t count = config_GetIntChoices(VLC_OBJECT(p_intf), configname,
+                                             &values, &texts);
         for( ssize_t i = 0; i < count; i++ )
         {
             combo->addItem( qtr(texts[i]), QVariant(qlonglong(values[i])) );
@@ -753,7 +756,7 @@ void ModuleListConfigControl::onUpdate()
 void
 VIntConfigControl::doApply()
 {
-    config_PutInt( getName(), getValue() );
+    config_PutInt( p_this, getName(), getValue() );
 }
 
 /*********** Integer **************/
@@ -902,7 +905,7 @@ void IntegerListConfigControl::finish(module_config_t *p_module_config )
 
     int64_t *values;
     char **texts;
-    ssize_t count = config_GetIntChoices( p_module_config->psz_name,
+    ssize_t count = config_GetIntChoices( p_this, p_module_config->psz_name,
                                           &values, &texts );
     for( ssize_t i = 0; i < count; i++ )
     {
@@ -1038,7 +1041,7 @@ void ColorConfigControl::selectColor()
 void
 VFloatConfigControl::doApply()
 {
-    config_PutFloat( getName(), getValue() );
+    config_PutFloat( p_this, getName(), getValue() );
 }
 
 /*********** Float **************/
@@ -1351,10 +1354,12 @@ void KeySelectorControl::doApply()
     {
         it = table->topLevelItem(i);
         if( it->data( HOTKEY_COL, Qt::UserRole ).toInt() >= 0 )
-            config_PutPsz( qtu( it->data( ACTION_COL, Qt::UserRole ).toString() ),
+            config_PutPsz( p_this,
+                           qtu( it->data( ACTION_COL, Qt::UserRole ).toString() ),
                            qtu( it->data( HOTKEY_COL, Qt::UserRole ).toString() ) );
 
-        config_PutPsz( qtu( "global-" + it->data( ACTION_COL, Qt::UserRole ).toString() ),
+        config_PutPsz( p_this,
+                       qtu( "global-" + it->data( ACTION_COL, Qt::UserRole ).toString() ),
                        qtu( it->data( GLOBAL_HOTKEY_COL, Qt::UserRole ).toString() ) );
     }
 }

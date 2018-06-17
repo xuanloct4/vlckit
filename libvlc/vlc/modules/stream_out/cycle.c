@@ -45,7 +45,6 @@ struct sout_cycle
     char chain[1];
 };
 
-typedef struct sout_stream_id_sys_t sout_stream_id_sys_t;
 struct sout_stream_id_sys_t
 {
     sout_stream_id_sys_t *prev;
@@ -54,7 +53,7 @@ struct sout_stream_id_sys_t
     void *id;
 };
 
-typedef struct
+struct sout_stream_sys_t
 {
     sout_stream_t *stream; /*< Current output stream */
     sout_stream_id_sys_t *first; /*< First elementary stream */
@@ -64,14 +63,14 @@ typedef struct
     sout_cycle_t *next;
     mtime_t (*clock)(const block_t *);
     mtime_t period; /*< Total cycle duration */
-} sout_stream_sys_t;
+};
 
 static mtime_t get_dts(const block_t *block)
 {
     return block->i_dts;
 }
 
-static void *Add(sout_stream_t *stream, const es_format_t *fmt)
+static sout_stream_id_sys_t *Add(sout_stream_t *stream, const es_format_t *fmt)
 {
     sout_stream_sys_t *sys = stream->p_sys;
     sout_stream_id_sys_t *id = malloc(sizeof (*id));
@@ -99,10 +98,9 @@ static void *Add(sout_stream_t *stream, const es_format_t *fmt)
     return id;
 }
 
-static void Del(sout_stream_t *stream, void *_id)
+static void Del(sout_stream_t *stream, sout_stream_id_sys_t *id)
 {
     sout_stream_sys_t *sys = stream->p_sys;
-    sout_stream_id_sys_t *id = (sout_stream_id_sys_t *)_id;
 
     if (id->prev != NULL)
         id->prev->next = id->next;
@@ -153,10 +151,10 @@ static void DelStream(sout_stream_t *stream)
     sys->stream = NULL;
 }
 
-static int Send(sout_stream_t *stream, void *_id, block_t *block)
+static int Send(sout_stream_t *stream, sout_stream_id_sys_t *id,
+                block_t *block)
 {
     sout_stream_sys_t *sys = stream->p_sys;
-    sout_stream_id_sys_t *id = (sout_stream_id_sys_t *)_id;
 
     for (block_t *next = block->p_next; block != NULL; block = next)
     {

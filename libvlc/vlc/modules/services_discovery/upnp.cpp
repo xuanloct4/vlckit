@@ -223,7 +223,7 @@ static void *
 SearchThread( void *p_data )
 {
     services_discovery_t *p_sd = ( services_discovery_t* )p_data;
-    services_discovery_sys_t *p_sys = reinterpret_cast<services_discovery_sys_t *>( p_sd->p_sys );
+    services_discovery_sys_t *p_sys  = p_sd->p_sys;
 
     /* Search for media servers */
     int i_res = UpnpSearchAsync( p_sys->p_upnp->handle(), 5,
@@ -283,7 +283,7 @@ static int Open( vlc_object_t *p_this )
 static void Close( vlc_object_t *p_this )
 {
     services_discovery_t *p_sd = ( services_discovery_t* )p_this;
-    services_discovery_sys_t *p_sys = reinterpret_cast<services_discovery_sys_t *>( p_sd->p_sys );
+    services_discovery_sys_t *p_sys = p_sd->p_sys;
 
     vlc_join( p_sys->thread, NULL );
     p_sys->p_upnp->release( true );
@@ -482,14 +482,14 @@ void MediaServerList::parseNewServer( IXML_Document *doc, const std::string &loc
             vlc_url_t url;
             vlc_UrlParse( &url, psz_base_url );
 
-            char *psz_satip_channellist = config_GetPsz("satip-channelist");
+            char *psz_satip_channellist = config_GetPsz(m_sd, "satip-channelist");
             if( !psz_satip_channellist ) {
                 break;
             }
 
             /* a user may have provided a custom playlist url */
             if (strncmp(psz_satip_channellist, "CustomList", 10) == 0) {
-                char *psz_satip_playlist_url = config_GetPsz( "satip-channellist-url" );
+                char *psz_satip_playlist_url = config_GetPsz( m_sd, "satip-channellist-url" );
                 if ( psz_satip_playlist_url ) {
                     p_server = new(std::nothrow) SD::MediaServerDesc( psz_udn, psz_friendly_name, psz_satip_playlist_url, iconUrl );
 
@@ -920,8 +920,8 @@ namespace
             {
                 int i_hours, i_minutes, i_seconds;
                 if( sscanf( psz_duration, "%d:%02d:%02d", &i_hours, &i_minutes, &i_seconds ) )
-                    i_duration = CLOCK_FREQ * ( i_hours * 3600 + i_minutes * 60 +
-                                                i_seconds );
+                    i_duration = INT64_C(1000000) * ( i_hours * 3600 + i_minutes * 60 +
+                                                      i_seconds );
             }
             return input_item_NewExt( psz_resource_url, title, i_duration,
                                       ITEM_TYPE_FILE, ITEM_NET );

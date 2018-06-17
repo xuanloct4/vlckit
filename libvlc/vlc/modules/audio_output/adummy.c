@@ -42,15 +42,10 @@ vlc_module_end ()
 
 #define A52_FRAME_NB 1536
 
-static void Play(audio_output_t *aout, block_t *block, mtime_t date)
+static void Play(audio_output_t *aout, block_t *block)
 {
     block_Release( block );
-    (void) aout; (void) date;
-}
-
-static void Pause(audio_output_t *aout, bool paused, mtime_t date)
-{
-    (void) aout; (void) paused; (void) date;
+    (void) aout;
 }
 
 static void Flush(audio_output_t *aout, bool wait)
@@ -94,9 +89,9 @@ static int Open(vlc_object_t *obj)
     audio_output_t *aout = (audio_output_t *)obj;
 
     aout->start = Start;
-    aout->time_get = aout_TimeGetDefault;
+    aout->time_get = NULL;
     aout->play = Play;
-    aout->pause = Pause;
+    aout->pause = NULL;
     aout->flush = Flush;
     aout->stop = NULL;
     aout->volume_set = NULL;

@@ -10,10 +10,8 @@ libflacsys_plugin_la_CPPFLAGS = $(AM_CPPFLAGS)
 libflacsys_plugin_la_LIBADD = libxiph_metadata.la
 demux_LTLIBRARIES += libflacsys_plugin.la
 
-libogg_plugin_la_SOURCES = demux/ogg.c demux/ogg.h \
-                           demux/oggseek.c demux/oggseek.h \
-                           demux/ogg_granule.c demux/ogg_granule.h \
-                           demux/xiph.h demux/opus.h
+libogg_plugin_la_SOURCES = demux/ogg.c demux/ogg.h demux/oggseek.c demux/oggseek.h \
+	demux/xiph.h demux/opus.h
 libogg_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) $(LIBVORBIS_CFLAGS) $(OGG_CFLAGS)
 libogg_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(demuxdir)'
 libogg_plugin_la_LIBADD = $(LIBVORBIS_LIBS) $(OGG_LIBS) libxiph_metadata.la
@@ -119,6 +117,10 @@ libsid_plugin_la_LIBADD = $(LIBS_sid)
 EXTRA_LTLIBRARIES += libsid_plugin.la
 demux_LTLIBRARIES += $(LTLIBsid)
 
+libdiracsys_plugin_la_SOURCES = demux/dirac.c
+libdiracsys_plugin_la_CPPFLAGS = $(AM_CPPFLAGS)
+demux_LTLIBRARIES += libdiracsys_plugin.la
+
 libimage_plugin_la_SOURCES = demux/image.c demux/mxpeg_helper.h
 demux_LTLIBRARIES += libimage_plugin.la
 
@@ -204,11 +206,10 @@ libmp4_plugin_la_SOURCES = demux/mp4/mp4.c demux/mp4/mp4.h \
                            demux/mp4/fragments.c demux/mp4/fragments.h \
                            demux/mp4/libmp4.c demux/mp4/libmp4.h \
                            demux/mp4/languages.h \
-                           demux/mp4/heif.c demux/mp4/heif.h \
+                           demux/asf/asfpacket.c demux/asf/asfpacket.h \
                            demux/mp4/avci.h \
                            demux/mp4/color_config.h \
                            demux/mp4/essetup.c demux/mp4/meta.c \
-                           demux/asf/asfpacket.c demux/asf/asfpacket.h \
                            meta_engine/ID3Genres.h
 libmp4_plugin_la_LIBADD = $(LIBM)
 libmp4_plugin_la_LDFLAGS = $(AM_LDFLAGS)
@@ -223,7 +224,6 @@ demux_LTLIBRARIES += libmpgv_plugin.la
 libplaylist_plugin_la_SOURCES = \
 	demux/playlist/asx.c \
 	demux/playlist/b4s.c \
-	demux/playlist/bdmv.c \
 	demux/playlist/dvb.c \
 	demux/playlist/ifo.c \
 	demux/playlist/itml.c \
@@ -234,6 +234,7 @@ libplaylist_plugin_la_SOURCES = \
 	demux/playlist/qtl.c \
 	demux/playlist/ram.c \
 	demux/playlist/sgimb.c \
+	demux/playlist/shoutcast.c \
 	demux/playlist/wpl.c \
 	demux/playlist/xspf.c \
 	demux/playlist/playlist.c demux/playlist/playlist.h

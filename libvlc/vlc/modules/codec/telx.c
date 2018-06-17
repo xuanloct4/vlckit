@@ -88,7 +88,7 @@ vlc_module_end ()
  * Local structures
  ****************************************************************************/
 
-typedef struct
+struct decoder_sys_t
 {
   int         i_align;
   bool        b_is_subtitle[9];
@@ -100,7 +100,7 @@ typedef struct
   const uint16_t *  pi_active_national_set[9];
   int         i_wanted_page, i_wanted_magazine;
   bool        b_ignore_sub_flag;
-} decoder_sys_t;
+};
 
 /****************************************************************************
  * Local data

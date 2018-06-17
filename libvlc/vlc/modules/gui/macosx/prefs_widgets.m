@@ -409,6 +409,7 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
         if (p_item) {
             psz_name = p_item->psz_name;
             _type = p_item->i_type;
+            _advanced = p_item->b_advanced;
         } else {
             psz_name = NULL;
         }
@@ -869,7 +870,7 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
         case CONFIG_ITEM_MODULE_LIST:
         case CONFIG_ITEM_MODULE_LIST_CAT: {
             char *psz_val = [self stringValue];
-            config_PutPsz(psz_name, psz_val);
+            config_PutPsz(getIntf(), psz_name, psz_val);
             free(psz_val);
             break;
         }
@@ -879,10 +880,10 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
             var_Set(getIntf()->obj.libvlc, psz_name, val);
         case CONFIG_ITEM_INTEGER:
         case CONFIG_ITEM_BOOL:
-            config_PutInt(psz_name, [self intValue]);
+            config_PutInt(getIntf(), psz_name, [self intValue]);
             break;
         case CONFIG_ITEM_FLOAT:
-            config_PutFloat(psz_name, [self floatValue]);
+            config_PutFloat(getIntf(), psz_name, [self floatValue]);
             break;
     }
 }
@@ -935,7 +936,10 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
         [self addSubview: self.label];
 
         /* build the textfield */
-        o_textfieldString = toNSStr(p_item->value.psz);
+        if (p_item->value.psz)
+            o_textfieldString = toNSStr(p_item->value.psz);
+        else
+            o_textfieldString = @"";
         if (p_item->i_type == CONFIG_ITEM_PASSWORD) {
             ADD_SECURETEXTFIELD(o_textfield, mainFrame, [self.label frame].size.width + 2,
                                 0, mainFrame.size.width - [self.label frame].size.width -
@@ -973,8 +977,12 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
 
 - (void)resetValues
 {
-    char *psz_value = config_GetPsz(self.p_item->psz_name);
-    [o_textfield setStringValue:toNSStr(psz_value)];
+    NSString *o_textfieldString;
+    char *psz_value = config_GetPsz(getIntf(), self.p_item->psz_name);
+    if (psz_value)
+        o_textfieldString = _NS(psz_value);
+    else
+        o_textfieldString = @"";
     free(psz_value);
     [super resetValues];
 }
@@ -1051,10 +1059,10 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
 {
     [o_popup removeAllItems];
 
-    char *psz_value = config_GetPsz(self.p_item->psz_name);
+    char *psz_value = config_GetPsz(getIntf(), self.p_item->psz_name);
 
     char **values, **texts;
-    ssize_t count = config_GetPszChoices(self.p_item->psz_name,
+    ssize_t count = config_GetPszChoices(VLC_OBJECT(getIntf()), self.p_item->psz_name,
                                          &values, &texts);
     for (ssize_t i = 0; i < count && texts; i++) {
         if (texts[i] == NULL || values[i] == NULL)
@@ -1119,7 +1127,10 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
         [self addSubview: o_button];
 
         /* build the textfield */
-        o_textfieldString = toNSStr(p_item->value.psz);
+        if (p_item->value.psz)
+            o_textfieldString = [NSString stringWithFormat: @"%s", (char *)p_item->value.psz];
+        else
+            o_textfieldString = @"";
         ADD_TEXTFIELD(o_textfield, mainFrame, 12, 2, mainFrame.size.width -
                       8 - [o_button frame].size.width,
                       o_itemTooltip, o_textfieldString)
@@ -1145,7 +1156,7 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
     [o_open_panel setCanChooseFiles: !b_directory];
     [o_open_panel setCanChooseDirectories: b_directory];
     [o_open_panel beginSheetModalForWindow:[sender window] completionHandler:^(NSInteger returnCode) {
-        if (returnCode == NSModalResponseOK) {
+        if (returnCode == NSOKButton) {
             NSString *o_path = [[[o_open_panel URLs] firstObject] path];
             [o_textfield setStringValue: o_path];
         }
@@ -1162,8 +1173,13 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
 
 -(void)resetValues
 {
-    char *psz_value = config_GetPsz(self.p_item->psz_name);
-    [o_textfield setStringValue:toNSStr(psz_value)];
+    NSString *o_textfieldString;
+    char *psz_value = config_GetPsz(getIntf(), self.p_item->psz_name);
+    if (psz_value)
+        o_textfieldString = [NSString stringWithFormat: @"%s", psz_value];
+    else
+        o_textfieldString = @"";
+
     free(psz_value);
     [super resetValues];
 }
@@ -1332,13 +1348,13 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
         /* build the stepper */
         ADD_STEPPER(o_stepper, mainFrame, mainFrame.size.width - 19,
                     0, toolTip, -100000, 100000)
-        [o_stepper setIntegerValue: p_item->value.i];
+        [o_stepper setIntValue: p_item->value.i];
         [o_stepper setAutoresizingMask:NSViewMaxXMargin ];
         [self addSubview: o_stepper];
 
         ADD_TEXTFIELD(o_textfield, mainFrame, mainFrame.size.width - 19 - 52,
                       1, 49, toolTip, @"")
-        [o_textfield setIntegerValue: p_item->value.i];
+        [o_textfield setIntValue: p_item->value.i];
         [o_textfield setDelegate: self];
         [[NSNotificationCenter defaultCenter] addObserver: self
                                                  selector: @selector(textfieldChanged:)
@@ -1383,7 +1399,7 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
 
 -(void)resetValues
 {
-    [o_textfield setIntegerValue: config_GetInt(self.p_item->psz_name)];
+    [o_textfield setIntValue: config_GetInt(getIntf(), self.p_item->psz_name)];
     [super resetValues];
 }
 
@@ -1459,13 +1475,13 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
 {
     [o_popup removeAllItems];
 
-    NSInteger i_current_selection = config_GetInt(self.p_item->psz_name);
+    int i_current_selection = config_GetInt(getIntf(), self.p_item->psz_name);
     int64_t *values;
     char **texts;
-    ssize_t count = config_GetIntChoices(self.p_item->psz_name, &values, &texts);
+    ssize_t count = config_GetIntChoices(VLC_OBJECT(getIntf()), self.p_item->psz_name, &values, &texts);
     for (ssize_t i = 0; i < count; i++) {
         NSMenuItem *mi = [[NSMenuItem alloc] initWithTitle: toNSStr(texts[i]) action: NULL keyEquivalent: @""];
-        [mi setRepresentedObject:[NSNumber numberWithInteger:values[i]]];
+        [mi setRepresentedObject:[NSNumber numberWithInt:values[i]]];
         [[o_popup menu] addItem:mi];
 
         if (i_current_selection == values[i])
@@ -1511,7 +1527,7 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
         /* build the textfield */
         ADD_TEXTFIELD(o_textfield, mainFrame, [self.label frame].size.width + 2,
                       28, 70, toolTip, @"")
-        [o_textfield setIntegerValue: p_item->value.i];
+        [o_textfield setIntValue: p_item->value.i];
         [o_textfield setAutoresizingMask:NSViewMaxXMargin ];
         [o_textfield setDelegate: self];
         [[NSNotificationCenter defaultCenter] addObserver: self
@@ -1522,7 +1538,7 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
 
         /* build the mintextfield */
         ADD_LABEL(o_textfield_min, mainFrame, 12, -30, @"-88888", @"")
-        [o_textfield_min setIntegerValue: p_item->min.i];
+        [o_textfield_min setIntValue: p_item->min.i];
         [o_textfield_min setAutoresizingMask:NSViewMaxXMargin ];
         [o_textfield_min setAlignment:NSRightTextAlignment];
         [self addSubview: o_textfield_min];
@@ -1530,7 +1546,7 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
         /* build the maxtextfield */
         ADD_LABEL(o_textfield_max, mainFrame,
                   mainFrame.size.width - 50, -30, @"88888", @"")
-        [o_textfield_max setIntegerValue: p_item->max.i];
+        [o_textfield_max setIntValue: p_item->max.i];
         [o_textfield_max setAutoresizingMask:NSViewMinXMargin ];
         [self addSubview: o_textfield_max];
 
@@ -1543,7 +1559,7 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
                    [o_textfield_max frame].origin.x -
                    ([o_textfield_min frame].origin.x + [o_textfield_min frame].size.width) - 14, toolTip,
                    p_item->min.i, p_item->max.i)
-        [o_slider setIntegerValue: p_item->value.i];
+        [o_slider setIntValue: p_item->value.i];
         [o_slider setAutoresizingMask:NSViewWidthSizable ];
         [o_slider setTarget: self];
         [o_slider setAction: @selector(sliderChanged:)];
@@ -1584,9 +1600,9 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
 
 - (void)resetValues
 {
-    NSInteger value = config_GetInt(self.p_item->psz_name);
-    [o_textfield setIntegerValue:value];
-    [o_slider setIntegerValue:value];
+    int value = config_GetInt(getIntf(), self.p_item->psz_name);
+    [o_textfield setIntValue:value];
+    [o_slider setIntValue:value];
     [super resetValues];
 }
 @end
@@ -1675,7 +1691,7 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
 
 - (void)resetValues
 {
-    [o_textfield setFloatValue: config_GetFloat(self.p_item->psz_name)];
+    [o_textfield setFloatValue: config_GetFloat(getIntf(), self.p_item->psz_name)];
     [super resetValues];
 }
 @end
@@ -1785,8 +1801,8 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
 
 - (void)resetValues
 {
-    [o_textfield setFloatValue: config_GetFloat(self.p_item->psz_name)];
-    [o_slider setFloatValue: config_GetFloat(self.p_item->psz_name)];
+    [o_textfield setFloatValue: config_GetFloat(getIntf(), self.p_item->psz_name)];
+    [o_slider setFloatValue: config_GetFloat(getIntf(), self.p_item->psz_name)];
     [super resetValues];
 }
 @end
@@ -1820,7 +1836,7 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
 
         /* add the checkbox */
         ADD_CHECKBOX(o_checkbox, mainFrame, 0,
-                     0, labelString, toolTip, (int)p_item->value.i, NSImageLeft)
+                     0, labelString, toolTip, p_item->value.i, NSImageLeft)
         [o_checkbox setAutoresizingMask:NSViewNotSizable];
         [self addSubview: o_checkbox];
     }
@@ -1834,7 +1850,7 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
 
 - (void)resetValues
 {
-    [o_checkbox setState: config_GetInt(self.p_item->psz_name)];
+    [o_checkbox setState: config_GetInt(getIntf(), self.p_item->psz_name)];
     [super resetValues];
 }
 @end
@@ -1874,10 +1890,11 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
         [o_popup setAutoresizingMask:NSViewWidthSizable ];
 
         if (o_keys_menu == nil) {
+            unsigned int i;
             o_keys_menu = [[NSMenu alloc] initWithTitle: @"Keys Menu"];
 #warning This does not work anymore. FIXME.
 #if 0
-            for (unsigned int i = 0; i < sizeof(vlc_key) / sizeof(key_descriptor_t); i++)
+            for (i = 0; i < sizeof(vlc_key) / sizeof(key_descriptor_t); i++)
                 if (vlc_key[i].psz_key_string)
                     POPULATE_A_KEY(o_keys_menu,toNSStr(vlc_key[i].psz_key_string),
                                    vlc_key[i].i_key_code)
@@ -1907,12 +1924,12 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
 
 - (int)intValue
 {
-    return (int)[o_popup selectedTag];
+    return [o_popup selectedTag];
 }
 
 - (void)resetValues
 {
-    [o_popup selectItem:[[o_popup menu] itemWithTag:config_GetInt(self.p_item->psz_name)]];
+    [o_popup selectItem:[[o_popup menu] itemWithTag:config_GetInt(getIntf(), self.p_item->psz_name)]];
     [super resetValues];
 }
 @end
@@ -1959,6 +1976,7 @@ o_textfield = [[NSSecureTextField alloc] initWithFrame: s_rc];              \
             module_config_t *p_configlist = module_config_get(p_parser, &confsize);
 
             for (i = 0; i < confsize; i++) {
+                unsigned int unused;
                 module_config_t *p_config = &p_configlist[i];
                 NSString *o_modulelongname, *o_modulename;
                 NSNumber *o_moduleenabled = nil;
@@ -2084,7 +2102,10 @@ o_moduleenabled = [NSNumber numberWithBool:NO];\
     [self addSubview: self.label];
 
     /* build the textfield */
-    o_textfieldString = _NS(p_item->value.psz);
+    if (p_item->value.psz)
+        o_textfieldString = _NS(p_item->value.psz);
+    else
+        o_textfieldString = @"";
     ADD_TEXTFIELD(o_textfield, mainFrame, [self.label frame].size.width + 2,
                   mainFrame.size.height - 22, mainFrame.size.width -
                   [self.label frame].size.width - 2, toolTip, o_textfieldString)
@@ -2176,6 +2197,7 @@ o_moduleenabled = [NSNumber numberWithBool:NO];\
               row:(NSInteger)dropRow dropOperation:(NSTableViewDropOperation)op;
 {
     NSPasteboard    *pb = [info draggingPasteboard];
+    NSDragOperation srcMask = [info draggingSourceOperationMask];
     BOOL accepted = NO;
 
     NS_DURING
@@ -2187,6 +2209,7 @@ o_moduleenabled = [NSNumber numberWithBool:NO];\
                       [pb propertyListForType:@"VLC media player module"]) != NULL) {
         NSEnumerator *iter = nil;
         id val;
+        BOOL isCopy = (srcMask & NSDragOperationMove) ? NO:YES;
         // Move the modules
         iter = [array objectEnumerator];
         while ((val = [iter nextObject]) != NULL) {
@@ -2253,7 +2276,7 @@ objectValueForTableColumn:(NSTableColumn *)aTableColumn row:(NSInteger)rowIndex
           withView:(NSView *)parentView
 {
     NSRect mainFrame = [parentView frame];
-    NSString *labelString;
+    NSString *labelString, *toolTip;
     mainFrame.size.height = 17;
     mainFrame.size.width = mainFrame.size.width - LEFTMARGIN - RIGHTMARGIN;
     mainFrame.origin.x = LEFTMARGIN;

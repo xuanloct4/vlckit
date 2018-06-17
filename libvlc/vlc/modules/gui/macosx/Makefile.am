@@ -1,12 +1,12 @@
 SUFFIXES += .xib
 
-libmacosx_plugin_la_OBJCFLAGS = $(AM_OBJCFLAGS) -fobjc-exceptions -fobjc-arc
+libmacosx_plugin_la_OBJCFLAGS = $(AM_OBJCFLAGS) -fobjc-exceptions -fobjc-arc 
 libmacosx_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(guidir)' \
 	-Wl,-framework,Cocoa -Wl,-framework,Carbon -Wl,-framework,CoreServices \
 	-Wl,-framework,AVFoundation -Wl,-framework,CoreMedia -Wl,-framework,IOKit \
 	-Wl,-framework,AddressBook -Wl,-framework,WebKit -Wl,-framework,CoreAudio \
 	-Wl,-framework,SystemConfiguration -Wl,-framework,ScriptingBridge \
-	-Wl,-framework,QuartzCore -Wl,-framework,MediaPlayer
+	-Wl,-framework,QuartzCore
 
 if HAVE_SPARKLE
 libmacosx_plugin_la_LDFLAGS += -Wl,-framework,Sparkle
@@ -36,6 +36,7 @@ libmacosx_plugin_la_SOURCES = \
 	gui/macosx/VLCKeyboardBacklightControl.h gui/macosx/VLCKeyboardBacklightControl.m \
 	gui/macosx/macosx.m \
 	gui/macosx/VLCMainMenu.h gui/macosx/VLCMainMenu.m \
+	gui/macosx/VLCMainWindowTitleView.h gui/macosx/VLCMainWindowTitleView.m \
 	gui/macosx/misc.h gui/macosx/misc.m \
 	gui/macosx/NSSound+VLCAdditions.h gui/macosx/NSSound+VLCAdditions.m \
 	gui/macosx/NSScreen+VLCAdditions.h gui/macosx/NSScreen+VLCAdditions.m \
@@ -65,20 +66,26 @@ libmacosx_plugin_la_SOURCES = \
 	gui/macosx/VLCUIWidgets.h gui/macosx/VLCUIWidgets.m \
 	gui/macosx/VLCScrollingClipView.h gui/macosx/VLCScrollingClipView.m \
 	gui/macosx/VLCStatusBarIcon.h gui/macosx/VLCStatusBarIcon.m \
-	gui/macosx/VLCVideoOutputProvider.h gui/macosx/VLCVideoOutputProvider.m \
-	gui/macosx/VLCWindow.h gui/macosx/VLCWindow.m \
-	gui/macosx/VLCVideoWindowCommon.h gui/macosx/VLCVideoWindowCommon.m \
+	gui/macosx/VLCVoutWindowController.h gui/macosx/VLCVoutWindowController.m \
+	gui/macosx/Windows.h gui/macosx/Windows.m \
 	gui/macosx/VLCAudioEffectsWindowController.h gui/macosx/VLCAudioEffectsWindowController.m \
 	gui/macosx/VLCBookmarksWindowController.h gui/macosx/VLCBookmarksWindowController.m \
 	gui/macosx/VLCBottomBarView.h gui/macosx/VLCBottomBarView.m \
 	gui/macosx/VLCCoreDialogProvider.h gui/macosx/VLCCoreDialogProvider.m \
 	gui/macosx/VLCLogMessage.h gui/macosx/VLCLogMessage.m \
 	gui/macosx/VLCLogWindowController.h gui/macosx/VLCLogWindowController.m \
+	gui/macosx/VLCHUDSliderCell.h gui/macosx/VLCHUDSliderCell.m \
+	gui/macosx/VLCHUDButtonCell.h gui/macosx/VLCHUDButtonCell.m \
+	gui/macosx/VLCHUDCheckboxCell.h gui/macosx/VLCHUDCheckboxCell.m \
+	gui/macosx/VLCHUDTextFieldCell.h gui/macosx/VLCHUDTextFieldCell.m \
+	gui/macosx/VLCHUDScroller.h gui/macosx/VLCHUDScroller.m \
 	gui/macosx/VLCHUDOutlineView.h gui/macosx/VLCHUDOutlineView.m \
 	gui/macosx/VLCHUDTableView.h gui/macosx/VLCHUDTableView.m \
 	gui/macosx/VLCHUDTableCornerView.h gui/macosx/VLCHUDTableCornerView.m \
+	gui/macosx/VLCHUDSegmentedCell.h gui/macosx/VLCHUDSegmentedCell.m \
+	gui/macosx/VLCHUDStepperCell.h gui/macosx/VLCHUDStepperCell.m \
+	gui/macosx/VLCHUDPopUpButtonCell.h gui/macosx/VLCHUDPopUpButtonCell.m \
 	gui/macosx/VLCInputManager.h gui/macosx/VLCInputManager.m \
-	gui/macosx/VLCRemoteControlService.h gui/macosx/VLCRemoteControlService.m \
 	gui/macosx/VLCMainWindow.h gui/macosx/VLCMainWindow.m \
 	gui/macosx/VLCRendererDiscovery.h gui/macosx/VLCRendererDiscovery.m \
 	gui/macosx/VLCRendererItem.h gui/macosx/VLCRendererItem.m \
@@ -91,6 +98,7 @@ libmacosx_plugin_la_SOURCES = \
 	gui/macosx/VLCDefaultValueSlider.h gui/macosx/VLCDefaultValueSlider.m \
 	gui/macosx/VLCDefaultValueSliderCell.h gui/macosx/VLCDefaultValueSliderCell.m \
 	gui/macosx/VLCImageButton.h gui/macosx/VLCImageButton.m \
+	gui/macosx/VLCTintedImageButtonCell.h gui/macosx/VLCTintedImageButtonCell.m \
 	gui/macosx/VLCTimeField.h gui/macosx/VLCTimeField.m \
 	gui/macosx/VLCHexNumberFormatter.h gui/macosx/VLCHexNumberFormatter.m \
 	gui/macosx/VLCSlider.h gui/macosx/VLCSlider.m \
@@ -169,7 +177,7 @@ xib_verbose__0 = $(xib_verbose_0)
 	$(AM_V_at)mkdir -p -- gui/macosx/UI
 	$(xib_verbose)$(XIB) --errors --warnings --notices \
 	  --module VLC --auto-activate-custom-fonts --target-device mac \
-	  --minimum-deployment-target 10.10 --output-format human-readable-text \
+	  --minimum-deployment-target 10.7 --output-format human-readable-text \
 	  --compile $@ $<
 
 if ENABLE_MACOSX_UI
@@ -289,6 +297,363 @@ libmacosx_plugin_la_RES = \
 	gui/macosx/Resources/mainwindow/volume-high@2x.png \
 	gui/macosx/Resources/mainwindow/volume-low.png \
 	gui/macosx/Resources/mainwindow/volume-low@2x.png \
+	gui/macosx/Resources/mainwindow_dark/backward-3btns-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark/backward-3btns-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark/backward-3btns-dark.png \
+	gui/macosx/Resources/mainwindow_dark/backward-3btns-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/backward-6btns-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark/backward-6btns-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark/backward-6btns-dark.png \
+	gui/macosx/Resources/mainwindow_dark/backward-6btns-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/effects-double-buttons-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark/effects-double-buttons-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/effects-double-buttons_dark.png \
+	gui/macosx/Resources/mainwindow_dark/effects-double-buttons_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/effects-one-button-pressed-dark.png \
+	gui/macosx/Resources/mainwindow_dark/effects-one-button-pressed-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/effects-one-button_dark.png \
+	gui/macosx/Resources/mainwindow_dark/effects-one-button_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/forward-3btns-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark/forward-3btns-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark/forward-3btns-dark.png \
+	gui/macosx/Resources/mainwindow_dark/forward-3btns-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/forward-6btns-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark/forward-6btns-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark/forward-6btns-dark.png \
+	gui/macosx/Resources/mainwindow_dark/forward-6btns-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/fullscreen-double-buttons-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark/fullscreen-double-buttons-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/fullscreen-double-buttons_dark.png \
+	gui/macosx/Resources/mainwindow_dark/fullscreen-double-buttons_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/fullscreen-one-button-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark/fullscreen-one-button-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/fullscreen-one-button_dark.png \
+	gui/macosx/Resources/mainwindow_dark/fullscreen-one-button_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/next-6btns-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark/next-6btns-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark/next-6btns-dark.png \
+	gui/macosx/Resources/mainwindow_dark/next-6btns-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/pause-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark/pause-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/pause_dark.png \
+	gui/macosx/Resources/mainwindow_dark/pause_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/play-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark/play-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/play_dark.png \
+	gui/macosx/Resources/mainwindow_dark/play_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/playlist-1btn-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark/playlist-1btn-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark/playlist-1btn-dark.png \
+	gui/macosx/Resources/mainwindow_dark/playlist-1btn-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/playlist-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark/playlist-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/playlist_dark.png \
+	gui/macosx/Resources/mainwindow_dark/playlist_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/previous-6btns-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark/previous-6btns-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark/previous-6btns-dark.png \
+	gui/macosx/Resources/mainwindow_dark/previous-6btns-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/repeat-all-blue-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark/repeat-all-blue-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/repeat-all-blue_dark.png \
+	gui/macosx/Resources/mainwindow_dark/repeat-all-blue_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/repeat-one-blue-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark/repeat-one-blue-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/repeat-one-blue_dark.png \
+	gui/macosx/Resources/mainwindow_dark/repeat-one-blue_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/repeat-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark/repeat-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/repeat_dark.png \
+	gui/macosx/Resources/mainwindow_dark/repeat_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/shuffle-blue-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark/shuffle-blue-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/shuffle-blue_dark.png \
+	gui/macosx/Resources/mainwindow_dark/shuffle-blue_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/shuffle-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark/shuffle-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/shuffle_dark.png \
+	gui/macosx/Resources/mainwindow_dark/shuffle_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/stop-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark/stop-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/stop_dark.png \
+	gui/macosx/Resources/mainwindow_dark/stop_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-close-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-close-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-close-on-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-close-on-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-close-on.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-close-on@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-close-over-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-close-over-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-close-over.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-close-over@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-close.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-close@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-fullscreen-on.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-fullscreen-on@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-fullscreen-over.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-fullscreen-over@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-fullscreen.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-fullscreen@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-minimize-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-minimize-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-minimize-on-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-minimize-on-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-minimize-on.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-minimize-on@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-minimize-over-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-minimize-over-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-minimize-over.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-minimize-over@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-minimize.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-minimize@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-zoom-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-zoom-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-zoom-on-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-zoom-on-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-zoom-on.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-zoom-on@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-zoom-over-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-zoom-over-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-zoom-over.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-zoom-over@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-zoom.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/lion/lion-window-zoom@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-close-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-close-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-close-on-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-close-on-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-close-on.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-close-on@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-close-over-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-close-over-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-close-over.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-close-over@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-close.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-close@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-fullscreen-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-fullscreen-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-fullscreen-on-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-fullscreen-on-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-fullscreen-on.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-fullscreen-on@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-fullscreen-over-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-fullscreen-over-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-fullscreen-over.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-fullscreen-over@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-fullscreen.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-fullscreen@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-minimize-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-minimize-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-minimize-on-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-minimize-on-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-minimize-on.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-minimize-on@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-minimize-over-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-minimize-over-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-minimize-over.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-minimize-over@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-minimize.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-minimize@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-zoom-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-zoom-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-zoom-on-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-zoom-on-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-zoom-on.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-zoom-on@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-zoom-over-graphite.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-zoom-over-graphite@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-zoom-over.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-zoom-over@2x.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-zoom.png \
+	gui/macosx/Resources/mainwindow_dark/titlebar/yosemite/yosemite-window-zoom@2x.png \
+	gui/macosx/Resources/mainwindow_dark/topbar-dark-center-fill.png \
+	gui/macosx/Resources/mainwindow_dark/topbar-dark-center-fill@2x.png \
+	gui/macosx/Resources/mainwindow_dark/topbar-dark-left.png \
+	gui/macosx/Resources/mainwindow_dark/topbar-dark-left@2x.png \
+	gui/macosx/Resources/mainwindow_dark/topbar-dark-right.png \
+	gui/macosx/Resources/mainwindow_dark/topbar-dark-right@2x.png \
+	gui/macosx/Resources/mainwindow_dark/volume-high_dark.png \
+	gui/macosx/Resources/mainwindow_dark/volume-high_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/volume-low_dark.png \
+	gui/macosx/Resources/mainwindow_dark/volume-low_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark/window-resize.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-backward-3btns-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-backward-3btns-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-backward-3btns-dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-backward-3btns-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-backward-6btns-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-backward-6btns-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-backward-6btns-dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-backward-6btns-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-effects-double-buttons-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-effects-double-buttons-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-effects-double-buttons_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-effects-double-buttons_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-effects-one-button-pressed-dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-effects-one-button-pressed-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-effects-one-button_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-effects-one-button_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-forward-3btns-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-forward-3btns-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-forward-3btns-dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-forward-3btns-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-forward-6btns-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-forward-6btns-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-forward-6btns-dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-forward-6btns-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-fullscreen-double-buttons-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-fullscreen-double-buttons-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-fullscreen-double-buttons_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-fullscreen-double-buttons_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-fullscreen-one-button-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-fullscreen-one-button-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-fullscreen-one-button_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-fullscreen-one-button_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-next-6btns-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-next-6btns-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-next-6btns-dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-next-6btns-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-pause-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-pause-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-pause_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-pause_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-play-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-play-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-play_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-play_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-playlist-1btn-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-playlist-1btn-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-playlist-1btn-dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-playlist-1btn-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-playlist-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-playlist-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-playlist_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-playlist_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-previous-6btns-dark-pressed.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-previous-6btns-dark-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-previous-6btns-dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-previous-6btns-dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-repeat-all-blue-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-repeat-all-blue-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-repeat-all-blue_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-repeat-all-blue_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-repeat-one-blue-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-repeat-one-blue-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-repeat-one-blue_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-repeat-one-blue_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-repeat-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-repeat-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-repeat_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-repeat_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-shuffle-blue-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-shuffle-blue-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-shuffle-blue_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-shuffle-blue_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-shuffle-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-shuffle-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-shuffle_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-shuffle_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-stop-pressed_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-stop-pressed_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-stop_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-stop_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-topbar-dark-center-fill.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-topbar-dark-center-fill@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-topbar-dark-left.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-topbar-dark-left@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-topbar-dark-right.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-topbar-dark-right@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-volume-high_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-volume-high_dark@2x.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-volume-low_dark.png \
+	gui/macosx/Resources/mainwindow_dark_yosemite/ys-volume-low_dark@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-backward-3btns-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-backward-3btns-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-backward-3btns.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-backward-3btns@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-backward-6btns-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-backward-6btns-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-backward-6btns.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-backward-6btns@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-dropzone.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-dropzone@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-effects-double-buttons-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-effects-double-buttons-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-effects-double-buttons.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-effects-double-buttons@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-effects-one-button-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-effects-one-button-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-effects-one-button.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-effects-one-button@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-forward-3btns-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-forward-3btns-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-forward-3btns.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-forward-3btns@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-forward-6btns-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-forward-6btns-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-forward-6btns.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-forward-6btns@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-fullscreen-double-buttons-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-fullscreen-double-buttons-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-fullscreen-double-buttons.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-fullscreen-double-buttons@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-fullscreen-one-button-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-fullscreen-one-button-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-fullscreen-one-button.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-fullscreen-one-button@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-next-6btns-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-next-6btns-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-next-6btns.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-next-6btns@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-pause-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-pause-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-pause.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-pause@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-play-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-play-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-play.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-play@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-playlist-1btn-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-playlist-1btn-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-playlist-1btn.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-playlist-1btn@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-playlist-btn-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-playlist-btn-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-playlist-btn.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-playlist-btn@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-previous-6btns-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-previous-6btns-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-previous-6btns.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-previous-6btns@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-repeat-all-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-repeat-all-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-repeat-all.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-repeat-all@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-repeat-one-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-repeat-one-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-repeat-one.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-repeat-one@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-repeat-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-repeat-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-repeat.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-repeat@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-shuffle-blue-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-shuffle-blue-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-shuffle-blue.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-shuffle-blue@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-shuffle-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-shuffle-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-shuffle.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-shuffle@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-stop-pressed.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-stop-pressed@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-stop.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-stop@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-volume-high.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-volume-high@2x.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-volume-low.png \
+	gui/macosx/Resources/mainwindow_yosemite/ys-volume-low@2x.png \
 	gui/macosx/Resources/noart.png \
 	gui/macosx/Resources/Pref-Icons/VLCAudioCone.png \
 	gui/macosx/Resources/Pref-Icons/VLCHotkeysCone.png \
@@ -308,6 +673,18 @@ libmacosx_plugin_la_RES = \
 	gui/macosx/Resources/sidebar-icons/sidebar-playlist@2x.png \
 	gui/macosx/Resources/sidebar-icons/sidebar-podcast.png \
 	gui/macosx/Resources/sidebar-icons/sidebar-podcast@2x.png \
+	gui/macosx/Resources/sidebar-icons_yosemite/ys-sidebar-local.png \
+	gui/macosx/Resources/sidebar-icons_yosemite/ys-sidebar-local@2x.png \
+	gui/macosx/Resources/sidebar-icons_yosemite/ys-sidebar-movie.png \
+	gui/macosx/Resources/sidebar-icons_yosemite/ys-sidebar-movie@2x.png \
+	gui/macosx/Resources/sidebar-icons_yosemite/ys-sidebar-music.png \
+	gui/macosx/Resources/sidebar-icons_yosemite/ys-sidebar-music@2x.png \
+	gui/macosx/Resources/sidebar-icons_yosemite/ys-sidebar-pictures.png \
+	gui/macosx/Resources/sidebar-icons_yosemite/ys-sidebar-pictures@2x.png \
+	gui/macosx/Resources/sidebar-icons_yosemite/ys-sidebar-playlist.png \
+	gui/macosx/Resources/sidebar-icons_yosemite/ys-sidebar-playlist@2x.png \
+	gui/macosx/Resources/sidebar-icons_yosemite/ys-sidebar-podcast.png \
+	gui/macosx/Resources/sidebar-icons_yosemite/ys-sidebar-podcast@2x.png \
 	gui/macosx/Resources/Button-Icons/VLCNextTemplate.pdf \
 	gui/macosx/Resources/Button-Icons/VLCPauseTemplate.pdf \
 	gui/macosx/Resources/Button-Icons/VLCPlayTemplate.pdf \

@@ -151,8 +151,8 @@ vlc_module_begin ()
     set_category( CAT_SOUT )
     set_subcategory( SUBCAT_SOUT_STREAM )
     set_section( N_("Video"), NULL )
-    add_module(SOUT_CFG_PREFIX "venc", "encoder", NULL,
-               VENC_TEXT, VENC_LONGTEXT)
+    add_module( SOUT_CFG_PREFIX "venc", "encoder", NULL, VENC_TEXT,
+                VENC_LONGTEXT, false )
     add_string( SOUT_CFG_PREFIX "vcodec", NULL, VCODEC_TEXT,
                 VCODEC_LONGTEXT, false )
     add_integer( SOUT_CFG_PREFIX "vb", 0, VB_TEXT,
@@ -176,12 +176,12 @@ vlc_module_begin ()
                  MAXWIDTH_LONGTEXT, true )
     add_integer( SOUT_CFG_PREFIX "maxheight", 0, MAXHEIGHT_TEXT,
                  MAXHEIGHT_LONGTEXT, true )
-    add_module_list(SOUT_CFG_PREFIX "vfilter", "video filter", NULL,
-                    VFILTER_TEXT, VFILTER_LONGTEXT)
+    add_module_list( SOUT_CFG_PREFIX "vfilter", "video filter",
+                     NULL, VFILTER_TEXT, VFILTER_LONGTEXT, false )
 
     set_section( N_("Audio"), NULL )
-    add_module(SOUT_CFG_PREFIX "aenc", "encoder", NULL,
-               AENC_TEXT, AENC_LONGTEXT)
+    add_module( SOUT_CFG_PREFIX "aenc", "encoder", NULL, AENC_TEXT,
+                AENC_LONGTEXT, false )
     add_string( SOUT_CFG_PREFIX "acodec", NULL, ACODEC_TEXT,
                 ACODEC_LONGTEXT, false )
     add_integer( SOUT_CFG_PREFIX "ab", 96, AB_TEXT,
@@ -195,18 +195,18 @@ vlc_module_begin ()
                  ARATE_LONGTEXT, true )
         change_integer_range( 0, 48000 )
     add_obsolete_bool( SOUT_CFG_PREFIX "audio-sync" ) /*Since 2.2.0 */
-    add_module_list(SOUT_CFG_PREFIX "afilter",  "audio filter", NULL,
-                    AFILTER_TEXT, AFILTER_LONGTEXT)
+    add_module_list( SOUT_CFG_PREFIX "afilter",  "audio filter",
+                     NULL, AFILTER_TEXT, AFILTER_LONGTEXT, false )
 
     set_section( N_("Overlays/Subtitles"), NULL )
-    add_module(SOUT_CFG_PREFIX "senc", "encoder", NULL,
-               SENC_TEXT, SENC_LONGTEXT)
+    add_module( SOUT_CFG_PREFIX "senc", "encoder", NULL, SENC_TEXT,
+                SENC_LONGTEXT, false )
     add_string( SOUT_CFG_PREFIX "scodec", NULL, SCODEC_TEXT,
                 SCODEC_LONGTEXT, false )
     add_bool( SOUT_CFG_PREFIX "soverlay", false, SCODEC_TEXT,
                SCODEC_LONGTEXT, false )
-    add_module_list(SOUT_CFG_PREFIX "sfilter", "spu source", NULL,
-                    SFILTER_TEXT, SFILTER_LONGTEXT)
+    add_module_list( SOUT_CFG_PREFIX "sfilter", "spu source",
+                     NULL, SFILTER_TEXT, SFILTER_LONGTEXT, false )
 
     set_section( N_("Miscellaneous"), NULL )
     add_integer( SOUT_CFG_PREFIX "threads", 0, THREADS_TEXT,
@@ -230,9 +230,9 @@ static const char *const ppsz_sout_options[] = {
 /*****************************************************************************
  * Exported prototypes
  *****************************************************************************/
-static void *Add( sout_stream_t *, const es_format_t * );
-static void  Del( sout_stream_t *, void * );
-static int   Send( sout_stream_t *, void *, block_t * );
+static sout_stream_id_sys_t *Add( sout_stream_t *, const es_format_t * );
+static void              Del ( sout_stream_t *, sout_stream_id_sys_t * );
+static int               Send( sout_stream_t *, sout_stream_id_sys_t *, block_t* );
 
 /*****************************************************************************
  * Open:
@@ -409,9 +409,6 @@ static int Open( vlc_object_t *p_this )
     }
 
     p_sys->b_soverlay = var_GetBool( p_stream, SOUT_CFG_PREFIX "soverlay" );
-    /* Set default size for TEXT spu non overlay conversion / updater */
-    p_sys->i_spu_width = (p_sys->i_width) ? p_sys->i_width : 1280;
-    p_sys->i_spu_height = (p_sys->i_height) ? p_sys->i_height : 720;
 
     psz_string = var_GetString( p_stream, SOUT_CFG_PREFIX "sfilter" );
     if( psz_string && *psz_string )
@@ -484,7 +481,8 @@ static void DeleteSoutStreamID( sout_stream_id_sys_t *id )
     }
 }
 
-static void *Add( sout_stream_t *p_stream, const es_format_t *p_fmt )
+static sout_stream_id_sys_t *Add( sout_stream_t *p_stream,
+                                  const es_format_t *p_fmt )
 {
     sout_stream_sys_t *p_sys = p_stream->p_sys;
     sout_stream_id_sys_t *id;
@@ -499,12 +497,9 @@ static void *Add( sout_stream_t *p_stream, const es_format_t *p_fmt )
     id->p_encoder = NULL;
 
     /* Create decoder object */
-    struct decoder_owner * p_owner = vlc_object_create( p_stream, sizeof( *p_owner ) );
-    if( !p_owner )
+    id->p_decoder = vlc_object_create( p_stream, sizeof( decoder_t ) );
+    if( !id->p_decoder )
         goto error;
-    p_owner->p_stream = p_stream;
-
-    id->p_decoder = &p_owner->dec;
     id->p_decoder->p_module = NULL;
     es_format_Init( &id->p_decoder->fmt_out, p_fmt->i_cat, 0 );
     es_format_Copy( &id->p_decoder->fmt_in, p_fmt );
@@ -556,9 +551,8 @@ error:
     return NULL;
 }
 
-static void Del( sout_stream_t *p_stream, void *_id )
+static void Del( sout_stream_t *p_stream, sout_stream_id_sys_t *id )
 {
-    sout_stream_id_sys_t *id = (sout_stream_id_sys_t *)_id;
     if( id->b_transcode )
     {
         switch( id->p_decoder->fmt_in.i_cat )
@@ -584,9 +578,9 @@ static void Del( sout_stream_t *p_stream, void *_id )
     DeleteSoutStreamID( id );
 }
 
-static int Send( sout_stream_t *p_stream, void *_id, block_t *p_buffer )
+static int Send( sout_stream_t *p_stream, sout_stream_id_sys_t *id,
+                 block_t *p_buffer )
 {
-    sout_stream_id_sys_t *id = (sout_stream_id_sys_t *)_id;
     block_t *p_out = NULL;
 
     if( id->b_error )

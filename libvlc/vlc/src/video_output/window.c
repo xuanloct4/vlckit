@@ -62,10 +62,14 @@ vout_window_t *vout_window_New(vlc_object_t *obj, const char *module,
     window->info.has_double_click = false;
     window->control = NULL;
     window->sys = NULL;
-    assert(owner != NULL);
-    window->owner = *owner;
 
-    w->module = vlc_module_load(window, "vout window", module, false,
+    if (owner != NULL)
+        window->owner = *owner;
+    else
+        window->owner.resized = NULL;
+
+    w->module = vlc_module_load(window, "vout window", module,
+                                module && *module,
                                 vout_window_start, window, cfg);
     if (!w->module) {
         vlc_object_release(window);
@@ -123,140 +127,45 @@ void vout_window_SetInhibition(vout_window_t *window, bool enabled)
 #include <vlc_vout.h>
 #include <vlc_vout_display.h>
 #include "window.h"
-#include "vout_internal.h"
-
-#define DOUBLE_CLICK_TIME (3 * CLOCK_FREQ / 10)
+#include "event.h"
 
 typedef struct vout_display_window
 {
     vout_display_t *vd;
-    vlc_mouse_t mouse;
-    mtime_t last_left_press;
+    unsigned width;
+    unsigned height;
+
+    vlc_mutex_t lock;
 } vout_display_window_t;
 
 static void vout_display_window_ResizeNotify(vout_window_t *window,
                                              unsigned width, unsigned height)
 {
-    vout_thread_t *vout = (vout_thread_t *)window->obj.parent;
+    vout_display_window_t *state = window->owner.sys;
 
     msg_Dbg(window, "resized to %ux%u", width, height);
-    vout_ControlChangeDisplaySize(vout, width, height);
+    vlc_mutex_lock(&state->lock);
+    state->width = width;
+    state->height = height;
+
+    if (state->vd != NULL)
+        vout_display_SendEventDisplaySize(state->vd, width, height);
+    vlc_mutex_unlock(&state->lock);
 }
 
 static void vout_display_window_CloseNotify(vout_window_t *window)
 {
-    /* TODO: Nowhere to dispatch to currently.
-     * Needs callback to ES output to deselect ES? */
-    msg_Err(window, "window closed");
-}
+    vout_thread_t *vout = (vout_thread_t *)window->obj.parent;
 
-static void vout_display_window_StateNotify(vout_window_t *window,
-                                            unsigned state)
-{
-    static const char states[][8] = {
-        [VOUT_WINDOW_STATE_NORMAL] = "normal",
-        [VOUT_WINDOW_STATE_ABOVE] = "above",
-        [VOUT_WINDOW_STATE_BELOW] = "below",
-    };
-
-    assert(state < ARRAY_SIZE(states));
-    msg_Dbg(window, "window state changed: %s", states[state]);
-    var_SetInteger(window->obj.parent, "window-state", state);
-}
-
-static void vout_display_window_FullscreenNotify(vout_window_t *window,
-                                                 const char *id)
-{
-    msg_Dbg(window, (id != NULL) ? "window set to fullscreen on %s"
-                                 : "window set to fullscreen", id);
-    var_SetString(window->obj.parent, "window-fullscreen-output",
-                  (id != NULL) ? id : "");
-    var_SetBool(window->obj.parent, "window-fullscreen", true);
-}
-
-static void vout_display_window_WindowingNotify(vout_window_t *window)
-{
-    msg_Dbg(window, "window set windowed");
-    var_SetBool(window->obj.parent, "window-fullscreen", false);
+    vout_SendEventClose(vout);
 }
 
 static void vout_display_window_MouseEvent(vout_window_t *window,
-                                           const vout_window_mouse_event_t *ev)
+                                           const vout_window_mouse_event_t *mouse)
 {
-    vout_display_window_t *state = window->owner.sys;
     vout_thread_t *vout = (vout_thread_t *)window->obj.parent;
-    vlc_mouse_t *m = &state->mouse;
-
-    m->b_double_click = false;
-
-    switch (ev->type)
-    {
-        case VOUT_WINDOW_MOUSE_MOVED:
-            vlc_mouse_SetPosition(m, ev->x, ev->y);
-            state->last_left_press = INT64_MIN;
-            break;
-
-        case VOUT_WINDOW_MOUSE_PRESSED:
-            if (!window->info.has_double_click
-             && ev->button_mask == MOUSE_BUTTON_LEFT
-             && !vlc_mouse_IsLeftPressed(m))
-            {
-                const mtime_t now = mdate();
-
-                if (state->last_left_press != INT64_MIN
-                 && now - state->last_left_press < DOUBLE_CLICK_TIME)
-                {
-                    m->b_double_click = true;
-                    state->last_left_press = INT64_MIN;
-                }
-                else
-                    state->last_left_press = now;
-            }
-
-            vlc_mouse_SetPressed(m, ev->button_mask);
-            break;
-
-        case VOUT_WINDOW_MOUSE_RELEASED:
-            vlc_mouse_SetReleased(m, ev->button_mask);
-            break;
-
-        case VOUT_WINDOW_MOUSE_DOUBLE_CLICK:
-            assert(window->info.has_double_click);
-            m->b_double_click = true;
-            break;
-
-        default:
-            vlc_assert_unreachable();
-    }
-
-    vout_MouseState(vout, m);
+    vout_WindowMouseEvent(vout, mouse);
 }
-
-static void vout_display_window_KeyboardEvent(vout_window_t *window,
-                                              unsigned key)
-{
-    var_SetInteger(window->obj.libvlc, "key-pressed", key);
-}
-
-static void vout_display_window_OutputEvent(vout_window_t *window,
-                                            const char *name, const char *desc)
-{
-    if (desc != NULL)
-        msg_Dbg(window, "fullscreen output %s (%s) added", name, desc);
-    else
-        msg_Dbg(window, "fullscreen output %s removed", name);
-}
-
-static const struct vout_window_callbacks vout_display_window_cbs = {
-    .resized = vout_display_window_ResizeNotify,
-    .closed = vout_display_window_CloseNotify,
-    .state_changed = vout_display_window_StateNotify,
-    .fullscreened = vout_display_window_FullscreenNotify,
-    .windowed = vout_display_window_WindowingNotify,
-    .mouse_event = vout_display_window_MouseEvent,
-    .keyboard_event = vout_display_window_KeyboardEvent,
-    .output_event = vout_display_window_OutputEvent,
-};
 
 /**
  * Creates a video window, initially without any attached display.
@@ -268,25 +177,56 @@ vout_window_t *vout_display_window_New(vout_thread_t *vout,
     if (state == NULL)
         return NULL;
 
-    vlc_mouse_Init(&state->mouse);
-    state->last_left_press = INT64_MIN;
+    state->vd = NULL;
+    state->width = cfg->width;
+    state->height = cfg->height;
+    vlc_mutex_init(&state->lock);
 
-    char *modlist = var_InheritString(vout, "window");
     vout_window_owner_t owner = {
-        .cbs = &vout_display_window_cbs,
         .sys = state,
+        .resized = vout_display_window_ResizeNotify,
+        .closed = vout_display_window_CloseNotify,
+        .mouse_event = vout_display_window_MouseEvent,
     };
     vout_window_t *window;
 
-    var_Create(vout, "window-state", VLC_VAR_INTEGER);
-    var_Create(vout, "window-fullscreen", VLC_VAR_BOOL);
-    var_Create(vout, "window-fullscreen-output", VLC_VAR_STRING);
-
-    window = vout_window_New((vlc_object_t *)vout, modlist, cfg, &owner);
-    free(modlist);
-    if (window == NULL)
+    window = vout_window_New((vlc_object_t *)vout, "$window", cfg, &owner);
+    if (window == NULL) {
+        vlc_mutex_destroy(&state->lock);
         free(state);
+    }
     return window;
+}
+
+/**
+ * Attaches a window to a display. Window events will be dispatched to the
+ * display until they are detached.
+ */
+void vout_display_window_Attach(vout_window_t *window, vout_display_t *vd)
+{
+    vout_display_window_t *state = window->owner.sys;
+
+    vout_window_SetSize(window,
+                        vd->cfg->display.width, vd->cfg->display.height);
+
+    vlc_mutex_lock(&state->lock);
+    state->vd = vd;
+
+    vout_display_SendEventDisplaySize(vd, state->width, state->height);
+    vlc_mutex_unlock(&state->lock);
+}
+
+/**
+ * Detaches a window from a display. Window events will no longer be dispatched
+ * (except those that do not need a display).
+ */
+void vout_display_window_Detach(vout_window_t *window)
+{
+    vout_display_window_t *state = window->owner.sys;
+
+    vlc_mutex_lock(&state->lock);
+    state->vd = NULL;
+    vlc_mutex_unlock(&state->lock);
 }
 
 /**
@@ -295,12 +235,11 @@ vout_window_t *vout_display_window_New(vout_thread_t *vout,
  */
 void vout_display_window_Delete(vout_window_t *window)
 {
-    vout_thread_t *vout = (vout_thread_t *)(window->obj.parent);
     vout_display_window_t *state = window->owner.sys;
 
     vout_window_Delete(window);
-    var_Destroy(vout, "window-fullscreen-output");
-    var_Destroy(vout, "window-fullscreen");
-    var_Destroy(vout, "window-state");
+
+    assert(state->vd == NULL);
+    vlc_mutex_destroy(&state->lock);
     free(state);
 }

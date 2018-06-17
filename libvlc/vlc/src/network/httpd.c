@@ -55,7 +55,7 @@
 
 #if defined(_WIN32)
 #   include <winsock2.h>
-#elif defined(HAVE_SYS_SOCKET_H)
+#else
 #   include <sys/socket.h>
 #endif
 
@@ -72,7 +72,7 @@ static void httpd_AppendData(httpd_stream_t *stream, uint8_t *p_data, int i_data
 /* each host run in his own thread */
 struct httpd_host_t
 {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
 
     /* ref count */
     unsigned    i_ref;
@@ -1193,7 +1193,7 @@ static void httpd_ClientInit(httpd_client_t *cl, mtime_t now)
 {
     cl->i_state = HTTPD_CLIENT_RECEIVING;
     cl->i_activity_date = now;
-    cl->i_activity_timeout = CLOCK_FREQ*10;
+    cl->i_activity_timeout = INT64_C(10000000);
     cl->i_buffer_size = HTTPD_CL_BUFSIZE;
     cl->i_buffer = 0;
     cl->p_buffer = xmalloc(cl->i_buffer_size);

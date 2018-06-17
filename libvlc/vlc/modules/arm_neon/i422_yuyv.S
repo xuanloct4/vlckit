@@ -45,7 +45,6 @@ function i422_yuyv_neon
 	sub		OPAD,	OPAD,	WIDTH,	lsl #1
 	sub		YPAD,	YPAD,	WIDTH
 1:
-	ite		gt
 	movsgt		COUNT,	WIDTH
 	pople		{r4-r6,pc}
 2:
@@ -77,7 +76,6 @@ function i422_uyvy_neon
 	sub		OPAD,	OPAD,	WIDTH,	lsl #1
 	sub		YPAD,	YPAD,	WIDTH
 1:
-	ite		gt
 	movsgt		COUNT,	WIDTH
 	pople		{r4-r6,pc}
 2:

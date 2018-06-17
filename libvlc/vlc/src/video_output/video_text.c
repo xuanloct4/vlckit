@@ -31,10 +31,10 @@
 #include <vlc_vout.h>
 #include <vlc_vout_osd.h>
 
-typedef struct {
+struct subpicture_updater_sys_t {
     int  position;
     char *text;
-} osd_spu_updater_sys_t;
+};
 
 static int OSDTextValidate(subpicture_t *subpic,
                            bool has_src_changed, const video_format_t *fmt_src,
@@ -55,7 +55,7 @@ static void OSDTextUpdate(subpicture_t *subpic,
                           const video_format_t *fmt_dst,
                           mtime_t ts)
 {
-    osd_spu_updater_sys_t *sys = subpic->updater.p_sys;
+    subpicture_updater_sys_t *sys = subpic->updater.p_sys;
     VLC_UNUSED(fmt_src); VLC_UNUSED(ts);
 
     if( fmt_dst->i_sar_num <= 0 || fmt_dst->i_sar_den <= 0 )
@@ -102,7 +102,7 @@ static void OSDTextUpdate(subpicture_t *subpic,
 
 static void OSDTextDestroy(subpicture_t *subpic)
 {
-    osd_spu_updater_sys_t *sys = subpic->updater.p_sys;
+    subpicture_updater_sys_t *sys = subpic->updater.p_sys;
 
     free(sys->text);
     free(sys);
@@ -115,7 +115,7 @@ void vout_OSDText(vout_thread_t *vout, int channel,
     if (!var_InheritBool(vout, "osd") || duration <= 0)
         return;
 
-    osd_spu_updater_sys_t *sys = malloc(sizeof(*sys));
+    subpicture_updater_sys_t *sys = malloc(sizeof(*sys));
     if (!sys)
         return;
     sys->position = position;
@@ -152,7 +152,7 @@ void vout_OSDMessage(vout_thread_t *vout, int channel, const char *format, ...)
     char *string;
     if (vasprintf(&string, format, args) != -1) {
         vout_OSDText(vout, channel,
-                     SUBPICTURE_ALIGN_TOP|SUBPICTURE_ALIGN_RIGHT, CLOCK_FREQ*1,
+                     SUBPICTURE_ALIGN_TOP|SUBPICTURE_ALIGN_RIGHT, 1000000,
                      string);
         free(string);
     }

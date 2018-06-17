@@ -32,64 +32,20 @@
 #include <vlc_subpicture.h>
 
 /**
- * \defgroup decoder Decoder
- * \ingroup input
- * Audio, video and text decoders
+ * \defgroup codec Codec
+ * Decoders and encoders
  * @{
- *
  * \file
  * Decoder and encoder modules interface
+ *
+ * \defgroup decoder Decoder
+ * Audio, video and text decoders
+ * @{
  */
 
+typedef struct decoder_owner_sys_t decoder_owner_sys_t;
+
 typedef struct decoder_cc_desc_t decoder_cc_desc_t;
-
-struct decoder_owner_callbacks
-{
-    union
-    {
-        struct
-        {
-            int         (*format_update)( decoder_t * );
-
-            /* cf. decoder_NewPicture */
-            picture_t*  (*buffer_new)( decoder_t * );
-            /* cf.decoder_QueueVideo */
-            void        (*queue)( decoder_t *, picture_t * );
-            /* cf.decoder_QueueCC */
-            void        (*queue_cc)( decoder_t *, block_t *,
-                                     const decoder_cc_desc_t * );
-
-            /* Display date
-             * cf. decoder_GetDisplayDate */
-            mtime_t     (*get_display_date)( decoder_t *, mtime_t );
-            /* Display rate
-             * cf. decoder_GetDisplayRate */
-            float       (*get_display_rate)( decoder_t * );
-        } video;
-        struct
-        {
-            int     (*format_update)( decoder_t * );
-
-            /* cf.decoder_QueueAudio */
-            void    (*queue)( decoder_t *, block_t * );
-        } audio;
-        struct
-        {
-            /* cf. decoder_NewSubpicture */
-            subpicture_t*   (*buffer_new)( decoder_t *,
-                                           const subpicture_updater_t * );
-
-            /* cf.decoder_QueueSub */
-            void            (*queue)( decoder_t *, subpicture_t *);
-        } spu;
-    };
-
-    /* Input attachments
-     * cf. decoder_GetInputAttachments */
-    int (*get_attachments)( decoder_t *p_dec,
-                            input_attachment_t ***ppp_attachment,
-                            int *pi_attachment );
-};
 
 /*
  * BIG FAT WARNING : the code relies in the first 4 members of filter_t
@@ -98,11 +54,11 @@ struct decoder_owner_callbacks
  */
 struct decoder_t
 {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
 
     /* Module properties */
     module_t *          p_module;
-    void               *p_sys;
+    decoder_sys_t *     p_sys;
 
     /* Input format ie from demuxer (XXX: a lot of field could be invalid) */
     es_format_t         fmt_in;
@@ -112,12 +68,6 @@ struct decoder_t
 
     /* Tell the decoder if it is allowed to drop frames */
     bool                b_frame_drop_allowed;
-
-    /**
-     * Number of extra (ie in addition to the DPB) picture buffers
-     * needed for decoding.
-     */
-    int                 i_extra_picture_buffers;
 
 #   define VLCDEC_SUCCESS   VLC_SUCCESS
 #   define VLCDEC_ECRITICAL VLC_EGENERIC
@@ -190,8 +140,53 @@ struct decoder_t
      */
     vlc_meta_t          *p_description;
 
+    /*
+     * Owner fields
+     * XXX You MUST not use them directly.
+     */
+
+    /* Video output callbacks
+     * XXX use decoder_NewPicture */
+    int             (*pf_vout_format_update)( decoder_t * );
+    picture_t      *(*pf_vout_buffer_new)( decoder_t * );
+
+    /**
+     * Number of extra (ie in addition to the DPB) picture buffers
+     * needed for decoding.
+     */
+    int             i_extra_picture_buffers;
+
+    /* Audio output callbacks */
+    int             (*pf_aout_format_update)( decoder_t * );
+
+    /* SPU output callbacks
+     * XXX use decoder_NewSubpicture */
+    subpicture_t   *(*pf_spu_buffer_new)( decoder_t *, const subpicture_updater_t * );
+
+    /* Input attachments
+     * XXX use decoder_GetInputAttachments */
+    int             (*pf_get_attachments)( decoder_t *p_dec, input_attachment_t ***ppp_attachment, int *pi_attachment );
+
+    /* Display date
+     * XXX use decoder_GetDisplayDate */
+    mtime_t         (*pf_get_display_date)( decoder_t *, mtime_t );
+
+    /* Display rate
+     * XXX use decoder_GetDisplayRate */
+    int             (*pf_get_display_rate)( decoder_t * );
+
+    /* XXX use decoder_QueueVideo or decoder_QueueVideoWithCc */
+    int             (*pf_queue_video)( decoder_t *, picture_t * );
+    /* XXX use decoder_QueueAudio */
+    int             (*pf_queue_audio)( decoder_t *, block_t * );
+    /* XXX use decoder_QueueCC */
+    int             (*pf_queue_cc)( decoder_t *, block_t *, const decoder_cc_desc_t * );
+    /* XXX use decoder_QueueSub */
+    int             (*pf_queue_sub)( decoder_t *, subpicture_t *);
+    void             *p_queue_ctx;
+
     /* Private structure for the owner of the decoder */
-    const struct decoder_owner_callbacks *cbs;
+    decoder_owner_sys_t *p_owner;
 };
 
 /* struct for packetizer get_cc polling/decoder queue_cc
@@ -209,18 +204,17 @@ struct decoder_cc_desc_t
 
 /**
  * \defgroup encoder Encoder
- * \ingroup sout
  * Audio, video and text encoders
  * @{
  */
 
 struct encoder_t
 {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
 
     /* Module properties */
     module_t *          p_module;
-    void               *p_sys;
+    encoder_sys_t *     p_sys;
 
     /* Properties of the input data fed to the encoder */
     es_format_t         fmt_in;
@@ -267,9 +261,9 @@ struct encoder_t
 VLC_USED
 static inline int decoder_UpdateVideoFormat( decoder_t *dec )
 {
-    assert( dec->fmt_in.i_cat == VIDEO_ES && dec->cbs != NULL );
-    if( dec->fmt_in.i_cat == VIDEO_ES && dec->cbs->video.format_update != NULL )
-        return dec->cbs->video.format_update( dec );
+    assert( dec->fmt_in.i_cat == VIDEO_ES );
+    if( dec->fmt_in.i_cat == VIDEO_ES && dec->pf_vout_format_update != NULL )
+        return dec->pf_vout_format_update( dec );
     else
         return -1;
 }
@@ -294,8 +288,7 @@ static inline int decoder_UpdateVideoFormat( decoder_t *dec )
 VLC_USED
 static inline picture_t *decoder_NewPicture( decoder_t *dec )
 {
-    assert( dec->fmt_in.i_cat == VIDEO_ES && dec->cbs != NULL );
-    return dec->cbs->video.buffer_new( dec );
+    return dec->pf_vout_buffer_new( dec );
 }
 
 /**
@@ -314,13 +307,14 @@ VLC_API void decoder_AbortPictures( decoder_t *dec, bool b_abort );
  * The caller doesn't own the picture anymore after this call (even in case of
  * error).
  * FIXME: input_DecoderFrameNext won't work if a module use this function.
+ *
+ * \return 0 if the picture is queued, -1 on error
  */
-static inline void decoder_QueueVideo( decoder_t *dec, picture_t *p_pic )
+static inline int decoder_QueueVideo( decoder_t *dec, picture_t *p_pic )
 {
-    assert( dec->fmt_in.i_cat == VIDEO_ES && dec->cbs != NULL );
     assert( p_pic->p_next == NULL );
-    assert( dec->cbs->video.queue != NULL );
-    dec->cbs->video.queue( dec, p_pic );
+    assert( dec->pf_queue_video != NULL );
+    return dec->pf_queue_video( dec, p_pic );
 }
 
 /**
@@ -329,15 +323,17 @@ static inline void decoder_QueueVideo( decoder_t *dec, picture_t *p_pic )
  * \param dec the decoder object
  * \param p_cc the closed-caption to queue
  * \param p_desc decoder_cc_desc_t description structure
+ * \return 0 if queued, -1 on error
  */
-static inline void decoder_QueueCc( decoder_t *dec, block_t *p_cc,
+static inline int decoder_QueueCc( decoder_t *dec, block_t *p_cc,
                                    const decoder_cc_desc_t *p_desc )
 {
-    assert( dec->fmt_in.i_cat == VIDEO_ES && dec->cbs != NULL );
-    if( dec->cbs->video.queue_cc == NULL )
+    if( dec->pf_queue_cc == NULL )
+    {
         block_Release( p_cc );
-    else
-        dec->cbs->video.queue_cc( dec, p_cc, p_desc );
+        return -1;
+    }
+    return dec->pf_queue_cc( dec, p_cc, p_desc );
 }
 
 /**
@@ -346,13 +342,14 @@ static inline void decoder_QueueCc( decoder_t *dec, block_t *p_cc,
  * \note
  * The caller doesn't own the audio block anymore after this call (even in case
  * of error).
+ *
+ * \return 0 if the block is queued, -1 on error
  */
-static inline void decoder_QueueAudio( decoder_t *dec, block_t *p_aout_buf )
+static inline int decoder_QueueAudio( decoder_t *dec, block_t *p_aout_buf )
 {
-    assert( dec->fmt_in.i_cat == AUDIO_ES && dec->cbs != NULL );
     assert( p_aout_buf->p_next == NULL );
-    assert( dec->cbs->audio.queue != NULL );
-    dec->cbs->audio.queue( dec, p_aout_buf );
+    assert( dec->pf_queue_audio != NULL );
+    return dec->pf_queue_audio( dec, p_aout_buf );
 }
 
 /**
@@ -361,13 +358,14 @@ static inline void decoder_QueueAudio( decoder_t *dec, block_t *p_aout_buf )
  * \note
  * The caller doesn't own the subtitle anymore after this call (even in case of
  * error).
+ *
+ * \return 0 if the subtitle is queued, -1 on error
  */
-static inline void decoder_QueueSub( decoder_t *dec, subpicture_t *p_spu )
+static inline int decoder_QueueSub( decoder_t *dec, subpicture_t *p_spu )
 {
-    assert( dec->fmt_in.i_cat == SPU_ES && dec->cbs != NULL );
     assert( p_spu->p_next == NULL );
-    assert( dec->cbs->spu.queue != NULL );
-    dec->cbs->spu.queue( dec, p_spu );
+    assert( dec->pf_queue_sub != NULL );
+    return dec->pf_queue_sub( dec, p_spu );
 }
 
 /**
@@ -378,9 +376,9 @@ static inline void decoder_QueueSub( decoder_t *dec, subpicture_t *p_spu )
 VLC_USED
 static inline int decoder_UpdateAudioFormat( decoder_t *dec )
 {
-    assert( dec->fmt_in.i_cat == AUDIO_ES && dec->cbs != NULL );
-    if( dec->fmt_in.i_cat == AUDIO_ES && dec->cbs->audio.format_update != NULL )
-        return dec->cbs->audio.format_update( dec );
+    assert(dec->fmt_in.i_cat == AUDIO_ES);
+    if( dec->fmt_in.i_cat == AUDIO_ES && dec->pf_aout_format_update != NULL )
+        return dec->pf_aout_format_update( dec );
     else
         return -1;
 }
@@ -397,61 +395,27 @@ VLC_API block_t * decoder_NewAudioBuffer( decoder_t *, int i_nb_samples ) VLC_US
  * buffer. You have to release it using subpicture_Delete() or by returning
  * it to the caller as a decoder_QueueSub parameter.
  */
-VLC_USED
-static inline subpicture_t *decoder_NewSubpicture( decoder_t *dec,
-                                                   const subpicture_updater_t *p_dyn )
-{
-    assert( dec->fmt_in.i_cat == SPU_ES && dec->cbs != NULL );
-    subpicture_t *p_subpicture = dec->cbs->spu.buffer_new( dec, p_dyn );
-    if( !p_subpicture )
-        msg_Warn( dec, "can't get output subpicture" );
-    return p_subpicture;
-}
+VLC_API subpicture_t * decoder_NewSubpicture( decoder_t *, const subpicture_updater_t * ) VLC_USED;
 
 /**
  * This function gives all input attachments at once.
  *
  * You MUST release the returned values
  */
-static inline int decoder_GetInputAttachments( decoder_t *dec,
-                                               input_attachment_t ***ppp_attachment,
-                                               int *pi_attachment )
-{
-    assert( dec->cbs != NULL );
-    if( !dec->cbs->get_attachments )
-        return VLC_EGENERIC;
-
-    return dec->cbs->get_attachments( dec, ppp_attachment, pi_attachment );
-}
+VLC_API int decoder_GetInputAttachments( decoder_t *, input_attachment_t ***ppp_attachment, int *pi_attachment );
 
 /**
  * This function converts a decoder timestamp into a display date comparable
  * to mdate().
  * You MUST use it *only* for gathering statistics about speed.
  */
-VLC_USED
-static inline mtime_t decoder_GetDisplayDate( decoder_t *dec, mtime_t i_ts )
-{
-    assert( dec->fmt_in.i_cat == VIDEO_ES && dec->cbs != NULL );
-    if( !dec->cbs->video.get_display_date )
-        return VLC_TS_INVALID;
-
-    return dec->cbs->video.get_display_date( dec, i_ts );
-}
+VLC_API mtime_t decoder_GetDisplayDate( decoder_t *, mtime_t ) VLC_USED;
 
 /**
  * This function returns the current input rate.
  * You MUST use it *only* for gathering statistics about speed.
  */
-VLC_USED
-static inline float decoder_GetDisplayRate( decoder_t *dec )
-{
-    assert( dec->fmt_in.i_cat == VIDEO_ES && dec->cbs != NULL );
-    if( !dec->cbs->video.get_display_rate )
-        return 1.f;
-
-    return dec->cbs->video.get_display_rate( dec );
-}
+VLC_API int decoder_GetDisplayRate( decoder_t * ) VLC_USED;
 
 /** @} */
 /** @} */

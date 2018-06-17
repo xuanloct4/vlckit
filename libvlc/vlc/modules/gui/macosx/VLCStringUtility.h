@@ -53,9 +53,10 @@ NSString *toNSStr(const char *str);
 unsigned int CocoaKeyToVLC(unichar i_key);
 
 /**
- * Gets an image resource
+ * Gets the proper variant for an image resource,
+ * depending on the os version.
  */
-NSImage *imageFromRes(NSString *name);
+NSImage *imageFromRes(NSString *o_id);
 
 @interface VLCStringUtility : NSObject
 

@@ -26,8 +26,6 @@
 #ifndef VLC_PICTURE_H
 #define VLC_PICTURE_H 1
 
-#include <assert.h>
-
 /**
  * \file
  * This file defines picture structures and functions in vlc
@@ -48,8 +46,8 @@ typedef struct plane_t
     int i_pixel_pitch;
 
     /* Variables used for pictures with margins */
-    int i_visible_lines;            /**< How many visible lines are there? */
-    int i_visible_pitch;            /**< How many visible pixels are there? */
+    int i_visible_lines;            /**< How many visible lines are there ? */
+    int i_visible_pitch;            /**< How many visible pixels are there ? */
 
 } plane_t;
 
@@ -89,15 +87,15 @@ struct picture_t
      * Those properties can be changed by the decoder
      * @{
      */
-    bool            b_progressive;          /**< is it a progressive frame? */
+    bool            b_progressive;          /**< is it a progressive frame ? */
     bool            b_top_field_first;             /**< which field is first */
-    unsigned int    i_nb_fields;                  /**< number of displayed fields */
+    unsigned int    i_nb_fields;                  /**< # of displayed fields */
     picture_context_t *context;      /**< video format-specific data pointer */
     /**@}*/
 
     /** Private data - the video output plugin might want to put stuff here to
      * keep track of the picture */
-    void           *p_sys;
+    picture_sys_t * p_sys;
 
     /** Next picture in a FIFO a pictures */
     struct picture_t *p_next;
@@ -124,7 +122,7 @@ VLC_API picture_t * picture_NewFromFormat( const video_format_t *p_fmt ) VLC_USE
  */
 typedef struct
 {
-    void *p_sys;
+    picture_sys_t *p_sys;
     void (*pf_destroy)(picture_t *);
 
     /* Plane resources
@@ -255,20 +253,6 @@ enum
 #define V_PITCH      p[V_PLANE].i_pitch
 #define A_PIXELS     p[A_PLANE].p_pixels
 #define A_PITCH      p[A_PLANE].i_pitch
-
-/**
- * Swap UV planes of a Tri Planars picture.
- *
- * It just swap the planes information without doing any copy.
- */
-static inline void picture_SwapUV(picture_t *picture)
-{
-    assert(picture->i_planes == 3);
-
-    plane_t tmp_plane   = picture->p[U_PLANE];
-    picture->p[U_PLANE] = picture->p[V_PLANE];
-    picture->p[V_PLANE] = tmp_plane;
-}
 
 /**@}*/
 

@@ -192,6 +192,7 @@
 
 - (void)setPlaylistHeaderView:(NSTableHeaderView * __nullable)playlistHeaderView
 {
+    VLCMainMenu *mainMenu = [[VLCMain sharedInstance] mainMenu];
     _playlistHeaderView = playlistHeaderView;
 
     // Setup playlist table column selection for both context and main menu
@@ -268,7 +269,7 @@
             tmpItem = [tmpItem parent];
         }
 
-        for(int i = (int)itemsToExpand.count - 1; i >= 0; i--) {
+        for(int i = itemsToExpand.count - 1; i >= 0; i--) {
             VLCPLItem *currentItem = [itemsToExpand objectAtIndex:i];
             [_outlineView expandItem: currentItem];
         }
@@ -347,11 +348,11 @@
 {
     NSIndexSet *selectedRows = [_outlineView selectedRowIndexes];
 
-    int position = -1;
+    NSInteger position = -1;
     VLCPLItem *parentItem = [[self model] rootItem];
 
     if (selectedRows.count >= 1) {
-        position = (int)selectedRows.firstIndex + 1;
+        position = selectedRows.firstIndex + 1;
         parentItem = [_outlineView itemAtRow:selectedRows.firstIndex];
         if ([parentItem parent] != nil)
             parentItem = [parentItem parent];
@@ -503,6 +504,7 @@
 - (input_item_t *)createItem:(NSDictionary *)itemToCreateDict
 {
     intf_thread_t *p_intf = getIntf();
+    playlist_t *p_playlist = pl_Get(p_intf);
 
     input_item_t *p_input;
     BOOL b_rem = FALSE, b_dir = FALSE, b_writable = FALSE;
@@ -666,6 +668,7 @@
     [selectedRows getIndexes:indexes maxCount:count inIndexRange:nil];
 
     id item;
+    playlist_item_t *p_item;
     for (NSUInteger i = 0; i < count; i++) {
         item = [_outlineView itemAtRow: indexes[i]];
 
@@ -686,10 +689,10 @@
 - (NSMenu *)menuForEvent:(NSEvent *)o_event
 {
     if (!b_playlistmenu_nib_loaded)
-        b_playlistmenu_nib_loaded = [[NSBundle mainBundle] loadNibNamed:@"PlaylistMenu" owner:self topLevelObjects:nil];
+        b_playlistmenu_nib_loaded = [NSBundle loadNibNamed:@"PlaylistMenu" owner:self];
 
     NSPoint pt = [_outlineView convertPoint: [o_event locationInWindow] fromView: nil];
-    NSInteger row = [_outlineView rowAtPoint:pt];
+    int row = [_outlineView rowAtPoint:pt];
     if (row != -1 && ![[_outlineView selectedRowIndexes] containsIndex: row])
         [_outlineView selectRowIndexes:[NSIndexSet indexSetWithIndex:row] byExtendingSelection:NO];
 
@@ -702,7 +705,10 @@
 - (void)outlineView:(NSOutlineView *)outlineView didClickTableColumn:(NSTableColumn *)aTableColumn
 {
     int type = 0;
+    intf_thread_t *p_intf = getIntf();
     NSString * identifier = [aTableColumn identifier];
+
+    playlist_t *p_playlist = pl_Get(p_intf);
 
     if (_sortTableColumn == aTableColumn)
         b_isSortDescending = !b_isSortDescending;

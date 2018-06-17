@@ -76,14 +76,14 @@ struct vod_media_t
     mtime_t i_length;
 };
 
-typedef struct
+struct vod_sys_t
 {
     char *psz_rtsp_path;
 
     /* */
     vlc_thread_t thread;
     block_fifo_t *p_fifo_cmd;
-} vod_sys_t;
+};
 
 /* rtsp delayed command (to avoid deadlock between vlm/httpd) */
 typedef enum
@@ -341,8 +341,7 @@ static void CommandPush( vod_t *p_vod, rtsp_cmd_type_t i_type,
     p_cmd = block_Alloc( sizeof(rtsp_cmd_t) );
     memcpy( p_cmd->p_buffer, &cmd, sizeof(cmd) );
 
-    vod_sys_t *p_sys = p_vod->p_sys;
-    block_FifoPut( p_sys->p_fifo_cmd, p_cmd );
+    block_FifoPut( p_vod->p_sys->p_fifo_cmd, p_cmd );
 }
 
 static void* CommandThread( void *obj )

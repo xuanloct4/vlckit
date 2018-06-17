@@ -597,11 +597,9 @@ static const struct {
 #ifdef WORDS_BIGENDIAN
     YUV(VLC_CODEC_I422_9B,  CPictureI422_16,  convert8To9Bits),
     YUV(VLC_CODEC_I422_10B, CPictureI422_16,  convert8To10Bits),
-    YUV(VLC_CODEC_I422_16B, CPictureI422_16,  convert8To16Bits),
 #else
     YUV(VLC_CODEC_I422_9L,  CPictureI422_16,  convert8To9Bits),
     YUV(VLC_CODEC_I422_10L, CPictureI422_16,  convert8To10Bits),
-    YUV(VLC_CODEC_I422_16L, CPictureI422_16,  convert8To16Bits),
 #endif
 
     YUV(VLC_CODEC_J444,     CPictureI444_8,   convertNone),
@@ -639,7 +637,7 @@ static void Blend(filter_t *filter,
                   picture_t *dst, const picture_t *src,
                   int x_offset, int y_offset, int alpha)
 {
-    filter_sys_t *sys = reinterpret_cast<filter_sys_t *>( filter->p_sys );
+    filter_sys_t *sys = filter->p_sys;
 
     if( x_offset < 0 || y_offset < 0 )
     {
@@ -693,7 +691,6 @@ static int Open(vlc_object_t *object)
 static void Close(vlc_object_t *object)
 {
     filter_t *filter = (filter_t *)object;
-    filter_sys_t *p_sys = reinterpret_cast<filter_sys_t *>( filter->p_sys );
-    delete p_sys;
+    delete filter->p_sys;
 }
 

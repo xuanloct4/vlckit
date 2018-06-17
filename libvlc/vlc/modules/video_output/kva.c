@@ -103,13 +103,12 @@ struct vout_display_sys_t
     unsigned           button_pressed;
     bool               is_mouse_hidden;
     bool               is_on_top;
-    ULONG              cursor_timeout;
 };
 
-typedef struct
+struct picture_sys_t
 {
     int i_chroma_shift;
-} picture_sys_t;
+};
 
 /*****************************************************************************
  * Local prototypes
@@ -117,6 +116,7 @@ typedef struct
 static picture_pool_t *Pool   (vout_display_t *, unsigned);
 static void            Display(vout_display_t *, picture_t *, subpicture_t * );
 static int             Control(vout_display_t *, int, va_list);
+static void            Manage (vout_display_t *);
 
 static int  OpenDisplay ( vout_display_t *, video_format_t * );
 static void CloseDisplay( vout_display_t * );
@@ -136,8 +136,6 @@ static MRESULT EXPENTRY WndProc       ( HWND, ULONG, MPARAM, MPARAM );
 #define WM_VLC_MANAGE               ( WM_USER + 1 )
 #define WM_VLC_FULLSCREEN_CHANGE    ( WM_USER + 2 )
 #define WM_VLC_SIZE_CHANGE          ( WM_USER + 3 )
-
-#define TID_HIDE_MOUSE  0x1010
 
 static const char *psz_video_mode[ 4 ] = {"DIVE", "WarpOverlay!", "SNAP",
                                           "VMAN"};
@@ -159,6 +157,7 @@ static void PMThread( void *arg )
     vout_display_info_t info = vd->info;
     info.is_slow = false;
     info.has_double_click = true;
+    info.needs_hide_mouse = true;
     info.has_pictures_invalid = false;
 
     MorphToPM();
@@ -270,6 +269,7 @@ static void PMThread( void *arg )
     vd->prepare = NULL;
     vd->display = Display;
     vd->control = Control;
+    vd->manage  = Manage;
 
     /* Prevent SIG_FPE */
     _control87(MCW_EM, MCW_EM);
@@ -302,6 +302,8 @@ exit_kva_init :
     WinDestroyWindow( sys->frame );
 
 exit_frame :
+    vout_display_DeleteWindow( vd, sys->parent_window );
+
     if( sys->is_mouse_hidden )
         WinShowPointer( HWND_DESKTOP, TRUE );
 
@@ -382,10 +384,21 @@ static picture_pool_t *Pool(vout_display_t *vd, unsigned count)
 static void Display( vout_display_t *vd, picture_t *picture,
                      subpicture_t *subpicture )
 {
-    vout_display_sys_t * sys = vd->sys;
-
+    VLC_UNUSED( vd );
     VLC_UNUSED( subpicture );
+
     picture_Release( picture );
+}
+
+/*****************************************************************************
+ * Manage: handle Sys events
+ *****************************************************************************
+ * This function should be called regularly by video output thread. It returns
+ * a non null value if an error occurred.
+ *****************************************************************************/
+static void Manage( vout_display_t *vd )
+{
+    vout_display_sys_t * sys = vd->sys;
 
     /* Let a window procedure manage instead because if resizing a frame window
      * here, WM_SIZE is not sent to its child window.
@@ -402,6 +415,21 @@ static int Control( vout_display_t *vd, int query, va_list args )
 
     switch (query)
     {
+    case VOUT_DISPLAY_HIDE_MOUSE:
+    {
+        POINTL ptl;
+
+        WinQueryPointerPos( HWND_DESKTOP, &ptl );
+        if( !sys->is_mouse_hidden &&
+            WinWindowFromPoint( HWND_DESKTOP, &ptl, TRUE ) == sys->client )
+        {
+            WinShowPointer( HWND_DESKTOP, FALSE );
+            sys->is_mouse_hidden = true;
+        }
+
+        return VLC_SUCCESS;
+    }
+
     case VOUT_DISPLAY_CHANGE_FULLSCREEN:
     {
         bool fs = va_arg(args, int);
@@ -488,6 +516,7 @@ static int OpenDisplay( vout_display_t *vd, video_format_t *fmt )
     bool b_hw_accel = 0;
     FOURCC i_kva_fourcc;
     int i_chroma_shift;
+    char sz_title[ 256 ];
     RECTL rcl;
     int w, h;
 
@@ -620,20 +649,16 @@ static int OpenDisplay( vout_display_t *vd, video_format_t *fmt )
         return VLC_ENOMEM;
     }
 
-    char *title = var_InheritString( vd, "video-title" );
-    if (title != NULL
-     || asprintf( &title, VOUT_TITLE " (%4.4s to %4.4s - %s mode KVA output)",
-                  (char *)&vd->fmt.i_chroma, (char *)&sys->kvas.fccSrcColor,
-                  psz_video_mode[sys->kvac.ulMode - 1] ) >= 0)
-    {
-        WinSetWindowText( sys->frame, title );
-        free( title );
-    }
-
-    sys->cursor_timeout =
-        ( ULONG )var_InheritInteger( vd, "mouse-hide-timeout" );
-    WinStartTimer( sys->hab, sys->client, TID_HIDE_MOUSE,
-                   sys->cursor_timeout );
+    if (vd->cfg->display.title)
+        snprintf( sz_title, sizeof( sz_title ), "%s", vd->cfg->display.title );
+    else
+        snprintf( sz_title, sizeof( sz_title ),
+                  "%s (%4.4s to %4.4s - %s mode KVA output)",
+                  VOUT_TITLE,
+                  ( char * )&vd->fmt.i_chroma,
+                  ( char * )&sys->kvas.fccSrcColor,
+                  psz_video_mode[ sys->kvac.ulMode - 1 ]);
+    WinSetWindowText( sys->frame, sz_title );
 
     sys->i_screen_width  = WinQuerySysValue( HWND_DESKTOP, SV_CXSCREEN );
     sys->i_screen_height = WinQuerySysValue( HWND_DESKTOP, SV_CYSCREEN );
@@ -944,9 +969,6 @@ static MRESULT EXPENTRY WndProc( HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2 )
     {
         WinShowPointer(HWND_DESKTOP, TRUE);
         sys->is_mouse_hidden = false;
-
-        WinStartTimer( sys->hab, sys->client, TID_HIDE_MOUSE,
-                       sys->cursor_timeout );
     }
 
     switch( msg )
@@ -1061,24 +1083,6 @@ static MRESULT EXPENTRY WndProc( HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2 )
             }
             break;
         }
-
-        case WM_TIMER :
-            if( !sys->is_mouse_hidden &&
-                SHORT1FROMMP( mp1 ) == TID_HIDE_MOUSE )
-            {
-                POINTL ptl;
-
-                WinQueryPointerPos( HWND_DESKTOP, &ptl );
-                if( WinWindowFromPoint( HWND_DESKTOP, &ptl, TRUE )
-                        == sys->client )
-                {
-                    WinShowPointer( HWND_DESKTOP, FALSE );
-                    sys->is_mouse_hidden = true;
-
-                    WinStopTimer( sys->hab, sys->client, TID_HIDE_MOUSE );
-                }
-            }
-            break;
 
         /* Process Manage() call */
         case WM_VLC_MANAGE :

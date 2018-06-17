@@ -59,7 +59,7 @@ vlc_module_begin ()
    set_category(CAT_INPUT)
    set_subcategory(SUBCAT_INPUT_ACCESS)
    add_shortcut("avcapture")
-   set_capability("access", 0)
+   set_capability("access_demux", 10)
    set_callbacks(Open, Close)
 vlc_module_end ()
 
@@ -228,7 +228,7 @@ didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
 * Struct
 *****************************************************************************/
 
-typedef struct demux_sys_t
+struct demux_sys_t
 {
     CFTypeRef _Nullable             session;       // AVCaptureSession
     CFTypeRef _Nullable             device;        // AVCaptureDevice
@@ -237,7 +237,7 @@ typedef struct demux_sys_t
     es_format_t                     fmt;
     int                             height, width;
     BOOL                            b_es_setup;
-} demux_sys_t;
+};
 
 /*****************************************************************************
 * Open:
@@ -257,7 +257,8 @@ static int Open(vlc_object_t *p_this)
 
     char                    *psz_uid = NULL;
 
-    if (p_demux->out == NULL)
+    /* Only when selected */
+    if ( *p_demux->psz_access == '\0' )
         return VLC_EGENERIC;
 
     @autoreleasepool {
@@ -270,6 +271,9 @@ static int Open(vlc_object_t *p_this)
         /* Set up p_demux */
         p_demux->pf_demux = Demux;
         p_demux->pf_control = Control;
+        p_demux->info.i_update = 0;
+        p_demux->info.i_title = 0;
+        p_demux->info.i_seekpoint = 0;
 
         p_demux->p_sys = p_sys = calloc(1, sizeof(demux_sys_t));
         if ( !p_sys )
@@ -408,7 +412,7 @@ static int Demux(demux_t *p_demux)
             {
                 /* Nothing to display yet, just forget */
                 block_Release(p_block);
-                msleep(VLC_HARD_MIN_SLEEP);
+                msleep(10000);
                 return 1;
             }
             else if ( !p_sys->b_es_setup )

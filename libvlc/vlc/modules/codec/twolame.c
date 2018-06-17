@@ -96,7 +96,7 @@ static const char *const ppsz_enc_options[] = {
 /*****************************************************************************
  * encoder_sys_t : twolame encoder descriptor
  *****************************************************************************/
-typedef struct
+struct encoder_sys_t
 {
     /*
      * Input properties
@@ -110,7 +110,7 @@ typedef struct
      */
     twolame_options *p_twolame;
     unsigned char p_out_buffer[MAX_CODED_FRAME_SIZE];
-} encoder_sys_t;
+};
 
 /*****************************************************************************
  * OpenEncoder: probe the encoder and return score
@@ -301,7 +301,7 @@ static block_t *Encode( encoder_t *p_enc, block_t *p_aout_buf )
     int i_nb_samples = p_aout_buf->i_nb_samples;
 
     p_sys->i_pts = p_aout_buf->i_pts -
-                CLOCK_FREQ * (mtime_t)p_sys->i_nb_samples /
+                (mtime_t)1000000 * (mtime_t)p_sys->i_nb_samples /
                 (mtime_t)p_enc->fmt_out.audio.i_rate;
 
     while ( p_sys->i_nb_samples + i_nb_samples >= MPEG_FRAME_SIZE )

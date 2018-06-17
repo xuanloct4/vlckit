@@ -96,7 +96,7 @@ vlc_module_begin ()
     set_description (N_("Real-Time Protocol (RTP) input"))
     set_category (CAT_INPUT)
     set_subcategory (SUBCAT_INPUT_DEMUX)
-    set_capability ("access", 0)
+    set_capability ("access_demux", 0)
     set_callbacks (Open, Close)
 
     add_integer ("rtcp-port", 0, RTCP_PORT_TEXT,
@@ -162,19 +162,16 @@ static int Open (vlc_object_t *obj)
     demux_t *demux = (demux_t *)obj;
     int tp; /* transport protocol */
 
-    if (demux->out == NULL)
-        return VLC_EGENERIC;
-
-    if (!strcasecmp(demux->psz_name, "dccp"))
+    if (!strcmp (demux->psz_access, "dccp"))
         tp = IPPROTO_DCCP;
     else
-    if (!strcasecmp(demux->psz_name, "rtptcp"))
+    if (!strcmp (demux->psz_access, "rtptcp"))
         tp = IPPROTO_TCP;
     else
-    if (!strcasecmp(demux->psz_name, "rtp"))
+    if (!strcmp (demux->psz_access, "rtp"))
         tp = IPPROTO_UDP;
     else
-    if (!strcasecmp(demux->psz_name, "udplite"))
+    if (!strcmp (demux->psz_access, "udplite"))
         tp = IPPROTO_UDPLITE;
     else
         return VLC_EGENERIC;
@@ -495,6 +492,11 @@ static void stream_decode (demux_t *demux, void *data, block_t *block)
     (void)demux;
 }
 
+static void *demux_init (demux_t *demux)
+{
+    return stream_init (demux, demux->psz_demux);
+}
+
 /*
  * Static payload types handler
  */
@@ -640,7 +642,12 @@ static void mpv_decode (demux_t *demux, void *data, block_t *block)
  */
 static void *ts_init (demux_t *demux)
 {
-    return stream_init (demux, "ts");
+    char const* name = demux->psz_demux;
+
+    if (*name == '\0' || !strcasecmp(name, "any"))
+        name = NULL;
+
+    return stream_init (demux, name ? name : "ts");
 }
 
 
@@ -722,6 +729,20 @@ void rtp_autodetect (demux_t *demux, rtp_session_t *session,
         break;
 
       default:
+        /*
+         * If the rtp payload type is unknown then check demux if it is specified
+         */
+        if (!strcmp(demux->psz_demux, "h264")
+         || !strcmp(demux->psz_demux, "ts"))
+        {
+            msg_Dbg (demux, "dynamic payload format %s specified by demux",
+                     demux->psz_demux);
+            pt.init = demux_init;
+            pt.destroy = stream_destroy;
+            pt.decode = stream_decode;
+            pt.frequency = 90000;
+            break;
+        }
         if (ptype >= 96)
         {
             char *dynamic = var_InheritString(demux, "rtp-dynamic-pt");

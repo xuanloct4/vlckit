@@ -46,6 +46,11 @@
 #include "common.h"
 #include "../video_chroma/copy.h"
 
+#if !defined(NDEBUG) && defined(HAVE_DXGIDEBUG_H)
+# include <initguid.h>
+# include <dxgidebug.h>
+#endif
+
 static void CommonChangeThumbnailClip(vout_display_t *, bool show);
 #if !VLC_WINSTORE_APP
 static int  CommonControlSetFullscreen(vout_display_t *, bool is_fullscreen);
@@ -109,7 +114,7 @@ int CommonInit(vout_display_t *vd)
 
     if (vd->cfg->is_fullscreen) {
         if (CommonControlSetFullscreen(vd, true))
-            vout_display_SendEventFullscreen(vd, false);
+            vout_display_SendEventFullscreen(vd, false, false);
     }
 
 #endif
@@ -170,15 +175,13 @@ void UpdateRects(vout_display_t *vd,
     is_resized = rect.right != (sys->rect_display.right - sys->rect_display.left) ||
         rect.bottom != (sys->rect_display.bottom - sys->rect_display.top);
     sys->rect_display = rect;
-#if 0 /* this may still be needed */
-    if (is_resized)
-        vout_display_SendEventDisplaySize(vd, rect.right, rect.bottom);
-#endif
 #else
     EventThreadUpdateWindowPosition(sys->event, &has_moved, &is_resized,
         point.x, point.y,
         rect.right, rect.bottom);
 #endif
+    if (is_resized)
+        vout_display_SendEventDisplaySize(vd, rect.right, rect.bottom);
     if (!is_forced && !has_moved && !is_resized)
         return;
 
@@ -343,6 +346,21 @@ void CommonClean(vout_display_t *vd)
         EventThreadStop(sys->event);
         EventThreadDestroy(sys->event);
     }
+
+#if !defined(NDEBUG) && defined(HAVE_DXGIDEBUG_H)
+    HRESULT (WINAPI  * pf_DXGIGetDebugInterface)(const GUID *riid, void **ppDebug);
+    if (sys->dxgidebug_dll) {
+        pf_DXGIGetDebugInterface = (void *)GetProcAddress(sys->dxgidebug_dll, "DXGIGetDebugInterface");
+        if (pf_DXGIGetDebugInterface) {
+            IDXGIDebug *pDXGIDebug = NULL;
+            HRESULT hr = pf_DXGIGetDebugInterface(&IID_IDXGIDebug, (void**)&pDXGIDebug);
+            if (SUCCEEDED(hr) && pDXGIDebug) {
+                hr = IDXGIDebug_ReportLiveObjects(pDXGIDebug, DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_ALL);
+            }
+        }
+        FreeLibrary(sys->dxgidebug_dll);
+    }
+#endif
 }
 
 void CommonManage(vout_display_t *vd)

@@ -28,7 +28,6 @@
 
 #include "vlc_vaapi.h"
 
-#include <stdatomic.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <inttypes.h>
@@ -39,6 +38,7 @@
 
 #include <vlc_common.h>
 #include <vlc_fs.h>
+#include <vlc_atomic.h>
 #include <vlc_fourcc.h>
 #include <vlc_filter.h>
 #include <vlc_picture_pool.h>
@@ -544,11 +544,11 @@ struct pic_sys_vaapi_instance
     VASurfaceID render_targets[];
 };
 
-typedef struct
+struct picture_sys_t
 {
     struct pic_sys_vaapi_instance *instance;
     struct vaapi_pic_ctx ctx;
-} picture_sys_t;
+};
 
 static void
 pool_pic_destroy_cb(picture_t *pic)
@@ -685,18 +685,17 @@ error:
 }
 
 unsigned
-vlc_vaapi_PicSysGetRenderTargets(void *_sys, VASurfaceID **render_targets)
+vlc_vaapi_PicSysGetRenderTargets(picture_sys_t *sys,
+                                 VASurfaceID **render_targets)
 {
-    picture_sys_t *sys = (picture_sys_t *)_sys;
     assert(sys && sys->instance);
     *render_targets = sys->instance->render_targets;
     return sys->instance->num_render_targets;
 }
 
 struct vlc_vaapi_instance *
-vlc_vaapi_PicSysHoldInstance(void *_sys, VADisplay *dpy)
+vlc_vaapi_PicSysHoldInstance(picture_sys_t *sys, VADisplay *dpy)
 {
-    picture_sys_t *sys = (picture_sys_t *)_sys;
     assert(sys->instance != NULL);
     *dpy = vlc_vaapi_HoldInstance(sys->instance->va_inst);
     return sys->instance->va_inst;
@@ -713,9 +712,8 @@ vlc_vaapi_PicAttachContext(picture_t *pic)
     assert(pic->p_sys != NULL);
     assert(pic->context == NULL);
 
-    picture_sys_t *p_sys = pic->p_sys;
-    p_sys->ctx.picref = pic;
-    pic->context = &p_sys->ctx.s;
+    pic->p_sys->ctx.picref = pic;
+    pic->context = &pic->p_sys->ctx.s;
 }
 
 VASurfaceID
@@ -733,6 +731,5 @@ vlc_vaapi_PicGetDisplay(picture_t *pic)
     ASSERT_VAAPI_CHROMA(pic);
     assert(pic->context);
 
-    picture_sys_t *p_sys = ((struct vaapi_pic_ctx *)pic->context)->picref->p_sys;
-    return p_sys->instance->va_dpy;
+    return ((struct vaapi_pic_ctx *)pic->context)->picref->p_sys->instance->va_dpy;
 }

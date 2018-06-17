@@ -53,7 +53,7 @@ vlc_module_begin ()
     set_callbacks( Open, Close )
 vlc_module_end ()
 
-typedef struct
+struct decoder_sys_t
 {
     /*
      * Input properties
@@ -71,7 +71,7 @@ typedef struct
 
     vlc_a52_header_t frame;
     size_t  i_input_size;
-} decoder_sys_t;
+};
 
 static void PacketizeFlush( decoder_t *p_dec )
 {

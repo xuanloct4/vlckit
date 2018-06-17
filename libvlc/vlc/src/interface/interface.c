@@ -77,23 +77,27 @@ int intf_Create( playlist_t *playlist, const char *chain )
         return VLC_ENOMEM;
 
     /* Variable used for interface spawning */
-    vlc_value_t val;
+    vlc_value_t val, text;
     var_Create( p_intf, "intf-add", VLC_VAR_STRING | VLC_VAR_ISCOMMAND );
-    var_Change( p_intf, "intf-add", VLC_VAR_SETTEXT, _("Add Interface") );
+    text.psz_string = _("Add Interface");
+    var_Change( p_intf, "intf-add", VLC_VAR_SETTEXT, &text, NULL );
 #if !defined(_WIN32) && defined(HAVE_ISATTY)
     if( isatty( 0 ) )
 #endif
     {
         val.psz_string = (char *)"rc,none";
-        var_Change( p_intf, "intf-add", VLC_VAR_ADDCHOICE, val, _("Console") );
+        text.psz_string = (char *)_("Console");
+        var_Change( p_intf, "intf-add", VLC_VAR_ADDCHOICE, &val, &text );
     }
     val.psz_string = (char *)"telnet,none";
-    var_Change( p_intf, "intf-add", VLC_VAR_ADDCHOICE, val, _("Telnet") );
+    text.psz_string = (char *)_("Telnet");
+    var_Change( p_intf, "intf-add", VLC_VAR_ADDCHOICE, &val, &text );
     val.psz_string = (char *)"http,none";
-    var_Change( p_intf, "intf-add", VLC_VAR_ADDCHOICE, val, _("Web") );
+    text.psz_string = (char *)_("Web");
+    var_Change( p_intf, "intf-add", VLC_VAR_ADDCHOICE, &val, &text );
     val.psz_string = (char *)"gestures,none";
-    var_Change( p_intf, "intf-add", VLC_VAR_ADDCHOICE, val,
-                _("Mouse Gestures") );
+    text.psz_string = (char *)_("Mouse Gestures");
+    var_Change( p_intf, "intf-add", VLC_VAR_ADDCHOICE, &val, &text );
 
     var_AddCallback( p_intf, "intf-add", AddIntfCallback, playlist );
 
@@ -210,7 +214,10 @@ int libvlc_InternalAddIntf(libvlc_int_t *libvlc, const char *name)
         if (intf == NULL) /* "intf" has not been set */
         {
 #if !defined(_WIN32) && !defined(__OS2__)
-            if (!var_InheritBool(libvlc, "daemon"))
+            char *pidfile = var_InheritString(libvlc, "pidfile");
+            if (pidfile != NULL)
+                free(pidfile);
+            else
 #endif
                 msg_Info(libvlc, _("Running vlc with the default interface. "
                          "Use 'cvlc' to use vlc without interface."));

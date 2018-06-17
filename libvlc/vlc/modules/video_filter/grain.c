@@ -81,8 +81,7 @@ vlc_module_end()
  *****************************************************************************/
 
 #define BLEND_SIZE (8)
-typedef struct
-{
+struct filter_sys_t {
     bool     is_uv_filtered;
     uint32_t seed;
 
@@ -100,7 +99,7 @@ typedef struct
         vlc_mutex_t lock;
         double      variance;
     } cfg;
-} filter_sys_t;
+};
 
 /* Simple and *really fast* RNG (xorshift[13,17,5])*/
 #define URAND_SEED (2463534242)

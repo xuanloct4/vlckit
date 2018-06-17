@@ -49,7 +49,7 @@ vlc_module_begin ()
     set_callbacks( Open, Close )
 vlc_module_end ()
 
-typedef struct
+struct decoder_sys_t
 {
     /*
      * Input properties
@@ -70,14 +70,14 @@ typedef struct
 
     vlc_dts_header_t dts;
     size_t  i_input_size;
-} decoder_sys_t;
+};
 
 static void PacketizeFlush( decoder_t *p_dec )
 {
     decoder_sys_t *p_sys = p_dec->p_sys;
 
     p_sys->b_discontinuity = true;
-    date_Set( &p_sys->end_date, VLC_TS_INVALID );
+    date_Set( &p_sys->end_date, 0 );
     p_sys->i_state = STATE_NOSYNC;
     block_BytestreamEmpty( &p_sys->bytestream );
 }
@@ -105,7 +105,7 @@ static block_t *GetOutBuffer( decoder_t *p_dec )
     p_dec->fmt_out.audio.i_chan_mode = p_sys->dts.i_chan_mode;
     p_dec->fmt_out.audio.i_physical_channels = p_sys->dts.i_physical_channels;
     p_dec->fmt_out.audio.i_channels =
-        vlc_popcount( p_dec->fmt_out.audio.i_physical_channels );
+        popcount( p_dec->fmt_out.audio.i_physical_channels );
 
     p_dec->fmt_out.i_bitrate = p_sys->dts.i_bitrate;
 
@@ -144,8 +144,7 @@ static block_t *PacketizeBlock( decoder_t *p_dec, block_t **pp_block )
             }
         }
 
-        if ( p_block->i_pts == VLC_TS_INVALID &&
-             date_Get( &p_sys->end_date ) == VLC_TS_INVALID ) {
+        if ( !date_Get( &p_sys->end_date ) && p_block->i_pts <= VLC_TS_INVALID ) {
             /* We've just started the stream, wait for the first PTS. */
             block_Release( p_block );
             return NULL;
@@ -181,7 +180,7 @@ static block_t *PacketizeBlock( decoder_t *p_dec, block_t **pp_block )
         case STATE_SYNC:
             /* New frame, set the Presentation Time Stamp */
             p_sys->i_pts = p_sys->bytestream.p_block->i_pts;
-            if( p_sys->i_pts != VLC_TS_INVALID &&
+            if( p_sys->i_pts > VLC_TS_INVALID &&
                 p_sys->i_pts != date_Get( &p_sys->end_date ) )
             {
                 date_Set( &p_sys->end_date, p_sys->i_pts );
@@ -352,7 +351,7 @@ static int Open( vlc_object_t *p_this )
 
     /* Misc init */
     p_sys->i_state = STATE_NOSYNC;
-    date_Set( &p_sys->end_date, VLC_TS_INVALID );
+    date_Set( &p_sys->end_date, 0 );
     p_sys->i_pts = VLC_TS_INVALID;
     p_sys->b_date_set = false;
     p_sys->b_discontinuity = false;

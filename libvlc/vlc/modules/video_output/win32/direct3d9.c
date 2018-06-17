@@ -83,7 +83,8 @@ static void GLConvClose(vlc_object_t *);
 
 #define D3D9_HELP N_("Recommended video output for Windows Vista and later versions")
 
-static int FindShadersCallback(const char *, char ***, char ***);
+static int FindShadersCallback(vlc_object_t *, const char *,
+                               char ***, char ***);
 
 vlc_module_begin ()
     set_shortname("Direct3D9")
@@ -96,19 +97,16 @@ vlc_module_begin ()
 
     add_string("direct3d9-shader", "", PIXEL_SHADER_TEXT, PIXEL_SHADER_LONGTEXT, true)
         change_string_cb(FindShadersCallback)
-    add_loadfile("direct3d9-shader-file", NULL,
-                 PIXEL_SHADER_FILE_TEXT, PIXEL_SHADER_FILE_LONGTEXT)
+    add_loadfile("direct3d9-shader-file", NULL, PIXEL_SHADER_FILE_TEXT, PIXEL_SHADER_FILE_LONGTEXT, false)
 
     set_capability("vout display", 280)
     add_shortcut("direct3d9", "direct3d")
     set_callbacks(Open, Close)
 
-#ifdef HAVE_GL
     add_submodule()
     set_description("DX OpenGL surface converter for D3D9")
     set_capability("glconv", 1)
     set_callbacks(GLConvOpen, GLConvClose)
-#endif
 vlc_module_end ()
 
 /*****************************************************************************
@@ -174,7 +172,7 @@ static int  Open(vlc_object_t *);
 static picture_pool_t *Direct3D9CreatePicturePool  (vlc_object_t *, d3d9_device_t *,
      const d3d9_format_t *, const video_format_t *, unsigned);
 
-static void           Prepare(vout_display_t *, picture_t *, subpicture_t *subpicture, mtime_t);
+static void           Prepare(vout_display_t *, picture_t *, subpicture_t *subpicture);
 static void           Display(vout_display_t *, picture_t *, subpicture_t *subpicture);
 static picture_pool_t*DisplayPool(vout_display_t *, unsigned);
 static int            Control(vout_display_t *, int, va_list);
@@ -316,7 +314,9 @@ static int Open(vlc_object_t *object)
     sys->ch_desktop = false;
     sys->desktop_requested = sys->sys.use_desktop;
 
-    var_Change(vd, "video-wallpaper", VLC_VAR_SETTEXT, _("Desktop"));
+    vlc_value_t val;
+    val.psz_string = _("Desktop");
+    var_Change(vd, "video-wallpaper", VLC_VAR_SETTEXT, &val, NULL);
     var_AddCallback(vd, "video-wallpaper", DesktopCallback, NULL);
 
     /* Setup vout_display now that everything is fine */
@@ -328,10 +328,11 @@ static int Open(vlc_object_t *object)
     vd->prepare = Prepare;
     vd->display = Display;
     vd->control = Control;
+    vd->manage  = Manage;
 
     /* Fix state in case of desktop mode */
     if (sys->sys.use_desktop && vd->cfg->is_fullscreen)
-        vout_display_SendEventFullscreen(vd, false);
+        vout_display_SendEventFullscreen(vd, false, false);
 
     return VLC_SUCCESS;
 error:
@@ -376,10 +377,9 @@ static void DestroyPicture(picture_t *picture)
  */
 static int Direct3D9LockSurface(picture_t *picture)
 {
-    picture_sys_t *p_sys = picture->p_sys;
     /* Lock the surface to get a valid pointer to the picture buffer */
     D3DLOCKED_RECT d3drect;
-    HRESULT hr = IDirect3DSurface9_LockRect(p_sys->surface, &d3drect, NULL, 0);
+    HRESULT hr = IDirect3DSurface9_LockRect(picture->p_sys->surface, &d3drect, NULL, 0);
     if (FAILED(hr)) {
         return VLC_EGENERIC;
     }
@@ -392,9 +392,8 @@ static int Direct3D9LockSurface(picture_t *picture)
  */
 static void Direct3D9UnlockSurface(picture_t *picture)
 {
-    picture_sys_t *p_sys = picture->p_sys;
     /* Unlock the Surface */
-    HRESULT hr = IDirect3DSurface9_UnlockRect(p_sys->surface);
+    HRESULT hr = IDirect3DSurface9_UnlockRect(picture->p_sys->surface);
     if (FAILED(hr)) {
         //msg_Dbg(vd, "Failed IDirect3DSurface9_UnlockRect: 0x%0lx", hr);
     }
@@ -492,14 +491,10 @@ static picture_pool_t *DisplayPool(vout_display_t *vd, unsigned count)
     return vd->sys->sys.pool;
 }
 
-static void Prepare(vout_display_t *vd, picture_t *picture,
-                    subpicture_t *subpicture, mtime_t date)
+static void Prepare(vout_display_t *vd, picture_t *picture, subpicture_t *subpicture)
 {
-    Manage(vd);
-    VLC_UNUSED(date);
     vout_display_sys_t *sys = vd->sys;
-    picture_sys_t *p_sys = picture->p_sys;
-    LPDIRECT3DSURFACE9 surface = p_sys->surface;
+    LPDIRECT3DSURFACE9 surface = picture->p_sys->surface;
     d3d9_device_t *p_d3d9_dev = &sys->d3d_dev;
 
     /* FIXME it is a bit ugly, we need the surface to be unlocked for
@@ -667,13 +662,13 @@ static int ControlReopenDevice(vout_display_t *vd)
     if (sys->sys.use_desktop) {
         /* Disable fullscreen/on_top while using desktop */
         if (sys->desktop_save.is_fullscreen)
-            vout_display_SendEventFullscreen(vd, false);
+            vout_display_SendEventFullscreen(vd, false, false);
         if (sys->desktop_save.is_on_top)
             vout_display_SendWindowState(vd, VOUT_WINDOW_STATE_NORMAL);
     } else {
         /* Restore fullscreen/on_top */
         if (sys->desktop_save.is_fullscreen)
-            vout_display_SendEventFullscreen(vd, true);
+            vout_display_SendEventFullscreen(vd, true, false);
         if (sys->desktop_save.is_on_top)
             vout_display_SendWindowState(vd, VOUT_WINDOW_STATE_ABOVE);
     }
@@ -770,13 +765,9 @@ static int Direct3D9Open(vout_display_t *vd, video_format_t *fmt)
 {
     vout_display_sys_t *sys = vd->sys;
 
-    HRESULT hr = D3D9_CreateDevice(vd, &sys->hd3d, sys->sys.hvideownd,
-                                 &vd->source, &sys->d3d_dev);
-
-    if (FAILED(hr)) {
-        msg_Err( vd, "D3D9 Creation failed! (hr=0x%0lx)", hr);
+    if (FAILED(D3D9_CreateDevice(vd, &sys->hd3d, sys->sys.hvideownd,
+                                 &vd->source, &sys->d3d_dev)))
         return VLC_EGENERIC;
-    }
 
     const d3d9_device_t *p_d3d9_dev = &sys->d3d_dev;
     /* */
@@ -1786,8 +1777,10 @@ static void ListShaders(enum_context_t *ctx)
 }
 
 /* Populate the list of available shader techniques in the options */
-static int FindShadersCallback(const char *name, char ***values, char ***descs)
+static int FindShadersCallback(vlc_object_t *object, const char *name,
+                               char ***values, char ***descs)
 {
+    VLC_UNUSED(object);
     VLC_UNUSED(name);
 
     enum_context_t ctx = { NULL, NULL, 0 };
@@ -1800,7 +1793,6 @@ static int FindShadersCallback(const char *name, char ***values, char ***descs)
 
 }
 
-#ifdef HAVE_GL
 #include "../opengl/converter.h"
 #include <GL/wglew.h>
 
@@ -1941,7 +1933,7 @@ GLConvOpen(vlc_object_t *obj)
 
     const char *wglExt = tc->gl->wgl.getExtensionsString(tc->gl);
 
-    if (wglExt == NULL || !vlc_gl_StrHasToken(wglExt, "WGL_NV_DX_interop"))
+    if (wglExt == NULL || !HasExtension(wglExt, "WGL_NV_DX_interop"))
         return VLC_EGENERIC;
 
     struct wgl_vt vt;
@@ -2019,4 +2011,3 @@ error:
     GLConvClose(obj);
     return VLC_EGENERIC;
 }
-#endif

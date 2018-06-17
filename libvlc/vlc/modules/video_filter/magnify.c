@@ -69,7 +69,7 @@ static void DrawRectangle( uint8_t *, int i_pitch, int i_width, int i_height,
                            int x, int y, int i_w, int i_h );
 
 /* */
-typedef struct
+struct filter_sys_t
 {
     image_handler_t *p_image;
 
@@ -81,7 +81,7 @@ typedef struct
     bool b_visible; /* is "interface" visible ? */
 
     int64_t i_last_activity;
-} filter_sys_t;
+};
 
 #define VIS_ZOOM 4
 #define ZOOM_FACTOR 8

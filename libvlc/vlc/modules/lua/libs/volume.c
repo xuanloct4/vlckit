@@ -38,7 +38,6 @@
 #include <vlc_plugin.h>
 #include <vlc_meta.h>
 #include <vlc_playlist.h>
-#include <vlc_aout.h>
 
 #include "../vlc.h"
 #include "../libs.h"

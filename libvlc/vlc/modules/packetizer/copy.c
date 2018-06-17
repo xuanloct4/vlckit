@@ -53,11 +53,11 @@ vlc_module_end ()
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     block_t *p_block;
     void (*pf_parse)( decoder_t *, block_t * );
-} decoder_sys_t;
+};
 
 static block_t *Packetize   ( decoder_t *, block_t ** );
 static block_t *PacketizeSub( decoder_t *, block_t ** );
@@ -132,11 +132,10 @@ static int Open( vlc_object_t *p_this )
 static void Close( vlc_object_t *p_this )
 {
     decoder_t     *p_dec = (decoder_t*)p_this;
-    decoder_sys_t *p_sys = p_dec->p_sys;
 
-    if( p_sys->p_block )
+    if( p_dec->p_sys->p_block )
     {
-        block_ChainRelease( p_sys->p_block );
+        block_ChainRelease( p_dec->p_sys->p_block );
     }
 
     free( p_dec->p_sys );
@@ -144,12 +143,11 @@ static void Close( vlc_object_t *p_this )
 
 static void Flush( decoder_t *p_dec )
 {
-    decoder_sys_t *p_sys = p_dec->p_sys;
-    block_t *p_ret = p_sys->p_block;
+    block_t *p_ret = p_dec->p_sys->p_block;
     if ( p_ret )
     {
         block_Release( p_ret );
-        p_sys->p_block = NULL;
+        p_dec->p_sys->p_block = NULL;
     }
 }
 
@@ -159,8 +157,7 @@ static void Flush( decoder_t *p_dec )
 static block_t *Packetize ( decoder_t *p_dec, block_t **pp_block )
 {
     block_t *p_block;
-    decoder_sys_t *p_sys = p_dec->p_sys;
-    block_t *p_ret = p_sys->p_block;
+    block_t *p_ret = p_dec->p_sys->p_block;
 
     if( pp_block == NULL || *pp_block == NULL )
         return NULL;
@@ -173,12 +170,12 @@ static block_t *Packetize ( decoder_t *p_dec, block_t **pp_block )
     p_block = *pp_block;
     *pp_block = NULL;
 
-    if( p_block->i_dts == VLC_TS_INVALID )
+    if( p_block->i_dts <= VLC_TS_INVALID )
     {
         p_block->i_dts = p_block->i_pts;
     }
 
-    if( p_block->i_dts == VLC_TS_INVALID )
+    if( p_block->i_dts <= VLC_TS_INVALID )
     {
         msg_Dbg( p_dec, "need valid dts" );
         block_Release( p_block );
@@ -190,10 +187,10 @@ static block_t *Packetize ( decoder_t *p_dec, block_t **pp_block )
         if (p_dec->fmt_in.i_codec != VLC_CODEC_OPUS)
             p_ret->i_length = p_block->i_pts - p_ret->i_pts;
     }
-    p_sys->p_block = p_block;
+    p_dec->p_sys->p_block = p_block;
 
-    if( p_ret && p_sys->pf_parse )
-        p_sys->pf_parse( p_dec, p_ret );
+    if( p_ret && p_dec->p_sys->pf_parse )
+        p_dec->p_sys->pf_parse( p_dec, p_ret );
     return p_ret;
 }
 
@@ -215,12 +212,12 @@ static block_t *PacketizeSub( decoder_t *p_dec, block_t **pp_block )
     p_block = *pp_block;
     *pp_block = NULL;
 
-    if( p_block->i_dts == VLC_TS_INVALID )
+    if( p_block->i_dts <= VLC_TS_INVALID )
     {
         p_block->i_dts = p_block->i_pts;
     }
 
-    if( p_block->i_dts == VLC_TS_INVALID )
+    if( p_block->i_dts <= VLC_TS_INVALID )
     {
         msg_Dbg( p_dec, "need valid dts" );
         block_Release( p_block );

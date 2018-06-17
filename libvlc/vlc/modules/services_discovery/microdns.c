@@ -25,10 +25,10 @@
 # include <config.h>
 #endif
 
-#include <stdatomic.h>
 #include <assert.h>
 
 #include <vlc_common.h>
+#include <vlc_atomic.h>
 #include <vlc_plugin.h>
 #include <vlc_modules.h>
 #include <vlc_services_discovery.h>
@@ -97,10 +97,10 @@ struct discovery_sys
     vlc_array_t         items;
 };
 
-typedef struct
+struct services_discovery_sys_t
 {
     struct discovery_sys s;
-} services_discovery_sys_t;
+};
 
 struct vlc_renderer_discovery_sys
 {
@@ -391,8 +391,7 @@ static void
 new_entries_sd_cb( void *p_this, int i_status, const struct rr_entry *p_entries )
 {
     services_discovery_t *p_sd = (services_discovery_t *)p_this;
-    services_discovery_sys_t *p_sdsys = p_sd->p_sys;
-    struct discovery_sys *p_sys = &p_sdsys->s;
+    struct discovery_sys *p_sys = &p_sd->p_sys->s;
     if( i_status < 0 )
     {
         print_error( VLC_OBJECT( p_sd ), "entry callback", i_status );
@@ -435,8 +434,7 @@ static bool
 stop_sd_cb( void *p_this )
 {
     services_discovery_t *p_sd = ( services_discovery_t* )p_this;
-    services_discovery_sys_t *p_sdsys = p_sd->p_sys;
-    struct discovery_sys *p_sys = &p_sdsys->s;
+    struct discovery_sys *p_sys = &p_sd->p_sys->s;
 
     if( atomic_load( &p_sys->stop ) )
         return true;
@@ -451,8 +449,7 @@ static void *
 RunSD( void *p_this )
 {
     services_discovery_t *p_sd = ( services_discovery_t* )p_this;
-    services_discovery_sys_t *p_sdsys = p_sd->p_sys;
-    struct discovery_sys *p_sys = &p_sdsys->s;
+    struct discovery_sys *p_sys = &p_sd->p_sys->s;
 
     int i_status = mdns_listen( p_sys->p_microdns,
                                 p_sys->ppsz_service_names,
@@ -640,25 +637,23 @@ OpenSD( vlc_object_t *p_obj )
 {
     services_discovery_t *p_sd = (services_discovery_t *)p_obj;
 
-    services_discovery_sys_t *p_sys = calloc( 1, sizeof(services_discovery_sys_t) );
-    if( !p_sys )
+    p_sd->p_sys = calloc( 1, sizeof(services_discovery_sys_t) );
+    if( !p_sd->p_sys )
         return VLC_ENOMEM;
-    p_sd->p_sys = p_sys;
 
     p_sd->description = _("mDNS Network Discovery");
     config_ChainParse( p_sd, CFG_PREFIX, ppsz_options, p_sd->p_cfg );
 
-    return OpenCommon( p_obj, &p_sys->s, false );
+    return OpenCommon( p_obj, &p_sd->p_sys->s, false );
 }
 
 static void
 CloseSD( vlc_object_t *p_this )
 {
     services_discovery_t *p_sd = (services_discovery_t *) p_this;
-    services_discovery_sys_t *p_sys = p_sd->p_sys;
 
-    CleanCommon( &p_sys->s );
-    free( p_sys );
+    CleanCommon( &p_sd->p_sys->s );
+    free( p_sd->p_sys );
 }
 
 static int

@@ -55,7 +55,7 @@ static const char *const rate_names[] = { N_("192000 Hz"), N_("176400 Hz"),
 vlc_module_begin ()
     set_shortname (N_("ALSA"))
     set_description (N_("ALSA audio capture"))
-    set_capability ("access", 0)
+    set_capability ("access_demux", 0)
     set_category (CAT_INPUT)
     set_subcategory (SUBCAT_INPUT_ACCESS)
     set_help (HELP_TEXT)
@@ -122,7 +122,7 @@ static void DumpDeviceStatus (vlc_object_t *obj, snd_pcm_t *pcm)
 #define DumpDeviceStatus(o, p) DumpDeviceStatus(VLC_OBJECT(o), p)
 
 
-typedef struct
+struct demux_sys_t
 {
     snd_pcm_t *pcm;
     es_out_id_t *es;
@@ -132,7 +132,7 @@ typedef struct
     mtime_t caching;
     snd_pcm_uframes_t period_size;
     unsigned rate;
-} demux_sys_t;
+};
 
 static void Poll (snd_pcm_t *pcm, int canc)
 {
@@ -341,10 +341,6 @@ static uint16_t channel_maps[] = {
 static int Open (vlc_object_t *obj)
 {
     demux_t *demux = (demux_t *)obj;
-
-    if (demux->out == NULL)
-        return VLC_EGENERIC;
-
     demux_sys_t *sys = vlc_obj_malloc(obj, sizeof (*sys));
     if (unlikely(sys == NULL))
         return VLC_ENOMEM;

@@ -45,7 +45,7 @@
 
 struct vlc_logger_t
 {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
     vlc_rwlock_t lock;
     vlc_log_cb log;
     void *sys;

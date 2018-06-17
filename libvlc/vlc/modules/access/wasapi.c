@@ -143,7 +143,7 @@ static int vlc_FromWave(const WAVEFORMATEX *restrict wf,
     if (wfe->dwChannelMask & SPEAKER_LOW_FREQUENCY)
         fmt->i_physical_channels |= AOUT_CHAN_LFE;
 
-    assert(vlc_popcount(wfe->dwChannelMask) == wf->nChannels);
+    assert(popcount(wfe->dwChannelMask) == wf->nChannels);
 
     if (IsEqualIID(&wfe->SubFormat, &KSDATAFORMAT_SUBTYPE_PCM))
     {
@@ -267,7 +267,7 @@ static es_out_id_t *CreateES(demux_t *demux, IAudioClient *client, bool loop,
     return es_out_Add(demux->out, &fmt);
 }
 
-typedef struct
+struct demux_sys_t
 {
     IAudioClient *client;
     es_out_id_t *es;
@@ -281,7 +281,7 @@ typedef struct
         HANDLE thread;
         HANDLE ready;
     };
-} demux_sys_t;
+};
 
 static unsigned __stdcall Thread(void *data)
 {
@@ -383,9 +383,6 @@ static int Open(vlc_object_t *obj)
 {
     demux_t *demux = (demux_t *)obj;
     HRESULT hr;
-
-    if (demux->out == NULL)
-        return VLC_EGENERIC;
 
     if (demux->psz_location != NULL && *demux->psz_location != '\0')
         return VLC_EGENERIC; /* TODO non-default device */
@@ -491,7 +488,7 @@ static void Close (vlc_object_t *obj)
 vlc_module_begin()
     set_shortname(N_("WASAPI"))
     set_description(N_("Windows Audio Session API input"))
-    set_capability("access", 0)
+    set_capability("access_demux", 0)
     set_category(CAT_INPUT)
     set_subcategory(SUBCAT_INPUT_ACCESS)
 

@@ -138,17 +138,32 @@ const char *module_gettext (const module_t *m, const char *str)
 #endif
 }
 
-static bool module_match_name(const module_t *m, const char *name, size_t len)
+#undef module_start
+int module_start (vlc_object_t *obj, const module_t *m)
+{
+   int (*activate) (vlc_object_t *) = m->pf_activate;
+
+   return (activate != NULL) ? activate (obj) : VLC_SUCCESS;
+}
+
+#undef module_stop
+void module_stop (vlc_object_t *obj, const module_t *m)
+{
+   void (*deactivate) (vlc_object_t *) = m->pf_deactivate;
+
+    if (deactivate != NULL)
+        deactivate (obj);
+}
+
+static bool module_match_name (const module_t *m, const char *name)
 {
      /* Plugins with zero score must be matched explicitly. */
-     if (len == 3 && strncasecmp("any", name, len) == 0)
+     if (!strcasecmp ("any", name))
          return m->i_score > 0;
 
-     for (size_t i = 0; i < m->i_shortcuts; i++)
-          if (strncasecmp(m->pp_shortcuts[i], name, len) == 0
-           && m->pp_shortcuts[i][len] == '\0')
+     for (unsigned i = 0; i < m->i_shortcuts; i++)
+          if (!strcasecmp (m->pp_shortcuts[i], name))
               return true;
-
      return false;
 }
 
@@ -200,8 +215,17 @@ module_t *vlc_module_load(vlc_object_t *obj, const char *capability,
                           const char *name, bool strict,
                           vlc_activate_t probe, ...)
 {
+    char *var = NULL;
+
     if (name == NULL || name[0] == '\0')
         name = "any";
+
+    /* Deal with variables */
+    if (name[0] == '$')
+    {
+        var = var_InheritString (obj, name + 1);
+        name = (var != NULL) ? var : "any";
+    }
 
     /* Find matching modules */
     module_t **mods;
@@ -223,11 +247,21 @@ module_t *vlc_module_load(vlc_object_t *obj, const char *capability,
     va_start(args, probe);
     while (*name)
     {
-        const char *shortcut = name;
+        char buf[32];
         size_t slen = strcspn (name, ",");
 
+        if (likely(slen < sizeof (buf)))
+        {
+            memcpy(buf, name, slen);
+            buf[slen] = '\0';
+        }
         name += slen;
         name += strspn (name, ",");
+        if (unlikely(slen >= sizeof (buf)))
+            continue;
+
+        const char *shortcut = buf;
+        assert (shortcut != NULL);
 
         if (!strcasecmp ("none", shortcut))
             goto done;
@@ -238,7 +272,7 @@ module_t *vlc_module_load(vlc_object_t *obj, const char *capability,
             module_t *cand = mods[i];
             if (cand == NULL)
                 continue; // module failed in previous iteration
-            if (!module_match_name(cand, shortcut, slen))
+            if (!module_match_name (cand, shortcut))
                 continue;
             mods[i] = NULL; // only try each module once at most...
 
@@ -279,6 +313,7 @@ done:
     va_end (args);
     obj->obj.force = b_force_backup;
     module_list_free (mods);
+    free (var);
 
     if (module != NULL)
     {

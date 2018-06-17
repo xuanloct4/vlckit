@@ -37,7 +37,7 @@
 
 # define DEST_PICS_POOL_SZ 3
 
-typedef struct
+struct filter_sys_t
 {
     struct vlc_vaapi_instance *va_inst;
     VADisplay           dpy;
@@ -47,7 +47,7 @@ typedef struct
 
     bool                derive_failed;
     bool                image_fallback_failed;
-} filter_sys_t;
+};
 
 static int CreateFallbackImage(filter_t *filter, picture_t *src_pic,
                                VADisplay va_dpy, VAImage *image_fallback)
@@ -170,7 +170,7 @@ DownloadSurface(filter_t *filter, picture_t *src_pic)
     if (vlc_vaapi_MapBuffer(VLC_OBJECT(filter), va_dpy, src_img.buf, &src_buf))
         goto error;
 
-    FillPictureFromVAImage(dest, &src_img, src_buf, &filter_sys->cache);
+    FillPictureFromVAImage(dest, &src_img, src_buf, &filter->p_sys->cache);
 
     vlc_vaapi_UnmapBuffer(VLC_OBJECT(filter), va_dpy, src_img.buf);
     vlc_vaapi_DestroyImage(VLC_OBJECT(filter), va_dpy, src_img.image_id);
@@ -239,11 +239,10 @@ FillVAImageFromPicture(VAImage *dest_img, uint8_t *dest_buf,
 static picture_t *
 UploadSurface(filter_t *filter, picture_t *src)
 {
-    filter_sys_t   *p_sys = filter->p_sys;
-    VADisplay const va_dpy = p_sys->dpy;
+    VADisplay const va_dpy = filter->p_sys->dpy;
     VAImage         dest_img;
     void *          dest_buf;
-    picture_t *     dest_pic = picture_pool_Wait(p_sys->dest_pics);
+    picture_t *     dest_pic = picture_pool_Wait(filter->p_sys->dest_pics);
 
     if (!dest_pic)
     {
@@ -260,7 +259,7 @@ UploadSurface(filter_t *filter, picture_t *src)
         goto error;
 
     FillVAImageFromPicture(&dest_img, dest_buf, dest_pic,
-                           src, &p_sys->cache);
+                           src, &filter->p_sys->cache);
 
     if (vlc_vaapi_UnmapBuffer(VLC_OBJECT(filter), va_dpy, dest_img.buf)
         || vlc_vaapi_DestroyImage(VLC_OBJECT(filter),

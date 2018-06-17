@@ -30,7 +30,6 @@
 
 #include <vlc_common.h>
 #include <vlc_access.h>
-#include <vlc_url.h>
 #include <assert.h>
 
 #include "playlist.h"
@@ -88,7 +87,7 @@ int Import_IFO( vlc_object_t *p_this )
         return VLC_EGENERIC;
 
     const uint8_t *p_peek;
-    ssize_t i_peek = vlc_stream_Peek( p_stream->s, &p_peek, 8 );
+    ssize_t i_peek = vlc_stream_Peek( p_stream->p_source, &p_peek, 8 );
     if( i_peek < 8 || memcmp( p_peek, psz_probe, 8 ) )
         return VLC_EGENERIC;
 

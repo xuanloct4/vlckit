@@ -194,7 +194,8 @@ libvlc_audio_output_device_list_get( libvlc_instance_t *p_instance,
 
     libvlc_audio_output_device_t *list = NULL, **pp = &list;
     char **values, **texts;
-    ssize_t count = config_GetPszChoices( varname, &values, &texts );
+    ssize_t count = config_GetPszChoices( VLC_OBJECT(p_instance->p_libvlc_int),
+                                          varname, &values, &texts );
     for( ssize_t i = 0; i < count; i++ )
     {
         libvlc_audio_output_device_t *item = malloc( sizeof(*item) );
@@ -225,6 +226,29 @@ void libvlc_audio_output_device_list_release( libvlc_audio_output_device_t *l )
         free( l );
         l = next;
     }
+}
+
+int libvlc_audio_output_device_count( libvlc_instance_t *p_instance,
+                                      const char *psz_audio_output )
+{
+    (void) p_instance; (void) psz_audio_output;
+    return 0;
+}
+
+char *libvlc_audio_output_device_longname( libvlc_instance_t *p_instance,
+                                           const char *psz_audio_output,
+                                           int i_device )
+{
+    (void) p_instance; (void) psz_audio_output; (void) i_device;
+    return NULL;
+}
+
+char *libvlc_audio_output_device_id( libvlc_instance_t *p_instance,
+                                     const char *psz_audio_output,
+                                     int i_device )
+{
+    (void) p_instance; (void) psz_audio_output; (void) i_device;
+    return NULL;
 }
 
 /*****************************
@@ -270,6 +294,18 @@ char *libvlc_audio_output_device_get( libvlc_media_player_t *mp )
     vlc_object_release( aout );
 
     return devid;
+}
+
+int libvlc_audio_output_get_device_type( libvlc_media_player_t *mp )
+{
+    (void) mp;
+    return libvlc_AudioOutputDevice_Error;
+}
+
+void libvlc_audio_output_set_device_type( libvlc_media_player_t *mp,
+                                          int device_type )
+{
+    (void) mp; (void) device_type;
 }
 
 void libvlc_audio_toggle_mute( libvlc_media_player_t *mp )
@@ -381,18 +417,16 @@ int libvlc_audio_get_track( libvlc_media_player_t *p_mi )
 int libvlc_audio_set_track( libvlc_media_player_t *p_mi, int i_track )
 {
     input_thread_t *p_input_thread = libvlc_get_input_thread( p_mi );
-    vlc_value_t *val_list;
-    size_t count;
+    vlc_value_t val_list;
     int i_ret = -1;
 
     if( !p_input_thread )
         return -1;
 
-    var_Change( p_input_thread, "audio-es", VLC_VAR_GETCHOICES,
-                &count, &val_list, (char ***)NULL );
-    for( size_t i = 0; i < count; i++ )
+    var_Change( p_input_thread, "audio-es", VLC_VAR_GETCHOICES, &val_list, NULL );
+    for( int i = 0; i < val_list.p_list->i_count; i++ )
     {
-        if( i_track == val_list[i].i_int )
+        if( i_track == val_list.p_list->p_values[i].i_int )
         {
             if( var_SetInteger( p_input_thread, "audio-es", i_track ) < 0 )
                 break;
@@ -402,7 +436,7 @@ int libvlc_audio_set_track( libvlc_media_player_t *p_mi, int i_track )
     }
     libvlc_printerr( "Track identifier not found" );
 end:
-    free( val_list );
+    var_FreeList( &val_list, NULL );
     vlc_object_release( p_input_thread );
     return i_ret;
 }

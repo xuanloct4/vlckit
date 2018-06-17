@@ -128,6 +128,7 @@ struct demux_cc
                 {
                     demux_Control( p_demux->p_next, DEMUX_SET_TITLE,
                                    i_longest_title );
+                    p_demux->info.i_update = p_demux->p_next->info.i_update;
                 }
             }
         }
@@ -434,6 +435,31 @@ struct demux_cc
             p_renderer = NULL;
 
             return VLC_SUCCESS;
+        case DEMUX_CAN_PAUSE:
+        case DEMUX_CAN_CONTROL_PACE:
+        {
+            int ret;
+            va_list ap;
+
+            va_copy( ap, args );
+            ret = demux_vaControl( p_demux_filter->p_next, i_query, args );
+            if( ret != VLC_SUCCESS )
+                *va_arg( ap, bool* ) = false;
+            va_end( ap );
+            return VLC_SUCCESS;
+        }
+        case DEMUX_GET_PTS_DELAY:
+        {
+            int ret;
+            va_list ap;
+
+            va_copy( ap, args );
+            ret = demux_vaControl( p_demux_filter->p_next, i_query, args );
+            if( ret != VLC_SUCCESS )
+                *va_arg( ap, int64_t* ) = 0;
+            va_end( ap );
+            return VLC_SUCCESS;
+        }
         }
 
         return demux_vaControl( p_demux_filter->p_next, i_query, args );
@@ -492,7 +518,7 @@ int Open(vlc_object_t *p_this)
     if (unlikely(p_sys == NULL))
         return VLC_ENOMEM;
 
-    p_demux->p_sys = p_sys;
+    p_demux->p_sys = reinterpret_cast<demux_sys_t*>(p_sys);
     p_demux->pf_demux = Demux;
     p_demux->pf_control = Control;
 

@@ -32,8 +32,8 @@
 GenericWindow::GenericWindow( intf_thread_t *pIntf, int left, int top,
                               bool dragDrop, bool playOnDrop,
                               GenericWindow *pParent, WindowType_t type ):
-    SkinObject( pIntf ), m_type( type ), m_left( left ), m_top( top ),
-    m_width( 0 ), m_height( 0 ), m_pVarVisible( NULL )
+    SkinObject( pIntf ), m_left( left ), m_top( top ), m_width( 0 ),
+    m_height( 0 ), m_pVarVisible( NULL )
 {
     // Get the OSFactory
     OSFactory *pOsFactory = OSFactory::instance( getIntf() );
@@ -167,10 +167,9 @@ void GenericWindow::innerHide()
     }
 }
 
-
-void GenericWindow::updateWindowConfiguration( vout_window_t * pWnd ) const
+vlc_wnd_type GenericWindow::getOSHandle() const
 {
-    m_pOsWindow->setOSHandle( pWnd );
+    return m_pOsWindow->getOSHandle();
 }
 
 
@@ -182,8 +181,8 @@ void GenericWindow::setParent( GenericWindow* pParent, int x, int y, int w, int 
     m_width  = ( w > 0 ) ? w : m_width;
     m_height = ( h > 0 ) ? h : m_height;
 
-    OSWindow *pParentOSWindow = pParent->m_pOsWindow;
-    m_pOsWindow->reparent( pParentOSWindow, m_left, m_top, m_width, m_height );
+    vlc_wnd_type handle = pParent ? pParent->getOSHandle() : 0;
+    m_pOsWindow->reparent( handle, m_left, m_top, m_width, m_height );
 }
 
 
@@ -205,5 +204,5 @@ void GenericWindow::invalidateRect( int left, int top, int width, int height )
 void GenericWindow::getMonitorInfo( int* x, int* y, int* width, int* height ) const
 {
     OSFactory *pOsFactory = OSFactory::instance( getIntf() );
-    pOsFactory->getMonitorInfo( m_pOsWindow, x, y, width, height );
+    pOsFactory->getMonitorInfo( *this, x, y, width, height );
 }

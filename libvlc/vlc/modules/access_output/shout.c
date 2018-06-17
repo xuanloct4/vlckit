@@ -152,10 +152,10 @@ static const char *const ppsz_sout_options[] = {
 static ssize_t Write( sout_access_out_t *, block_t * );
 static int Control( sout_access_out_t *, int, va_list );
 
-typedef struct
+struct sout_access_out_sys_t
 {
     shout_t *p_shout;
-} sout_access_out_sys_t;
+};
 
 /*****************************************************************************
  * Open: open the shout connection
@@ -175,6 +175,13 @@ static int Open( vlc_object_t *p_this )
     vlc_url_t url;
 
     config_ChainParse( p_access, SOUT_CFG_PREFIX, ppsz_sout_options, p_access->p_cfg );
+
+    if( !p_access->psz_path )
+    {
+        msg_Err( p_access,
+                 "please specify url=user:password@host:port/mountpoint" );
+        return VLC_EGENERIC;
+    }
 
     vlc_UrlParse( &url , p_access->psz_path );
     if( url.i_port <= 0 )

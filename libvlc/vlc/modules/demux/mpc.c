@@ -73,7 +73,7 @@ vlc_module_end ()
 static int Demux  ( demux_t * );
 static int Control( demux_t *, int, va_list );
 
-typedef struct
+struct demux_sys_t
 {
     /* */
     es_out_id_t   *p_es;
@@ -89,7 +89,7 @@ typedef struct
 
     /* */
     int64_t        i_position;
-} demux_sys_t;
+};
 
 #ifndef HAVE_MPC_MPCDEC_H
 static mpc_int32_t ReaderRead( void *p_private, void *dst, mpc_int32_t i_size );
@@ -262,7 +262,7 @@ static int Demux( demux_t *p_demux )
 #endif
     p_data = block_Alloc( MPC_DECODER_BUFFER_LENGTH*sizeof(MPC_SAMPLE_FORMAT) );
     if( !p_data )
-        return VLC_DEMUXER_EGENERIC;
+        return -1;
 
 #ifndef HAVE_MPC_MPCDEC_H
     i_ret = mpc_decoder_decode( &p_sys->decoder,
@@ -271,7 +271,7 @@ static int Demux( demux_t *p_demux )
     if( i_ret <= 0 )
     {
         block_Release( p_data );
-        return i_ret < 0 ? VLC_DEMUXER_EGENERIC : VLC_DEMUXER_EOF;
+        return i_ret < 0 ? -1 : 0;
     }
 #else
     frame.buffer = (MPC_SAMPLE_FORMAT*)p_data->p_buffer;
@@ -279,12 +279,12 @@ static int Demux( demux_t *p_demux )
     if( err != MPC_STATUS_OK )
     {
         block_Release( p_data );
-        return VLC_DEMUXER_EGENERIC;
+        return -1;
     }
     else if( frame.bits == -1 )
     {
         block_Release( p_data );
-        return VLC_DEMUXER_EOF;
+        return 0;
     }
 
     i_ret = frame.samples;
@@ -302,7 +302,7 @@ static int Demux( demux_t *p_demux )
     /* */
     p_sys->i_position += i_ret;
 
-    return VLC_DEMUXER_SUCCESS;
+    return 1;
 }
 
 /*****************************************************************************
@@ -386,12 +386,6 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
                 return VLC_SUCCESS;
             }
             return VLC_EGENERIC;
-
-        case DEMUX_CAN_PAUSE:
-        case DEMUX_SET_PAUSE_STATE:
-        case DEMUX_CAN_CONTROL_PACE:
-        case DEMUX_GET_PTS_DELAY:
-            return demux_vaControlHelper( p_demux->s, 0, -1, 0, 1, i_query, args );
 
         default:
             return VLC_EGENERIC;

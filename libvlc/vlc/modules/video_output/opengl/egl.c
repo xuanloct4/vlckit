@@ -53,6 +53,7 @@ typedef struct vlc_gl_sys_t
 #endif
 #if defined (USE_PLATFORM_WAYLAND)
     struct wl_egl_window *window;
+    unsigned width, height;
 #endif
     PFNEGLCREATEIMAGEKHRPROC    eglCreateImageKHR;
     PFNEGLDESTROYIMAGEKHRPROC   eglDestroyImageKHR;
@@ -81,7 +82,11 @@ static void Resize (vlc_gl_t *gl, unsigned width, unsigned height)
 {
     vlc_gl_sys_t *sys = gl->sys;
 
-    wl_egl_window_resize(sys->window, width, height, 0, 0);
+    wl_egl_window_resize(sys->window, width, height,
+                         (sys->width - width) / 2,
+                         (sys->height - height) / 2);
+    sys->width = width;
+    sys->height = height;
 }
 #else
 # define Resize (NULL)
@@ -123,16 +128,33 @@ static bool DestroyImageKHR(vlc_gl_t *gl, void *image)
     return sys->eglDestroyImageKHR(sys->display, image);
 }
 
+static bool CheckToken(const char *haystack, const char *needle)
+{
+    size_t len = strlen(needle);
+
+    while (haystack != NULL)
+    {
+        while (*haystack == ' ')
+            haystack++;
+        if (!strncmp(haystack, needle, len)
+         && (memchr(" ", haystack[len], 2) != NULL))
+            return true;
+
+        haystack = strchr(haystack, ' ');
+    }
+    return false;
+}
+
 static bool CheckAPI (EGLDisplay dpy, const char *api)
 {
     const char *apis = eglQueryString (dpy, EGL_CLIENT_APIS);
-    return vlc_gl_StrHasToken(apis, api);
+    return CheckToken(apis, api);
 }
 
 static bool CheckClientExt(const char *name)
 {
     const char *exts = eglQueryString(EGL_NO_DISPLAY, EGL_EXTENSIONS);
-    return vlc_gl_StrHasToken(exts, name);
+    return CheckToken(exts, name);
 }
 
 struct gl_api

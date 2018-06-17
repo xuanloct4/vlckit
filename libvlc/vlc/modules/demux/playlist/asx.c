@@ -111,7 +111,7 @@ static bool ParseTime(xml_reader_t *p_xml_reader, mtime_t* pi_result )
         i_subresult = i_subresult * 10;
         i_subfractions++;
     }
-    i_result = i_result * CLOCK_FREQ;
+    i_result = i_result * 1000000;
     if( i_subfractions != -1)
         i_result += i_subresult;
 
@@ -145,7 +145,7 @@ static bool ReadElement( xml_reader_t *p_xml_reader, char **ppsz_txt )
 static bool PeekASX( stream_t *s )
 {
     const uint8_t *p_peek;
-    return ( vlc_stream_Peek( s->s, &p_peek, 12 ) == 12
+    return ( vlc_stream_Peek( s->p_source, &p_peek, 12 ) == 12
              && !strncasecmp( (const char*) p_peek, "<asx version", 12 ) );
 }
 
@@ -159,7 +159,7 @@ int Import_ASX( vlc_object_t *p_this )
 
     CHECK_FILE(p_demux);
 
-    char *type = stream_MimeType( p_demux->s );
+    char *type = stream_MimeType( p_demux->p_source );
 
     if( stream_HasExtension( p_demux, ".asx" )
      || stream_HasExtension( p_demux, ".wax" )
@@ -296,15 +296,13 @@ static void ProcessEntry( int *pi_n_entry, xml_reader_t *p_xml_reader,
                 i_options = 0;
                 if( i_start )
                 {
-                    if( asprintf( ppsz_options, ":start-time=%"PRId64 ,
-                                  i_start / CLOCK_FREQ ) != -1)
+                    if( asprintf( ppsz_options, ":start-time=%d" ,(int) i_start/1000000 ) != -1)
                         i_options++;
                 }
                 if( i_duration)
                 {
-                    if( asprintf( ppsz_options + i_options,
-                                  ":stop-time=%"PRId64,
-                                  (i_start + i_duration) / CLOCK_FREQ ) != -1)
+                    if( asprintf( ppsz_options + i_options, ":stop-time=%d",
+                                (int) (i_start+i_duration)/1000000 ) != -1)
                         i_options++;
                 }
 
@@ -581,7 +579,7 @@ static char *detectXmlEncoding( const char *psz_xml )
 
 static stream_t* PreparseStream( stream_t *p_demux )
 {
-    stream_t *s = p_demux->s;
+    stream_t *s = p_demux->p_source;
     uint64_t streamSize;
     static const size_t maxsize = 1024 * 1024;
 
@@ -666,7 +664,7 @@ static int ReadDir( stream_t *p_demux, input_item_node_t *p_subitems )
     int i_n_entry = 0;
 
     p_xml_reader = xml_ReaderCreate( p_demux, p_stream ? p_stream
-                                                       : p_demux->s );
+                                                       : p_demux->p_source );
     if( !p_xml_reader )
     {
         msg_Err( p_demux, "Cannot parse ASX input file as XML");

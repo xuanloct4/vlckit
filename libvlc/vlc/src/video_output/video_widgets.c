@@ -246,10 +246,10 @@ static subpicture_region_t *OSDIcon(int type, const video_format_t *fmt)
     return r;
 }
 
-typedef struct {
+struct subpicture_updater_sys_t {
     int type;
     int position;
-} osdwidget_spu_updater_sys_t;
+};
 
 static int OSDWidgetValidate(subpicture_t *subpic,
                            bool has_src_changed, const video_format_t *fmt_src,
@@ -270,7 +270,7 @@ static void OSDWidgetUpdate(subpicture_t *subpic,
                           const video_format_t *fmt_dst,
                           mtime_t ts)
 {
-    osdwidget_spu_updater_sys_t *sys = subpic->updater.p_sys;
+    subpicture_updater_sys_t *sys = subpic->updater.p_sys;
     VLC_UNUSED(fmt_src); VLC_UNUSED(ts);
 
     video_format_t fmt = *fmt_dst;
@@ -300,7 +300,7 @@ static void OSDWidget(vout_thread_t *vout, int channel, int type, int position)
     if (type == OSD_HOR_SLIDER || type == OSD_VERT_SLIDER)
         position = VLC_CLIP(position, 0, 100);
 
-    osdwidget_spu_updater_sys_t *sys = malloc(sizeof(*sys));
+    subpicture_updater_sys_t *sys = malloc(sizeof(*sys));
     if (!sys)
         return;
     sys->type     = type;
@@ -320,7 +320,7 @@ static void OSDWidget(vout_thread_t *vout, int channel, int type, int position)
 
     subpic->i_channel  = channel;
     subpic->i_start    = mdate();
-    subpic->i_stop     = subpic->i_start + 12*CLOCK_FREQ/10;
+    subpic->i_stop     = subpic->i_start + 1200000;
     subpic->b_ephemer  = true;
     subpic->b_absolute = true;
     subpic->b_fade     = true;

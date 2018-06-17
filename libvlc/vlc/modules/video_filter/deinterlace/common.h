@@ -123,6 +123,5 @@ picture_t *DoDeinterlacing( filter_t *, struct deinterlace_ctx *, picture_t * );
  */
 void FlushDeinterlacing( struct deinterlace_ctx * );
 
-picture_t *AllocPicture( filter_t * );
 
 #endif

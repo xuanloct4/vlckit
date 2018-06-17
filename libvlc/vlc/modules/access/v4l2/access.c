@@ -37,7 +37,7 @@
 
 #include "v4l2.h"
 
-typedef struct
+struct access_sys_t
 {
     int fd;
     uint32_t block_flags;
@@ -48,7 +48,7 @@ typedef struct
     };
     struct buffer_t *bufv;
     vlc_v4l2_ctrl_t *controls;
-} access_sys_t;
+};
 
 static block_t *MMapBlock (stream_t *, bool *);
 static block_t *ReadBlock (stream_t *, bool *);

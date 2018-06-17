@@ -30,9 +30,10 @@
 #import <vlc_input.h>
 #import <vlc_vout_window.h>
 
-#import "VLCVideoWindowCommon.h"
+#import "Windows.h"
 #import "misc.h"
 #import "VLCFSPanelController.h"
+#import "VLCMainWindowTitleView.h"
 
 @class VLCDetachedVideoWindow;
 @class VLCMainWindowControlsBar;

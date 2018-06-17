@@ -45,15 +45,15 @@ static subpicture_t *spu_new_buffer( decoder_t *p_dec,
     return p_subpicture;
 }
 
-static void decoder_queue_sub( decoder_t *p_dec, subpicture_t *p_spu )
+static int decoder_queue_sub( decoder_t *p_dec, subpicture_t *p_spu )
 {
-    struct decoder_owner *p_owner = dec_get_owner( p_dec );
-    sout_stream_id_sys_t *id = p_owner->id;
+    sout_stream_id_sys_t *id = p_dec->p_queue_ctx;
 
     vlc_mutex_lock(&id->fifo.lock);
     *id->fifo.spu.last = p_spu;
     id->fifo.spu.last = &p_spu->p_next;
     vlc_mutex_unlock(&id->fifo.lock);
+    return 0;
 }
 
 static subpicture_t *transcode_dequeue_all_subs( sout_stream_id_sys_t *id )
@@ -74,22 +74,16 @@ static int transcode_spu_new( sout_stream_t *p_stream, sout_stream_id_sys_t *id 
     /*
      * Open decoder
      */
-    dec_get_owner( id->p_decoder )->id = id;
 
-    static const struct decoder_owner_callbacks dec_cbs =
-    {
-        .spu = {
-            spu_new_buffer,
-            decoder_queue_sub,
-        },
-    };
-    id->p_decoder->cbs = &dec_cbs;
-
+    /* Initialization of decoder structures */
     id->p_decoder->pf_decode = NULL;
+    id->p_decoder->pf_spu_buffer_new = spu_new_buffer;
+    id->p_decoder->pf_queue_sub = decoder_queue_sub;
+    id->p_decoder->p_queue_ctx = id;
     /* id->p_decoder->p_cfg = p_sys->p_spu_cfg; */
 
     id->p_decoder->p_module =
-        module_need_var( id->p_decoder, "spu decoder", "codec" );
+        module_need( id->p_decoder, "spu decoder", "$codec", false );
 
     if( !id->p_decoder->p_module )
     {
@@ -181,20 +175,6 @@ int transcode_spu_process( sout_stream_t *p_stream,
         else
         {
             block_t *p_block;
-
-            es_format_t fmt;
-            es_format_Init( &fmt, VIDEO_ES, VLC_CODEC_TEXT );
-
-            fmt.video.i_sar_num =
-            fmt.video.i_visible_width =
-            fmt.video.i_width = p_sys->i_spu_width;
-
-            fmt.video.i_sar_den =
-            fmt.video.i_visible_height =
-            fmt.video.i_height = p_sys->i_spu_height;
-
-            subpicture_Update( p_subpic, &fmt.video, &fmt.video, p_subpic->i_start );
-            es_format_Clean( &fmt );
 
             p_block = id->p_encoder->pf_encode_sub( id->p_encoder, p_subpic );
             subpicture_Delete( p_subpic );

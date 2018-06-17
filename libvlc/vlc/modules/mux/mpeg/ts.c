@@ -340,7 +340,7 @@ typedef struct
     pes_state_t  state;
 } sout_input_sys_t;
 
-typedef struct
+struct sout_mux_sys_t
 {
     sout_input_t    *p_pcr_input;
 
@@ -385,7 +385,7 @@ typedef struct
     int             i_csa_pkt_size;
     bool            b_crypt_audio;
     bool            b_crypt_video;
-} sout_mux_sys_t;
+};
 
 
 static int GetNextFreePID( sout_mux_t *p_mux, int i_pid_start )
@@ -1274,9 +1274,9 @@ static bool MuxStreams(sout_mux_t *p_mux )
                  (p_input->p_fmt->i_codec != VLC_CODEC_MP3) ) )
         {
             p_data = block_FifoGet( p_input->p_fifo );
-            if( p_data->i_dts == VLC_TS_INVALID )
+            if( p_data->i_dts <= VLC_TS_INVALID )
                 p_data->i_dts = p_data->i_pts;
-            else if ( p_data->i_pts == VLC_TS_INVALID )
+            else if ( p_data->i_pts <= VLC_TS_INVALID )
                 p_data->i_pts = p_data->i_dts;
 
             if( p_input->p_fmt->i_codec == VLC_CODEC_MP4A )
@@ -1306,7 +1306,7 @@ static bool MuxStreams(sout_mux_t *p_mux )
                     block_FifoCount( p_mux->pp_inputs[j]->p_fifo) > 0 )
                 {
                     block_t *p_block = block_FifoShow( p_mux->pp_inputs[j]->p_fifo );
-                    if( p_block->i_dts != VLC_TS_INVALID &&
+                    if( p_block->i_dts > VLC_TS_INVALID &&
                         p_block->i_dts < p_sys->first_dts )
                         p_sys->first_dts = p_block->i_dts;
                 }

@@ -45,20 +45,20 @@ vlc_module_begin()
     set_callbacks(Open, Close)
 vlc_module_end()
 
-typedef struct
+struct decoder_sys_t
 {
     date_t end_date;
 
     bool     is_pal;
     bool     is_12bit;
     uint16_t shuffle[2000];
-} decoder_sys_t;
+};
 
 static void Flush(decoder_t *dec)
 {
     decoder_sys_t *sys = dec->p_sys;
 
-    date_Set(&sys->end_date, VLC_TS_INVALID);
+    date_Set(&sys->end_date, 0);
 }
 
 static block_t *DecodeBlock(decoder_t *dec, block_t **block_ptr)
@@ -78,11 +78,11 @@ static block_t *DecodeBlock(decoder_t *dec, block_t **block_ptr)
         }
     }
 
-    if (block->i_pts != VLC_TS_INVALID &&
+    if (block->i_pts > VLC_TS_INVALID &&
         block->i_pts != date_Get(&sys->end_date))
         date_Set(&sys->end_date, block->i_pts);
     block->i_pts = VLC_TS_INVALID;
-    if (date_Get(&sys->end_date) == VLC_TS_INVALID) {
+    if (!date_Get(&sys->end_date)) {
         /* We've just started the stream, wait for the first PTS. */
         block_Release(block);
         return NULL;
@@ -155,6 +155,7 @@ static int Open(vlc_object_t *object)
     sys->is_12bit = dec->fmt_in.audio.i_bitspersample == 12;
 
     date_Init(&sys->end_date, dec->fmt_in.audio.i_rate, 1);
+    date_Set(&sys->end_date, 0);
 
     for (unsigned i = 0; i < sizeof(sys->shuffle) / sizeof(*sys->shuffle); i++) {
         const unsigned a = sys->is_pal ? 18 : 15;

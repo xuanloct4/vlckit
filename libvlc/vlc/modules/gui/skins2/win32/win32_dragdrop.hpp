@@ -32,7 +32,6 @@
 #include <windows.h>
 #include <shellapi.h>
 #include <ole2.h>
-#include <list>
 #include "../src/skin_common.hpp"
 #include "../src/generic_window.hpp"
 
@@ -59,16 +58,14 @@ protected:
 
 private:
     /// Internal reference counter
-    LONG m_references;
+    unsigned long m_references;
     /// Indicates whether the file(s) must be played immediately
     bool m_playOnDrop;
-    /// Window associated
+    ///
     GenericWindow* m_pWin;
-    /// format used for DrapNDrop
-    struct {
-        UINT format;
-        const char* name;
-    } m_format;
+
+    /// Helper function
+    void HandleDrop( HDROP HDrop, int x, int y );
 };
 
 

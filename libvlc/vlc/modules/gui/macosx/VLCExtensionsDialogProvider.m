@@ -55,12 +55,10 @@ static NSView *createControlFromWidget(extension_widget_t *widget, id self)
             }
             case EXTENSION_WIDGET_LABEL:
             {
-                VLCDialogLabel *field = [[VLCDialogLabel alloc] init];
+                NSTextField *field = [[NSTextField alloc] init];
                 [field setEditable:NO];
                 [field setBordered:NO];
                 [field setDrawsBackground:NO];
-                [field setAllowsEditingTextAttributes:YES];
-                [field setSelectable:YES];
                 [field setFont:[NSFont systemFontOfSize:0]];
                 [[field cell] setControlSize:NSRegularControlSize];
                 [field setAutoresizingMask:NSViewNotSizable];
@@ -83,7 +81,6 @@ static NSView *createControlFromWidget(extension_widget_t *widget, id self)
                 [button setWidget:widget];
                 [button setAction:@selector(triggerClick:)];
                 [button setTarget:self];
-                [button setFont:[NSFont systemFontOfSize:0.0]];
                 [[button cell] setControlSize:NSRegularControlSize];
                 [button setAutoresizingMask:NSViewWidthSizable];
                 return button;
@@ -95,7 +92,6 @@ static NSView *createControlFromWidget(extension_widget_t *widget, id self)
                 [button setWidget:widget];
                 [button setAction:@selector(triggerClick:)];
                 [button setTarget:self];
-                [button setFont:[NSFont systemFontOfSize:0.0]];
                 [[button cell] setControlSize:NSRegularControlSize];
                 [button setAutoresizingMask:NSViewNotSizable];
                 return button;
@@ -152,16 +148,13 @@ static NSView *createControlFromWidget(extension_widget_t *widget, id self)
 static void updateControlFromWidget(NSView *control, extension_widget_t *widget, id self)
 {
     @autoreleasepool {
-        NSString * const defaultStyleCSS = @"<style>*{ font-family: \
-            -apple-system-body, -apple-system, \
-            HelveticaNeue, Arial, sans-serif; }</style>";
         switch (widget->type) {
             case EXTENSION_WIDGET_HTML:
             {
                 // Get the web view
                 assert([control isKindOfClass:[WebView class]]);
                 WebView *webView = (WebView *)control;
-                NSString *string = [defaultStyleCSS stringByAppendingString:toNSStr(widget->psz_text)];
+                NSString *string = toNSStr(widget->psz_text);
                 [[webView mainFrame] loadHTMLString:string baseURL:[NSURL URLWithString:@""]];
                 [webView setNeedsDisplay:YES];
                 break;
@@ -174,7 +167,7 @@ static void updateControlFromWidget(NSView *control, extension_widget_t *widget,
                     break;
                 assert([control isKindOfClass:[NSControl class]]);
                 NSControl *field = (NSControl *)control;
-                NSString *string = [defaultStyleCSS stringByAppendingString:toNSStr(widget->psz_text)];
+                NSString *string = toNSStr(widget->psz_text);
                 NSAttributedString *attrString = [[NSAttributedString alloc] initWithHTML:[string dataUsingEncoding: NSISOLatin1StringEncoding] documentAttributes:NULL];
                 [field setAttributedStringValue:attrString];
                 break;

@@ -93,7 +93,7 @@ typedef struct {
     int8_t ap3;
 } dv_header_t;
 
-typedef struct
+struct demux_sys_t
 {
     int    frame_size;
 
@@ -110,7 +110,7 @@ typedef struct
     /* program clock reference (in units of 90kHz) */
     mtime_t i_pcr;
     bool b_hurry_up;
-} demux_sys_t;
+};
 
 /*****************************************************************************
  * Local prototypes
@@ -266,7 +266,10 @@ static int Demux( demux_t *p_demux )
     es_out_SetPCR( p_demux->out, VLC_TS_0 + p_sys->i_pcr );
     p_block = vlc_stream_Block( p_demux->s, p_sys->frame_size );
     if( p_block == NULL )
-        return VLC_DEMUXER_EOF;
+    {
+        /* EOF */
+        return 0;
+    }
 
     if( p_sys->p_es_audio )
     {
@@ -288,10 +291,10 @@ static int Demux( demux_t *p_demux )
 
     if( !p_sys->b_hurry_up )
     {
-        p_sys->i_pcr += CLOCK_FREQ / p_sys->f_rate;
+        p_sys->i_pcr += ( INT64_C(1000000) / p_sys->f_rate );
     }
 
-    return VLC_DEMUXER_SUCCESS;
+    return 1;
 }
 
 /*****************************************************************************

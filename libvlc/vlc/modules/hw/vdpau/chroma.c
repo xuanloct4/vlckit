@@ -36,7 +36,7 @@
 #define MAX_PAST   2
 #define MAX_FUTURE 1
 
-typedef struct
+struct filter_sys_t
 {
     vdp_t *vdp;
     VdpDevice device;
@@ -58,7 +58,7 @@ typedef struct
         float saturation;
         float hue;
     } procamp;
-} filter_sys_t;
+};
 
 /** Initialize the colour space conversion matrix */
 static VdpStatus MixerSetupColors(filter_t *filter, const VdpProcamp *procamp,
@@ -516,8 +516,7 @@ static picture_t *Render(filter_t *filter, picture_t *src, bool import)
     if (dst == NULL)
         goto skip;
 
-    picture_sys_t *p_sys = dst->p_sys;
-    assert(p_sys != NULL && p_sys->vdp == sys->vdp);
+    assert(dst->p_sys != NULL && dst->p_sys->vdp ==sys->vdp);
     dst->date = sys->history[MAX_PAST].date;
     dst->b_force = sys->history[MAX_PAST].force;
 
@@ -590,7 +589,7 @@ static picture_t *Render(filter_t *filter, picture_t *src, bool import)
         }
     }
 
-    VdpOutputSurface output = p_sys->surface;
+    VdpOutputSurface output = dst->p_sys->surface;
 
     if (swap)
     {
@@ -671,7 +670,7 @@ static picture_t *Render(filter_t *filter, picture_t *src, bool import)
     if (swap)
     {
         err = vdp_output_surface_render_output_surface(sys->vdp,
-            p_sys->surface, NULL, output, NULL, NULL, NULL,
+            dst->p_sys->surface, NULL, output, NULL, NULL, NULL,
             VDP_OUTPUT_SURFACE_RENDER_ROTATE_90);
         vdp_output_surface_destroy(sys->vdp, output);
         if (err != VDP_STATUS_OK)

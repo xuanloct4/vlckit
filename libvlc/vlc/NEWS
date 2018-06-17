@@ -1,36 +1,5 @@
-Changes between 3.0.x and 4.0.0-dev:
+Changes between 3.0.3 and 3.0.4:
 --------------------------------
-
-Platform support changes:
- * 4.0.x requires:
-     - Windows 7/2008 R2 or later (with KB2533623 installed)
-     - macOS 10.10 or later
-     - iOS 9 or later
-     - Android 4.1.x or later (API-16)
-     - GCC 5.0 or Clang 3.4 (or equivalent)
-
-Audio output:
- * ALSA: HDMI passthrough support.
-   Use --alsa-passthrough to configure S/PDIF or HDMI passthrough.
-
-Demuxer:
- * Support for HEIF format
- * Support for DASH WebM
-
-Codecs:
- * Support for experimental AV1 video encoding
- * WebVTT encoder
- * Remove iomx support for Android
- * WebP image decoding
- * Support for SMPTE-TT image profile
-
-Video output:
- * Remove aa plugin
- * Remove evas plugin
- * Remove omxil_vout plugin
-
-macOS:
- * Remove Growl notification support
 
 
 
@@ -307,7 +276,6 @@ Access:
  * Improvements of cookie handling (share cookies between playlist items,
    domain / path matching, Secure cookies)
  * Support DVB-T2 on Windows BDA
- * Screen capture plugin for Wayland display
  * Support depayloading Opus from RTP
  * New UPnP access module, to list directories without infinite recursions
  * SMB/FTP/SFTP accesses can list directories

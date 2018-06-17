@@ -250,7 +250,7 @@ static void *Run( void * p_obj )
     }
 
     // Load a theme
-    skin_last = config_GetPsz( "skins2-last" );
+    skin_last = config_GetPsz( p_intf, "skins2-last" );
     pLoader = new ThemeLoader( p_intf );
 
     if( !skin_last || !pLoader->load( skin_last ) )
@@ -344,8 +344,15 @@ static void WindowCloseLocal( intf_thread_t* pIntf, vlc_object_t *pObj )
 
 static int WindowOpen( vout_window_t *pWnd, const vout_window_cfg_t *cfg )
 {
-    if( var_InheritBool( pWnd, "video-wallpaper" ) )
-        return VLC_EGENERIC;
+    if( cfg->type != VOUT_WINDOW_TYPE_INVALID )
+    {
+#ifdef X11_SKINS
+        if( cfg->type != VOUT_WINDOW_TYPE_XID )
+#else
+        if( cfg->type != VOUT_WINDOW_TYPE_HWND )
+#endif
+            return VLC_EGENERIC;
+    }
 
     vout_window_sys_t* sys;
 
@@ -375,25 +382,32 @@ static int WindowOpen( vout_window_t *pWnd, const vout_window_cfg_t *cfg )
     pWnd->sys = sys;
     pWnd->sys->cfg = *cfg;
     pWnd->sys->pIntf = pIntf;
+#ifdef X11_SKINS
+    pWnd->type = VOUT_WINDOW_TYPE_XID;
+#else
+    pWnd->type = VOUT_WINDOW_TYPE_HWND;
+#endif
     pWnd->control = WindowControl;
-
-    pWnd->type = VOUT_WINDOW_TYPE_DUMMY;
 
     // force execution in the skins2 thread context
     CmdExecuteBlock* cmd = new CmdExecuteBlock( pIntf, VLC_OBJECT( pWnd ),
                                                 WindowOpenLocal );
     CmdExecuteBlock::executeWait( CmdGenericPtr( cmd ) );
 
-    if( pWnd->type == VOUT_WINDOW_TYPE_DUMMY )
+#ifdef X11_SKINS
+    pWnd->display.x11 = NULL;
+
+    if( !pWnd->handle.xid )
+#else
+    if( !pWnd->handle.hwnd )
+#endif
     {
-        msg_Dbg( pIntf, "Vout window creation failed" );
         free( sys );
         vlc_object_release( pIntf );
         return VLC_EGENERIC;
     }
 
-    if (cfg->is_fullscreen)
-        vout_window_SetFullScreen( pWnd, NULL );
+    vout_window_SetFullScreen( pWnd, cfg->is_fullscreen );
     return VLC_SUCCESS;
 }
 
@@ -436,11 +450,12 @@ static int WindowControl( vout_window_t *pWnd, int query, va_list args )
         }
 
         case VOUT_WINDOW_SET_FULLSCREEN:
-        case VOUT_WINDOW_UNSET_FULLSCREEN:
         {
+            bool b_fullscreen = va_arg( args, int );
+
             // Post a set fullscreen command
-            CmdSetFullscreen* pCmd = new CmdSetFullscreen( pIntf, pWnd,
-                query == VOUT_WINDOW_SET_FULLSCREEN );
+            CmdSetFullscreen* pCmd =
+                new CmdSetFullscreen( pIntf, pWnd, b_fullscreen );
             pQueue->push( CmdGenericPtr( pCmd ) );
             return VLC_SUCCESS;
         }
@@ -453,6 +468,16 @@ static int WindowControl( vout_window_t *pWnd, int query, va_list args )
             // Post a SetOnTop command
             CmdSetOnTop* pCmd =
                 new CmdSetOnTop( pIntf, on_top );
+            pQueue->push( CmdGenericPtr( pCmd ) );
+            return VLC_SUCCESS;
+        }
+
+        case VOUT_WINDOW_HIDE_MOUSE:
+        {
+            bool hide = va_arg( args, int );
+            // Post a HideMouse command
+            CmdHideMouse* pCmd =
+                new CmdHideMouse( pIntf, pWnd, hide );
             pQueue->push( CmdGenericPtr( pCmd ) );
             return VLC_SUCCESS;
         }
@@ -489,7 +514,8 @@ static int WindowControl( vout_window_t *pWnd, int query, va_list args )
 vlc_module_begin ()
     set_category( CAT_INTERFACE )
     set_subcategory( SUBCAT_INTERFACE_MAIN )
-    add_loadfile("skins2-last", "", SKINS2_LAST, SKINS2_LAST_LONG)
+    add_loadfile( "skins2-last", "", SKINS2_LAST, SKINS2_LAST_LONG,
+                  true )
     add_string( "skins2-config", "", SKINS2_CONFIG, SKINS2_CONFIG_LONG,
                 true )
         change_private ()

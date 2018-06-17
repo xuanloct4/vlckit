@@ -217,10 +217,10 @@ bool OS2Factory::init()
     changeCursor( kDefaultArrow );
 
     // Initialize the resource path
-    char *datadir = config_GetUserDir( VLC_USERDATA_DIR );
+    char *datadir = config_GetUserDir( VLC_DATA_DIR );
     m_resourcePath.push_back( (std::string)datadir + "\\skins" );
     free( datadir );
-    datadir = config_GetSysPath(VLC_PKG_DATA_DIR, NULL);
+    datadir = config_GetDataDir();
     m_resourcePath.push_back( (std::string)datadir + "\\skins" );
     m_resourcePath.push_back( (std::string)datadir + "\\skins2" );
     m_resourcePath.push_back( (std::string)datadir + "\\share\\skins" );
@@ -363,7 +363,7 @@ int OS2Factory::getScreenHeight() const
 }
 
 
-void OS2Factory::getMonitorInfo( OSWindow* pWindow,
+void OS2Factory::getMonitorInfo( const GenericWindow &rWindow,
                                  int* p_x, int* p_y,
                                  int* p_width, int* p_height ) const
 {

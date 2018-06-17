@@ -34,6 +34,7 @@
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_input.h>
+#include <vlc_memory.h>
 
 #include <ctype.h>
 #include <math.h>
@@ -166,13 +167,13 @@ typedef struct
 
 } subs_properties_t;
 
-typedef struct
+struct demux_sys_t
 {
     es_out_id_t *es;
     bool        b_slave;
     bool        b_first_time;
 
-    mtime_t     i_next_demux_date;
+    int64_t     i_next_demux_date;
 
     struct
     {
@@ -187,7 +188,7 @@ typedef struct
     subs_properties_t props;
 
     block_t * (*pf_convert)( const subtitle_t * );
-} demux_sys_t;
+};
 
 static int  ParseMicroDvd   ( vlc_object_t *, subs_properties_t *, text_t *, subtitle_t *, size_t );
 static int  ParseSubRip     ( vlc_object_t *, subs_properties_t *, text_t *, subtitle_t *, size_t );
@@ -335,7 +336,7 @@ static int Open ( vlc_object_t *p_this )
     p_sys->props.sami.psz_start     = NULL;
 
     /* Get the FPS */
-    f_fps = p_demux->p_input ? var_GetFloat( p_demux->p_input, "sub-original-fps" ) : 0.0f;
+    f_fps = var_CreateGetFloat( p_demux, "sub-original-fps" ); /* FIXME */
     if( f_fps >= 1.f )
         p_sys->props.i_microsecperframe = llroundf( 1000000.f / f_fps );
 
@@ -706,7 +707,7 @@ static int Open ( vlc_object_t *p_this )
         es_format_Init( &fmt, SPU_ES, VLC_CODEC_SUBT );
 
     /* Stupid language detection in the filename */
-    char * psz_language = get_language_from_filename( p_demux->psz_filepath );
+    char * psz_language = get_language_from_filename( p_demux->psz_file );
 
     if( psz_language )
     {
@@ -822,13 +823,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
         case DEMUX_SET_NEXT_DEMUX_TIME:
             p_sys->b_slave = true;
-            p_sys->i_next_demux_date = va_arg( args, mtime_t ) - VLC_TS_0;
+            p_sys->i_next_demux_date = va_arg( args, int64_t ) - VLC_TS_0;
             return VLC_SUCCESS;
-
-        case DEMUX_CAN_PAUSE:
-        case DEMUX_SET_PAUSE_STATE:
-        case DEMUX_CAN_CONTROL_PACE:
-            return demux_vaControlHelper( p_demux->s, 0, -1, 0, 1, i_query, args );
 
         case DEMUX_GET_PTS_DELAY:
         case DEMUX_GET_FPS:
@@ -851,7 +847,7 @@ static int Demux( demux_t *p_demux )
 {
     demux_sys_t *p_sys = p_demux->p_sys;
 
-    mtime_t i_barrier = p_sys->i_next_demux_date - var_GetInteger( p_demux->obj.parent, "spu-delay" );
+    int64_t i_barrier = p_sys->i_next_demux_date - var_GetInteger( p_demux->obj.parent, "spu-delay" );
     if( i_barrier < 0 )
         i_barrier = p_sys->i_next_demux_date;
 
@@ -1836,10 +1832,10 @@ static int ParseJSS( vlc_object_t *p_obj, subs_properties_t *p_props,
         {
             p_subtitle->i_start = ( ( (int64_t) h1 *3600 + m1 * 60 + s1 ) +
                 (int64_t)( ( f1 +  p_props->jss.i_time_shift ) / p_props->jss.i_time_resolution ) )
-                * CLOCK_FREQ;
+                * 1000000;
             p_subtitle->i_stop = ( ( (int64_t) h2 *3600 + m2 * 60 + s2 ) +
                 (int64_t)( ( f2 +  p_props->jss.i_time_shift ) / p_props->jss.i_time_resolution ) )
-                * CLOCK_FREQ;
+                * 1000000;
             break;
         }
         /* Short time lines */
@@ -2224,9 +2220,9 @@ static int ParseDKS( vlc_object_t *p_obj, subs_properties_t *p_props,
         if( sscanf( s, "[%d:%d:%d]%[^\r\n]",
                     &h1, &m1, &s1, psz_text ) == 4 )
         {
-            p_subtitle->i_start = ( (int64_t)h1 * 3600 +
-                                    (int64_t)m1 * 60 +
-                                    (int64_t)s1 ) * CLOCK_FREQ;
+            p_subtitle->i_start = ( (int64_t)h1 * 3600*1000 +
+                                    (int64_t)m1 * 60*1000 +
+                                    (int64_t)s1 * 1000 ) * 1000;
 
             s = TextGetLine( txt );
             if( !s )
@@ -2277,9 +2273,9 @@ static int ParseSubViewer1( vlc_object_t *p_obj, subs_properties_t *p_props,
 
         if( sscanf( s, "[%d:%d:%d]", &h1, &m1, &s1 ) == 3 )
         {
-            p_subtitle->i_start = ( (int64_t)h1 * 3600 +
-                                    (int64_t)m1 * 60 +
-                                    (int64_t)s1 ) * CLOCK_FREQ;
+            p_subtitle->i_start = ( (int64_t)h1 * 3600*1000 +
+                                    (int64_t)m1 * 60*1000 +
+                                    (int64_t)s1 * 1000 ) * 1000;
 
             s = TextGetLine( txt );
             if( !s )
@@ -2297,9 +2293,9 @@ static int ParseSubViewer1( vlc_object_t *p_obj, subs_properties_t *p_props,
             }
 
             if( sscanf( s, "[%d:%d:%d]", &h2, &m2, &s2 ) == 3 )
-                p_subtitle->i_stop  = ( (int64_t)h2 * 3600 +
-                                        (int64_t)m2 * 60 +
-                                        (int64_t)s2 ) * CLOCK_FREQ;
+                p_subtitle->i_stop  = ( (int64_t)h2 * 3600*1000 +
+                                        (int64_t)m2 * 60*1000 +
+                                        (int64_t)s2 * 1000 ) * 1000;
             else
                 p_subtitle->i_stop  = -1;
 

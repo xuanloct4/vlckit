@@ -164,7 +164,7 @@ overlay_t *ListWalk( list_t *p_list );
  * filter_sys_t: adjust filter method descriptor
  *****************************************************************************/
 
-typedef struct
+struct filter_sys_t
 {
     buffer_t input, output;
 
@@ -179,6 +179,6 @@ typedef struct
     list_t overlays;
 
     vlc_mutex_t lock;   /* lock to protect psz_inputfile and psz_outputfile */
-} filter_sys_t;
+};
 
 #endif

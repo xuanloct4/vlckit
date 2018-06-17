@@ -30,7 +30,7 @@ typedef struct vlc_va_t vlc_va_t;
 typedef struct vlc_va_sys_t vlc_va_sys_t;
 
 struct vlc_va_t {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
 
     vlc_va_sys_t *sys;
     module_t *module;
@@ -56,7 +56,7 @@ vlc_fourcc_t vlc_va_GetChroma(enum PixelFormat hwfmt, enum PixelFormat swfmt);
  */
 vlc_va_t *vlc_va_New(vlc_object_t *obj, AVCodecContext *,
                      enum PixelFormat, const es_format_t *fmt,
-                     void *p_sys);
+                     picture_sys_t *p_sys);
 
 /**
  * Allocates a hardware video surface for a libavcodec frame.

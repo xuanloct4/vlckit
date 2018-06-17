@@ -83,7 +83,7 @@ typedef struct
 
 struct vlm_t
 {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
 
     vlc_mutex_t  lock;
     vlc_thread_t thread;

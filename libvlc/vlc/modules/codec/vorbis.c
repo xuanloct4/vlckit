@@ -62,7 +62,7 @@
 /*****************************************************************************
  * decoder_sys_t : vorbis decoder descriptor
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     /* Module mode */
     bool b_packetizer;
@@ -90,7 +90,7 @@ typedef struct
     ** Channel reordering
     */
     uint8_t pi_chan_table[AOUT_CHAN_MAX];
-} decoder_sys_t;
+};
 
 static const int pi_channels_maps[9] =
 {
@@ -244,7 +244,7 @@ static int OpenDecoder( vlc_object_t *p_this )
         return VLC_ENOMEM;
 
     /* Misc init */
-    date_Set( &p_sys->end_date, VLC_TS_INVALID );
+    date_Set( &p_sys->end_date, 0 );
     p_sys->i_last_block_size = 0;
     p_sys->b_packetizer = false;
     p_sys->b_has_headers = false;
@@ -271,13 +271,12 @@ static int OpenDecoder( vlc_object_t *p_this )
 static int OpenPacketizer( vlc_object_t *p_this )
 {
     decoder_t *p_dec = (decoder_t*)p_this;
-    decoder_sys_t *p_sys = p_dec->p_sys;
 
     int i_ret = OpenDecoder( p_this );
 
     if( i_ret == VLC_SUCCESS )
     {
-        p_sys->b_packetizer = true;
+        p_dec->p_sys->b_packetizer = true;
         p_dec->fmt_out.i_codec = VLC_CODEC_VORBIS;
     }
 
@@ -455,7 +454,7 @@ static void Flush( decoder_t *p_dec )
 {
     decoder_sys_t *p_sys = p_dec->p_sys;
 
-    date_Set( &p_sys->end_date, VLC_TS_INVALID );
+    date_Set( &p_sys->end_date, 0 );
 }
 
 /*****************************************************************************
@@ -482,13 +481,13 @@ static block_t *ProcessPacket( decoder_t *p_dec, ogg_packet *p_oggpacket,
     }
 
     /* Date management */
-    if( p_block->i_pts != VLC_TS_INVALID &&
+    if( p_block->i_pts > VLC_TS_INVALID &&
         p_block->i_pts != date_Get( &p_sys->end_date ) )
     {
         date_Set( &p_sys->end_date, p_block->i_pts );
     }
 
-    if( date_Get( &p_sys->end_date ) == VLC_TS_INVALID )
+    if( !date_Get( &p_sys->end_date ) )
     {
         /* We've just started the stream, wait for the first PTS. */
         if( p_block ) block_Release( p_block );
@@ -609,11 +608,9 @@ static void ParseVorbisComments( decoder_t *p_dec )
     char *psz_name, *psz_value, *psz_comment;
     int i = 0;
 
-    decoder_sys_t *p_sys = p_dec->p_sys;
-
-    while( i < p_sys->vc.comments )
+    while( i < p_dec->p_sys->vc.comments )
     {
-        psz_comment = strdup( p_sys->vc.user_comments[i] );
+        psz_comment = strdup( p_dec->p_sys->vc.user_comments[i] );
         if( !psz_comment )
             break;
         psz_name = psz_comment;
@@ -731,7 +728,7 @@ static void CloseDecoder( vlc_object_t *p_this )
 /*****************************************************************************
  * encoder_sys_t : vorbis encoder descriptor
  *****************************************************************************/
-typedef struct
+struct encoder_sys_t
 {
     /*
      * Vorbis properties
@@ -752,7 +749,7 @@ typedef struct
     */
     uint8_t pi_chan_table[AOUT_CHAN_MAX];
 
-} encoder_sys_t;
+};
 
 /*****************************************************************************
  * OpenEncoder: probe the encoder and return score
@@ -901,7 +898,7 @@ static block_t *Encode( encoder_t *p_enc, block_t *p_aout_buf )
     if( unlikely( !p_aout_buf ) ) return NULL;
 
     mtime_t i_pts = p_aout_buf->i_pts -
-                CLOCK_FREQ * (mtime_t)p_sys->i_samples_delay /
+                (mtime_t)1000000 * (mtime_t)p_sys->i_samples_delay /
                 (mtime_t)p_enc->fmt_in.audio.i_rate;
 
     p_sys->i_samples_delay += p_aout_buf->i_nb_samples;
@@ -940,7 +937,7 @@ static block_t *Encode( encoder_t *p_enc, block_t *p_aout_buf )
             i_samples = ( p_sys->i_last_block_size + i_block_size ) >> 2;
             p_sys->i_last_block_size = i_block_size;
 
-            p_block->i_length = CLOCK_FREQ *
+            p_block->i_length = (mtime_t)1000000 *
                 (mtime_t)i_samples / (mtime_t)p_enc->fmt_in.audio.i_rate;
 
             p_block->i_dts = p_block->i_pts = i_pts;

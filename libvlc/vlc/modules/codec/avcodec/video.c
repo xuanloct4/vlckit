@@ -29,12 +29,11 @@
 # include "config.h"
 #endif
 
-#include <stdatomic.h>
-
 #include <vlc_common.h>
 #include <vlc_codec.h>
 #include <vlc_avcodec.h>
 #include <vlc_cpu.h>
+#include <vlc_atomic.h>
 #include <assert.h>
 
 #include <libavcodec/avcodec.h>
@@ -47,23 +46,12 @@
 #include "avcodec.h"
 #include "va.h"
 
-#if LIBAVUTIL_VERSION_CHECK( 52, 20, 0, 58, 100 )
-#include <libavutil/stereo3d.h>
-#endif
-
 #include "../codec/cc.h"
-#define FRAME_INFO_DEPTH 64
-
-struct frame_info_s
-{
-    bool b_eos;
-    bool b_display;
-};
 
 /*****************************************************************************
  * decoder_sys_t : decoder descriptor
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     AVCodecContext *p_context;
     const AVCodec  *p_codec;
@@ -80,17 +68,9 @@ typedef struct
     bool b_from_preroll;
     enum AVDiscard i_skip_frame;
 
-    struct frame_info_s frame_info[FRAME_INFO_DEPTH];
-
-    enum
-    {
-        FRAMEDROP_NONE,
-        FRAMEDROP_NONREF,
-        FRAMEDROP_AGGRESSIVE_RECOVER,
-    } framedrop;
     /* how many decoded frames are late */
     int     i_late_frames;
-    int64_t i_last_output_frame;
+    mtime_t i_late_frames_start;
     mtime_t i_last_late_delay;
 
     /* for direct rendering */
@@ -111,7 +91,7 @@ typedef struct
     int level;
 
     vlc_sem_t sem_mt;
-} decoder_sys_t;
+};
 
 static inline void wait_mt(decoder_sys_t *sys)
 {
@@ -224,21 +204,8 @@ static int lavc_GetVideoFormat(decoder_t *dec, video_format_t *restrict fmt,
                                  * __MAX(ctx->ticks_per_frame, 1);
     }
 
-    /* FIXME we should only set the known values and let the core decide
-     * later of fallbacks, but we can't do that with a boolean */
-    switch ( ctx->color_range )
-    {
-    case AVCOL_RANGE_JPEG:
+    if( ctx->color_range == AVCOL_RANGE_JPEG )
         fmt->b_color_range_full = true;
-        break;
-    case AVCOL_RANGE_UNSPECIFIED:
-        fmt->b_color_range_full = !vlc_fourcc_IsYUV( fmt->i_chroma );
-        break;
-    case AVCOL_RANGE_MPEG:
-    default:
-        fmt->b_color_range_full = false;
-        break;
-    }
 
     switch( ctx->colorspace )
     {
@@ -341,17 +308,15 @@ static int lavc_UpdateVideoFormat(decoder_t *dec, AVCodecContext *ctx,
     if (val)
         return val;
 
-    decoder_sys_t *p_sys = dec->p_sys;
-
     /* always have date in fields/ticks units */
-    if(p_sys->pts.i_divider_num)
-        date_Change(&p_sys->pts, fmt_out.i_frame_rate *
-                                 __MAX(ctx->ticks_per_frame, 1),
-                                 fmt_out.i_frame_rate_base);
+    if(dec->p_sys->pts.i_divider_num)
+        date_Change(&dec->p_sys->pts, fmt_out.i_frame_rate *
+                                      __MAX(ctx->ticks_per_frame, 1),
+                                      fmt_out.i_frame_rate_base);
     else
-        date_Init(&p_sys->pts, fmt_out.i_frame_rate *
-                               __MAX(ctx->ticks_per_frame, 1),
-                               fmt_out.i_frame_rate_base);
+        date_Init(&dec->p_sys->pts, fmt_out.i_frame_rate *
+                                    __MAX(ctx->ticks_per_frame, 1),
+                                    fmt_out.i_frame_rate_base);
 
     fmt_out.p_palette = dec->fmt_out.video.p_palette;
     dec->fmt_out.video.p_palette = NULL;
@@ -568,7 +533,6 @@ int InitVideoDec( vlc_object_t *obj )
      * PTS correctly */
     p_context->get_buffer2 = lavc_GetFrame;
     p_context->opaque = p_dec;
-    p_context->reordered_opaque = 0;
 
     int i_thread_count = var_InheritInteger( p_dec, "avcodec-threads" );
     if( i_thread_count <= 0 )
@@ -614,11 +578,10 @@ int InitVideoDec( vlc_object_t *obj )
 
     /* ***** misc init ***** */
     date_Init(&p_sys->pts, 1, 30001);
+    date_Set(&p_sys->pts, VLC_TS_INVALID);
     p_sys->b_first_frame = true;
     p_sys->i_late_frames = 0;
     p_sys->b_from_preroll = false;
-    p_sys->i_last_output_frame = -1;
-    p_sys->framedrop = FRAMEDROP_NONE;
 
     /* Set output properties */
     if( GetVlcChroma( &p_dec->fmt_out.video, p_context->pix_fmt ) != VLC_SUCCESS )
@@ -671,7 +634,6 @@ static void Flush( decoder_t *p_dec )
 
     date_Set(&p_sys->pts, VLC_TS_INVALID); /* To make sure we recover properly */
     p_sys->i_late_frames = 0;
-    p_sys->framedrop = FRAMEDROP_NONE;
     cc_Flush( &p_sys->cc );
 
     /* Abort pictures in order to unblock all avcodec workers threads waiting
@@ -689,53 +651,73 @@ static void Flush( decoder_t *p_dec )
     decoder_AbortPictures( p_dec, false );
 }
 
-static block_t * filter_earlydropped_blocks( decoder_t *p_dec, block_t *block )
+static bool check_block_validity( decoder_sys_t *p_sys, block_t *block )
 {
-    decoder_sys_t *p_sys = p_dec->p_sys;
+    if( !block)
+        return true;
 
+    if( block->i_flags & (BLOCK_FLAG_DISCONTINUITY|BLOCK_FLAG_CORRUPTED) )
+    {
+        date_Set( &p_sys->pts, VLC_TS_INVALID ); /* To make sure we recover properly */
+        cc_Flush( &p_sys->cc );
+
+        p_sys->i_late_frames = 0;
+        if( block->i_flags & BLOCK_FLAG_CORRUPTED )
+        {
+            block_Release( block );
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool check_block_being_late( decoder_sys_t *p_sys, block_t *block, mtime_t current_time)
+{
     if( !block )
-        return NULL;
-
+        return false;
     if( block->i_flags & BLOCK_FLAG_PREROLL )
     {
         /* Do not care about late frames when prerolling
          * TODO avoid decoding of non reference frame
          * (ie all B except for H264 where it depends only on nal_ref_idc) */
         p_sys->i_late_frames = 0;
-        p_sys->framedrop = FRAMEDROP_NONE;
         p_sys->b_from_preroll = true;
         p_sys->i_last_late_delay = INT64_MAX;
     }
 
-    if( p_sys->i_late_frames == 0 )
-        p_sys->framedrop = FRAMEDROP_NONE;
+    if( p_sys->i_late_frames <= 0 )
+        return false;
 
-    if( p_sys->framedrop == FRAMEDROP_NONE && p_sys->i_late_frames < 11 )
-        return block;
-
-    if( p_sys->i_last_output_frame >= 0 &&
-        p_sys->p_context->reordered_opaque - p_sys->i_last_output_frame > 24 )
+    if( current_time - p_sys->i_late_frames_start > (5*CLOCK_FREQ))
     {
-        p_sys->framedrop = FRAMEDROP_AGGRESSIVE_RECOVER;
+        date_Set( &p_sys->pts, VLC_TS_INVALID ); /* To make sure we recover properly */
+        block_Release( block );
+        p_sys->i_late_frames--;
+        return true;
     }
+    return false;
+}
 
-    /* A good idea could be to decode all I pictures and see for the other */
-    if( p_sys->framedrop == FRAMEDROP_AGGRESSIVE_RECOVER )
+static bool check_frame_should_be_dropped( decoder_sys_t *p_sys, AVCodecContext *p_context, bool *b_need_output_picture )
+{
+    if( p_sys->i_late_frames <= 4)
+        return false;
+
+    *b_need_output_picture = false;
+    if( p_sys->i_late_frames < 12 )
     {
-        if( !(block->i_flags & BLOCK_FLAG_TYPE_I) )
-        {
-            msg_Err( p_dec, "more than %"PRId64" frames of late video -> "
-                            "dropping frame (computer too slow ?)",
-                     p_sys->p_context->reordered_opaque - p_sys->i_last_output_frame );
-
-            date_Set( &p_sys->pts, VLC_TS_INVALID ); /* To make sure we recover properly */
-            block_Release( block );
-            p_sys->i_late_frames--;
-            return NULL;
-        }
+        p_context->skip_frame =
+                (p_sys->i_skip_frame <= AVDISCARD_NONREF) ?
+                AVDISCARD_NONREF : p_sys->i_skip_frame;
     }
-
-    return block;
+    else
+    {
+        /* picture too late, won't decode
+         * but break picture until a new I, and for mpeg4 ...*/
+        p_sys->i_late_frames--; /* needed else it will never be decrease */
+        return true;
+    }
+    return false;
 }
 
 static void interpolate_next_pts( decoder_t *p_dec, AVFrame *frame )
@@ -743,8 +725,8 @@ static void interpolate_next_pts( decoder_t *p_dec, AVFrame *frame )
     decoder_sys_t *p_sys = p_dec->p_sys;
     AVCodecContext *p_context = p_sys->p_context;
 
-    if( p_sys->pts.i_divider_num == 0 ||
-        date_Get( &p_sys->pts ) == VLC_TS_INVALID )
+    if( date_Get( &p_sys->pts ) == VLC_TS_INVALID ||
+        p_sys->pts.i_divider_num == 0 )
         return;
 
     int i_tick = p_context->ticks_per_frame;
@@ -755,8 +737,7 @@ static void interpolate_next_pts( decoder_t *p_dec, AVFrame *frame )
     date_Increment( &p_sys->pts, i_tick + frame->repeat_pict );
 }
 
-static void update_late_frame_count( decoder_t *p_dec, block_t *p_block,
-                                     mtime_t current_time, mtime_t i_pts, int64_t i_fnum )
+static void update_late_frame_count( decoder_t *p_dec, block_t *p_block, mtime_t current_time, mtime_t i_pts )
 {
     decoder_sys_t *p_sys = p_dec->p_sys;
    /* Update frame late count (except when doing preroll) */
@@ -764,7 +745,7 @@ static void update_late_frame_count( decoder_t *p_dec, block_t *p_block,
    if( !p_block || !(p_block->i_flags & BLOCK_FLAG_PREROLL) )
        i_display_date = decoder_GetDisplayDate( p_dec, i_pts );
 
-   if( i_display_date != VLC_TS_INVALID && i_display_date <= current_time )
+   if( i_display_date > VLC_TS_INVALID && i_display_date <= current_time )
    {
        /* Out of preroll, consider only late frames on rising delay */
        if( p_sys->b_from_preroll )
@@ -778,10 +759,12 @@ static void update_late_frame_count( decoder_t *p_dec, block_t *p_block,
        }
 
        p_sys->i_late_frames++;
+       if( p_sys->i_late_frames == 1 )
+           p_sys->i_late_frames_start = current_time;
+
    }
    else
    {
-       p_sys->i_last_output_frame = i_fnum;
        p_sys->i_late_frames = 0;
    }
 }
@@ -867,56 +850,6 @@ static int DecodeSidedata( decoder_t *p_dec, const AVFrame *frame, picture_t *p_
     }
 #endif
 
-#if LIBAVUTIL_VERSION_CHECK( 52, 20, 0, 58, 100 )
-    const AVFrameSideData *p_stereo3d_data =
-            av_frame_get_side_data( frame,
-                                    AV_FRAME_DATA_STEREO3D );
-    if( p_stereo3d_data )
-    {
-        const struct AVStereo3D *stereo_data =
-                (const AVStereo3D *) p_stereo3d_data->data;
-        switch (stereo_data->type)
-        {
-        case AV_STEREO3D_SIDEBYSIDE:
-            p_pic->format.multiview_mode = MULTIVIEW_STEREO_SBS;
-            break;
-        case AV_STEREO3D_TOPBOTTOM:
-            p_pic->format.multiview_mode = MULTIVIEW_STEREO_TB;
-            break;
-        case AV_STEREO3D_FRAMESEQUENCE:
-            p_pic->format.multiview_mode = MULTIVIEW_STEREO_FRAME;
-            break;
-        case AV_STEREO3D_COLUMNS:
-            p_pic->format.multiview_mode = MULTIVIEW_STEREO_ROW;
-            break;
-        case AV_STEREO3D_LINES:
-            p_pic->format.multiview_mode = MULTIVIEW_STEREO_COL;
-            break;
-        case AV_STEREO3D_CHECKERBOARD:
-            p_pic->format.multiview_mode = MULTIVIEW_STEREO_CHECKERBOARD;
-            break;
-        default:
-        case AV_STEREO3D_2D:
-            p_pic->format.multiview_mode = MULTIVIEW_2D;
-            break;
-        }
-#if LIBAVUTIL_VERSION_CHECK( 56, 7, 0, 4, 100 )
-        p_pic->format.b_multiview_right_eye_first = stereo_data->flags & AV_STEREO3D_FLAG_INVERT;
-        p_pic->format.b_multiview_left_eye = (stereo_data->view == AV_STEREO3D_VIEW_LEFT);
-
-        p_dec->fmt_out.video.b_multiview_right_eye_first = p_pic->format.b_multiview_right_eye_first;
-#endif
-
-        if (p_dec->fmt_out.video.multiview_mode != p_pic->format.multiview_mode)
-        {
-            p_dec->fmt_out.video.multiview_mode = p_pic->format.multiview_mode;
-            format_changed = true;
-        }
-    }
-    else
-        p_pic->format.multiview_mode = p_dec->fmt_out.video.multiview_mode;
-#endif
-
     if (format_changed && decoder_UpdateVideoFormat( p_dec ))
         return -1;
 
@@ -948,18 +881,20 @@ static int DecodeSidedata( decoder_t *p_dec, const AVFrame *frame, picture_t *p_
 
 /*****************************************************************************
  * DecodeBlock: Called to decode one or more frames
- *              drains if pp_block == NULL
- *              tries to output only if p_block == NULL
  *****************************************************************************/
-static int DecodeBlock( decoder_t *p_dec, block_t **pp_block )
+static picture_t *DecodeBlock( decoder_t *p_dec, block_t **pp_block, bool *error )
 {
     decoder_sys_t *p_sys = p_dec->p_sys;
     AVCodecContext *p_context = p_sys->p_context;
     /* Boolean if we assume that we should get valid pic as result */
     bool b_need_output_picture = true;
-    bool b_error = false;
+
+    /* Boolean for END_OF_SEQUENCE */
+    bool eos_spotted = false;
+
 
     block_t *p_block;
+    mtime_t current_time;
 
     if( !p_context->extradata_size && p_dec->fmt_in.i_extra )
     {
@@ -970,14 +905,28 @@ static int DecodeBlock( decoder_t *p_dec, block_t **pp_block )
 
     p_block = pp_block ? *pp_block : NULL;
     if(!p_block && !(p_sys->p_codec->capabilities & AV_CODEC_CAP_DELAY) )
-        return VLCDEC_SUCCESS;
+        return NULL;
 
     if( !avcodec_is_open( p_context ) )
     {
         if( p_block )
             block_Release( p_block );
-        return VLCDEC_SUCCESS;
+        return NULL;
     }
+
+    if( !check_block_validity( p_sys, p_block ) )
+        return NULL;
+
+    current_time = mdate();
+    if( p_dec->b_frame_drop_allowed &&  check_block_being_late( p_sys, p_block, current_time) )
+    {
+        msg_Err( p_dec, "more than 5 seconds of late video -> "
+                 "dropping frame (computer too slow ?)" );
+        return NULL;
+    }
+
+
+    /* A good idea could be to decode all I pictures and see for the other */
 
     /* Defaults that if we aren't in prerolling, we want output picture
        same for if we are flushing (p_block==NULL) */
@@ -993,13 +942,19 @@ static int DecodeBlock( decoder_t *p_dec, block_t **pp_block )
 
         /* Check also if we should/can drop the block and move to next block
             as trying to catchup the speed*/
-        if( p_dec->b_frame_drop_allowed )
-            p_block = filter_earlydropped_blocks( p_dec, p_block );
+        if( p_dec->b_frame_drop_allowed &&
+            check_frame_should_be_dropped( p_sys, p_context, &b_need_output_picture ) )
+        {
+            if( p_block )
+                block_Release( p_block );
+            msg_Warn( p_dec, "More than 11 late frames, dropping frame" );
+            return NULL;
+        }
     }
-
-    if( !b_need_output_picture || p_sys->framedrop == FRAMEDROP_NONREF )
+    if( !b_need_output_picture )
     {
-        p_context->skip_frame = __MAX( p_context->skip_frame, AVDISCARD_NONREF );
+        p_context->skip_frame = __MAX( p_context->skip_frame,
+                                              AVDISCARD_NONREF );
     }
 
     /*
@@ -1009,118 +964,108 @@ static int DecodeBlock( decoder_t *p_dec, block_t **pp_block )
      * that the real frame size */
     if( p_block && p_block->i_buffer > 0 )
     {
+        eos_spotted = ( p_block->i_flags & BLOCK_FLAG_END_OF_SEQUENCE ) != 0;
+
         p_block = block_Realloc( p_block, 0,
                             p_block->i_buffer + FF_INPUT_BUFFER_PADDING_SIZE );
         if( !p_block )
-            return VLCDEC_SUCCESS;
+            return NULL;
         p_block->i_buffer -= FF_INPUT_BUFFER_PADDING_SIZE;
         *pp_block = p_block;
         memset( p_block->p_buffer + p_block->i_buffer, 0,
                 FF_INPUT_BUFFER_PADDING_SIZE );
     }
 
-    bool b_drain = ( pp_block == NULL );
-    bool b_drained = false;
-
-    do
+    while( !p_block || p_block->i_buffer > 0 || eos_spotted )
     {
-        int i_used = 0;
+        int i_used;
+        AVPacket pkt;
 
         post_mt( p_sys );
 
-        if( (p_block && p_block->i_buffer > 0) || b_drain )
+        av_init_packet( &pkt );
+        if( p_block && p_block->i_buffer > 0 )
         {
-            AVPacket pkt;
-            av_init_packet( &pkt );
-            if( p_block && p_block->i_buffer > 0 )
-            {
-                pkt.data = p_block->p_buffer;
-                pkt.size = p_block->i_buffer;
-                pkt.pts = p_block->i_pts != VLC_TS_INVALID ? p_block->i_pts : AV_NOPTS_VALUE;
-                pkt.dts = p_block->i_dts != VLC_TS_INVALID ? p_block->i_dts : AV_NOPTS_VALUE;
-            }
-            else
-            {
-                /* Drain */
-                pkt.data = NULL;
-                pkt.size = 0;
-                b_drain = false;
-                b_drained = true;
-            }
+            pkt.data = p_block->p_buffer;
+            pkt.size = p_block->i_buffer;
+            pkt.pts = p_block->i_pts > VLC_TS_INVALID ? p_block->i_pts : AV_NOPTS_VALUE;
+            pkt.dts = p_block->i_dts > VLC_TS_INVALID ? p_block->i_dts : AV_NOPTS_VALUE;
+        }
+        else
+        {
+            /* Return delayed frames if codec has CODEC_CAP_DELAY */
+            pkt.data = NULL;
+            pkt.size = 0;
+        }
 
-            if( !p_sys->palette_sent )
-            {
-                uint8_t *pal = av_packet_new_side_data(&pkt, AV_PKT_DATA_PALETTE, AVPALETTE_SIZE);
-                if (pal) {
-                    memcpy(pal, p_dec->fmt_in.video.p_palette->palette, AVPALETTE_SIZE);
-                    p_sys->palette_sent = true;
-                }
-            }
-
-            /* Make sure we don't reuse the same timestamps twice */
-            if( p_block )
-            {
-                p_block->i_pts =
-                p_block->i_dts = VLC_TS_INVALID;
-            }
-
-#if LIBAVCODEC_VERSION_CHECK( 57, 0, 0xFFFFFFFFU, 64, 101 )
-            if( !b_need_output_picture )
-                pkt.flags |= AV_PKT_FLAG_DISCARD;
-#endif
-
-            int ret = avcodec_send_packet(p_context, &pkt);
-            if( ret != 0 && ret != AVERROR(EAGAIN) )
-            {
-                if (ret == AVERROR(ENOMEM) || ret == AVERROR(EINVAL))
-                {
-                    msg_Err(p_dec, "avcodec_send_packet critical error");
-                    b_error = true;
-                }
-                av_packet_unref( &pkt );
-                break;
-            }
-
-            struct frame_info_s *p_frame_info = &p_sys->frame_info[p_context->reordered_opaque % FRAME_INFO_DEPTH];
-            p_frame_info->b_eos = p_block && (p_block->i_flags & BLOCK_FLAG_END_OF_SEQUENCE);
-            p_frame_info->b_display = b_need_output_picture;
-
-            p_context->reordered_opaque++;
-            i_used = ret != AVERROR(EAGAIN) ? pkt.size : 0;
-            av_packet_unref( &pkt );
-
-            if( p_frame_info->b_eos && !b_drained )
-            {
-                 avcodec_send_packet( p_context, NULL );
-                 b_drained = true;
+        if( !p_sys->palette_sent )
+        {
+            uint8_t *pal = av_packet_new_side_data(&pkt, AV_PKT_DATA_PALETTE, AVPALETTE_SIZE);
+            if (pal) {
+                memcpy(pal, p_dec->fmt_in.video.p_palette->palette, AVPALETTE_SIZE);
+                p_sys->palette_sent = true;
             }
         }
+
+        /* Make sure we don't reuse the same timestamps twice */
+        if( p_block )
+        {
+            p_block->i_pts =
+            p_block->i_dts = VLC_TS_INVALID;
+        }
+
+#if LIBAVCODEC_VERSION_CHECK( 57, 0, 0xFFFFFFFFU, 64, 101 )
+        if( !b_need_output_picture )
+            pkt.flags |= AV_PKT_FLAG_DISCARD;
+#endif
+
+        int ret = avcodec_send_packet(p_context, &pkt);
+        if( ret != 0 && ret != AVERROR(EAGAIN) )
+        {
+            if (ret == AVERROR(ENOMEM) || ret == AVERROR(EINVAL))
+            {
+                msg_Err(p_dec, "avcodec_send_packet critical error");
+                *error = true;
+            }
+            av_packet_unref( &pkt );
+            break;
+        }
+        i_used = ret != AVERROR(EAGAIN) ? pkt.size : 0;
+        av_packet_unref( &pkt );
 
         AVFrame *frame = av_frame_alloc();
         if (unlikely(frame == NULL))
         {
-            b_error = true;
+            *error = true;
             break;
         }
 
-        int ret = avcodec_receive_frame(p_context, frame);
+        ret = avcodec_receive_frame(p_context, frame);
         if( ret != 0 && ret != AVERROR(EAGAIN) )
         {
             if (ret == AVERROR(ENOMEM) || ret == AVERROR(EINVAL))
             {
                 msg_Err(p_dec, "avcodec_receive_frame critical error");
-                b_error = true;
+                *error = true;
             }
             av_frame_free(&frame);
+            /* After draining, we need to reset decoder with a flush */
             if( ret == AVERROR_EOF )
-                break;
+                avcodec_flush_buffers( p_sys->p_context );
+            break;
         }
         bool not_received_frame = ret;
 
         wait_mt( p_sys );
 
+        if( eos_spotted )
+            p_sys->b_first_frame = true;
+
         if( p_block )
         {
+            if( p_block->i_buffer <= 0 )
+                eos_spotted = false;
+
             /* Consumed bytes */
             p_block->p_buffer += i_used;
             p_block->i_buffer -= i_used;
@@ -1134,29 +1079,25 @@ static int DecodeBlock( decoder_t *p_dec, block_t **pp_block )
             continue;
         }
 
-        struct frame_info_s *p_frame_info = &p_sys->frame_info[frame->reordered_opaque % FRAME_INFO_DEPTH];
-        if( p_frame_info->b_eos )
-            p_sys->b_first_frame = true;
-
         /* Compute the PTS */
 #ifdef FF_API_PKT_PTS
         mtime_t i_pts = frame->pts;
-
-        if (i_pts == AV_NOPTS_VALUE )
-            i_pts = frame->pkt_dts;
 #else
         mtime_t i_pts = frame->pkt_pts;
 #endif
+        if (i_pts == AV_NOPTS_VALUE )
+            i_pts = frame->pkt_dts;
+
         if( i_pts == AV_NOPTS_VALUE )
             i_pts = date_Get( &p_sys->pts );
 
         /* Interpolate the next PTS */
-        if( i_pts != VLC_TS_INVALID )
+        if( i_pts > VLC_TS_INVALID )
             date_Set( &p_sys->pts, i_pts );
 
         interpolate_next_pts( p_dec, frame );
 
-        update_late_frame_count( p_dec, p_block, mdate(), i_pts, frame->reordered_opaque);
+        update_late_frame_count( p_dec, p_block, current_time, i_pts);
 
         if( ( !p_sys->p_va && !frame->linesize[0] ) ||
            ( p_dec->b_frame_drop_allowed && (frame->flags & AV_FRAME_FLAG_CORRUPT) &&
@@ -1167,7 +1108,7 @@ static int DecodeBlock( decoder_t *p_dec, block_t **pp_block )
         }
 
 #if !LIBAVCODEC_VERSION_CHECK( 57, 0, 0xFFFFFFFFU, 64, 101 )
-        if( !p_frame_info->b_display )
+        if( !b_need_output_picture )
         {
             av_frame_free(&frame);
             continue;
@@ -1187,7 +1128,7 @@ static int DecodeBlock( decoder_t *p_dec, block_t **pp_block )
                       = malloc( sizeof(video_palette_t) );
             if( !p_palette )
             {
-                b_error = true;
+                *error = true;
                 av_frame_free(&frame);
                 break;
             }
@@ -1271,51 +1212,28 @@ static int DecodeBlock( decoder_t *p_dec, block_t **pp_block )
         av_frame_free(&frame);
 
         /* Send decoded frame to vout */
-        if (i_pts != VLC_TS_INVALID)
+        if (i_pts > VLC_TS_INVALID)
         {
             p_sys->b_first_frame = false;
-            decoder_QueueVideo( p_dec, p_pic );
+            return p_pic;
         }
         else
             picture_Release( p_pic );
-
-    } while( true );
-
-    /* After draining, we need to reset decoder with a flush */
-    if( b_drained )
-        avcodec_flush_buffers( p_sys->p_context );
+    }
 
     if( p_block )
         block_Release( p_block );
-
-    return b_error ? VLCDEC_ECRITICAL : VLCDEC_SUCCESS;
+    return NULL;
 }
 
 static int DecodeVideo( decoder_t *p_dec, block_t *p_block )
 {
-    decoder_sys_t *p_sys = p_dec->p_sys;
-    block_t **pp_block = p_block ? &p_block : NULL /* drain signal */;
-
-    if( p_block &&
-        p_block->i_flags & (BLOCK_FLAG_DISCONTINUITY|BLOCK_FLAG_CORRUPTED) )
-    {
-        /* Drain */
-        DecodeBlock( p_dec, NULL );
-        p_sys->i_late_frames = 0;
-        p_sys->i_last_output_frame = -1;
-        p_sys->framedrop = FRAMEDROP_NONE;
-
-        date_Set( &p_sys->pts, VLC_TS_INVALID ); /* To make sure we recover properly */
-        cc_Flush( &p_sys->cc );
-
-        if( p_block->i_flags & BLOCK_FLAG_CORRUPTED )
-        {
-            block_Release( p_block );
-            p_block = NULL; /* output only */
-        }
-    }
-
-    return DecodeBlock( p_dec, pp_block );
+    block_t **pp_block = p_block ? &p_block : NULL;
+    picture_t *p_pic;
+    bool error = false;
+    while( ( p_pic = DecodeBlock( p_dec, pp_block, &error ) ) != NULL )
+        decoder_QueueVideo( p_dec, p_pic );
+    return error ? VLCDEC_ECRITICAL : VLCDEC_SUCCESS;
 }
 
 /*****************************************************************************
@@ -1428,8 +1346,7 @@ static int lavc_va_GetFrame(struct AVCodecContext *ctx, AVFrame *frame,
                             picture_t *pic)
 {
     decoder_t *dec = ctx->opaque;
-    decoder_sys_t *p_sys = dec->p_sys;
-    vlc_va_t *va = p_sys->p_va;
+    vlc_va_t *va = dec->p_sys->p_va;
 
     if (vlc_va_Get(va, pic, &frame->data[0]))
     {

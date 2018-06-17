@@ -91,7 +91,6 @@ function nv21_rgb_neon
 	/* round the width to be a multiple of 16 */
 	ands		OPAD, WIDTH, #15
 	sub			WIDTH, WIDTH, OPAD
-	it		ne
 	addne		WIDTH, WIDTH, #16
 
 	/* init constants (scale value by 64) */
@@ -112,12 +111,10 @@ function nv21_rgb_neon
 	sub			YPAD,	YPITCH,	WIDTH
 
 loop_row:
-	it	gt
 	movsgt	COUNT,	WIDTH
 	add		O2,	O1,	OPITCH
 	add		Y2,	Y1,	YPITCH
 	/* exit if all rows have been processed */
-	itt	le
 	vpople	{q4-q7}
 	pople	{r4-r8,r10-r11,pc}
 

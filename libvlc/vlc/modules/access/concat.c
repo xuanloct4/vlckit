@@ -35,7 +35,7 @@ struct access_entry
     char mrl[1];
 };
 
-typedef struct
+struct access_sys_t
 {
     stream_t *access;
     struct access_entry *next;
@@ -46,7 +46,7 @@ typedef struct
     bool can_control_pace;
     uint64_t size;
     int64_t caching;
-} access_sys_t;
+};
 
 static stream_t *GetAccess(stream_t *access)
 {

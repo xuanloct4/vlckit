@@ -136,7 +136,7 @@ static NSString *kCaptureTabViewId  = @"capture";
     [_outputCheckbox setTitle:_NS("Stream output:")];
     [_outputSettingsButton setTitle:_NS("Settings...")];
 
-    _tabView.accessibilityLabel = _NS("Choose media input type");
+    [_tabView accessibilitySetOverrideValue:_NS("Choose media input type") forAttribute:NSAccessibilityDescriptionAttribute];
     [[_tabView tabViewItemAtIndex: 0] setLabel: _NS("File")];
     [[_tabView tabViewItemAtIndex: 1] setLabel: _NS("Disc")];
     [[_tabView tabViewItemAtIndex: 2] setLabel: _NS("Network")];
@@ -145,12 +145,12 @@ static NSString *kCaptureTabViewId  = @"capture";
     [_fileNameStubLabel setStringValue: _NS("Choose a file")];
     [_fileIconWell setImage: [NSImage imageNamed:@"generic"]];
     [_fileBrowseButton setTitle: _NS("Browse...")];
-    _fileBrowseButton.accessibilityLabel = _NS("Select a file for playback");
+    [[_fileBrowseButton cell] accessibilitySetOverrideValue:_NS("Select a file for playback") forAttribute:NSAccessibilityDescriptionAttribute];
     [_fileTreatAsPipeButton setTitle: _NS("Treat as a pipe rather than as a file")];
     [_fileTreatAsPipeButton setHidden: NO];
     [_fileSlaveCheckbox setTitle: _NS("Play another media synchronously")];
     [_fileSelectSlaveButton setTitle: _NS("Choose...")];
-    _fileBrowseButton.accessibilityLabel = _NS("Select another file to play in sync with the previously selected file");
+    [[_fileBrowseButton cell] accessibilitySetOverrideValue:_NS("Select another file to play in sync with the previously selected file") forAttribute:NSAccessibilityDescriptionAttribute];
     [_fileSlaveFilenameLabel setStringValue: @""];
     [_fileSlaveIconWell setImage: NULL];
     [_fileSubtitlesFilenameLabel setStringValue: @""];
@@ -188,7 +188,7 @@ static NSString *kCaptureTabViewId  = @"capture";
     [_netHTTPURLLabel setStringValue: _NS("URL")];
     [_netHelpLabel setStringValue: _NS("To Open a usual network stream (HTTP, RTSP, RTMP, MMS, FTP, etc.), just enter the URL in the field above. If you want to open a RTP or UDP stream, press the button below.")];
     [_netHelpUDPLabel setStringValue: _NS("If you want to open a multicast stream, enter the respective IP address given by the stream provider. In unicast mode, VLC will use your machine's IP automatically.\n\nTo open a stream using a different protocol, just press Cancel to close this sheet.")];
-    _netHTTPURLTextField.accessibilityLabel = _NS("Enter a stream URL here. To open RTP or UDP streams, use the respective button below.");
+    [_netHTTPURLTextField accessibilitySetOverrideValue:_NS("Enter a stream URL here. To open RTP or UDP streams, use the respective button below.") forAttribute:NSAccessibilityDescriptionAttribute];
     [_netUDPCancelButton setTitle: _NS("Cancel")];
     [_netUDPOKButton setTitle: _NS("Open")];
     [_netOpenUDPButton setTitle: _NS("Open RTP/UDP Stream")];
@@ -199,8 +199,8 @@ static NSString *kCaptureTabViewId  = @"capture";
     [[_netModeMatrix cellAtRow:0 column:0] setTitle: _NS("Unicast")];
     [[_netModeMatrix cellAtRow:1 column:0] setTitle: _NS("Multicast")];
 
-    [_netUDPPortTextField setIntegerValue: config_GetInt("server-port")];
-    [_netUDPPortStepper setIntegerValue: config_GetInt("server-port")];
+    [_netUDPPortTextField setIntValue: config_GetInt(getIntf(), "server-port")];
+    [_netUDPPortStepper setIntValue: config_GetInt(getIntf(), "server-port")];
 
     [_captureModePopup removeAllItems];
     [_captureModePopup addItemWithTitle: _NS("Input Devices")];
@@ -213,12 +213,6 @@ static NSString *kCaptureTabViewId  = @"capture";
     [_screenHeightLabel setStringValue: [NSString stringWithFormat:@"%@:",_NS("Subscreen Height")]];
     [_screenFollowMouseCheckbox setTitle: _NS("Follow the mouse")];
     [_screenqtkAudioCheckbox setTitle: _NS("Capture Audio")];
-
-#warning QTKit stuff is deprecated and broken!
-    /* The QTKit audio capture does not work anymore since 3.x, it has to be
-     * replaced with AVFoundation audio capture stuff and things have to be
-     * changed here to not try to use the qtkit module anymore.
-     */
 
     // setup start / stop time fields
     [_fileStartTimeTextField setFormatter:[[PositionFormatter alloc] init]];
@@ -351,10 +345,10 @@ static NSString *kCaptureTabViewId  = @"capture";
     [_fileSubPathLabel setHidden: NO];
     [_fileSubPathTextField setStringValue: @""];
     [_fileSubSettingsButton setTitle: _NS("Choose...")];
-    _fileSubSettingsButton.accessibilityLabel = _NS("Setup subtitle playback details");
-    _fileBrowseButton.accessibilityLabel = _NS("Select a file for playback");
+    [[_fileSubSettingsButton cell] accessibilitySetOverrideValue:_NS("Setup subtitle playback details") forAttribute:NSAccessibilityDescriptionAttribute];
+    [[_fileBrowseButton cell] accessibilitySetOverrideValue:_NS("Select a file for playback") forAttribute:NSAccessibilityDescriptionAttribute];
     [_fileSubBrowseButton setTitle: _NS("Browse...")];
-    _fileSubBrowseButton.accessibilityLabel = _NS("Select a subtitle file");
+    [[_fileSubBrowseButton cell] accessibilitySetOverrideValue:_NS("Select a subtitle file") forAttribute:NSAccessibilityDescriptionAttribute];
     [_fileSubOverrideCheckbox setTitle: _NS("Override parameters")];
     [_fileSubDelayLabel setStringValue: _NS("Delay")];
     [_fileSubDelayStepper setEnabled: NO];
@@ -367,7 +361,7 @@ static NSString *kCaptureTabViewId  = @"capture";
     [_fileSubAlignLabel setStringValue: _NS("Subtitle alignment")];
     [_fileSubAlignPopup removeAllItems];
     [_fileSubOKButton setStringValue: _NS("OK")];
-    _fileSubOKButton.accessibilityLabel = _NS("Dismiss the subtitle setup dialog");
+    [[_fileSubOKButton cell] accessibilitySetOverrideValue:_NS("Dismiss the subtitle setup dialog") forAttribute:NSAccessibilityDescriptionAttribute];
     [_fileSubFontBox setTitle: _NS("Font Properties")];
     [_fileSubFileBox setTitle: _NS("Subtitle File")];
 
@@ -418,7 +412,7 @@ static NSString *kCaptureTabViewId  = @"capture";
     [_tabView selectTabViewItemWithIdentifier:identifier];
     [_fileSubCheckbox setState: NSOffState];
 
-    NSModalResponse i_result = [NSApp runModalForWindow: self.window];
+    int i_result = [NSApp runModalForWindow: self.window];
     [self.window close];
 
     // Check if dialog was canceled or stopped (NSModalResponseStop)
@@ -484,7 +478,7 @@ static NSString *kCaptureTabViewId  = @"capture";
         [options addObject: [NSString stringWithFormat: @"input-slave=%@", _fileSlavePath]];
     if ([[[_tabView selectedTabViewItem] identifier] isEqualToString: kCaptureTabViewId]) {
         if ([[[_captureModePopup selectedItem] title] isEqualToString: _NS("Screen")]) {
-            NSInteger selected_index = [_screenPopup indexOfSelectedItem];
+            int selected_index = [_screenPopup indexOfSelectedItem];
             NSValue *v = [_displayInfos objectAtIndex:selected_index];
             struct display_info_t *item = (struct display_info_t *)[v pointerValue];
 
@@ -580,7 +574,7 @@ static NSString *kCaptureTabViewId  = @"capture";
     [openPanel setTitle: _NS("Open File")];
     [openPanel setPrompt: _NS("Open")];
 
-    if ([openPanel runModal] == NSModalResponseOK) {
+    if ([openPanel runModal] == NSOKButton) {
         NSArray *URLs = [openPanel URLs];
         NSUInteger count = [URLs count];
         NSMutableArray *values = [NSMutableArray arrayWithCapacity:count];
@@ -610,11 +604,14 @@ static NSString *kCaptureTabViewId  = @"capture";
         return;
     }
 
-    if (!b_outputNibLoaded) {
-        b_outputNibLoaded = [[NSBundle mainBundle] loadNibNamed:@"StreamOutput" owner:_output topLevelObjects:nil];
-    }
+    if (!b_outputNibLoaded)
+        b_outputNibLoaded = [NSBundle loadNibNamed:@"StreamOutput" owner:_output];
 
-    [self.window beginSheet:_output.outputSheet completionHandler:nil];
+    [NSApp beginSheet:_output.outputSheet
+       modalForWindow:self.window
+        modalDelegate:self
+       didEndSelector:NULL
+          contextInfo:nil];
 }
 
 #pragma mark -
@@ -684,7 +681,7 @@ static NSString *kCaptureTabViewId  = @"capture";
         openPanel = [NSOpenPanel openPanel];
         [openPanel setCanChooseFiles: YES];
         [openPanel setCanChooseDirectories: NO];
-        if ([openPanel runModal] == NSModalResponseOK) {
+        if ([openPanel runModal] == NSOKButton) {
             _fileSlavePath = [[[openPanel URLs] firstObject] path];
         }
     }
@@ -900,7 +897,7 @@ static NSString *kCaptureTabViewId  = @"capture";
     [openPanel setCanChooseFiles: YES];
     [openPanel setAllowedFileTypes:[NSArray arrayWithObject:@"public.directory"]];
 
-    if ([openPanel runModal] == NSModalResponseOK) {
+    if ([openPanel runModal] == NSOKButton) {
         NSString *oPath = [[[openPanel URLs] firstObject] path];
         if ([oPath length] > 0) {
             [NSThread detachNewThreadSelector:@selector(scanSpecialPath:) toTarget:self withObject:oPath];
@@ -982,7 +979,7 @@ static NSString *kCaptureTabViewId  = @"capture";
 
 - (IBAction)openNetStepperChanged:(id)sender
 {
-    NSInteger i_tag = [sender tag];
+    int i_tag = [sender tag];
 
     if (i_tag == 0) {
         [_netUDPPortTextField setIntValue: [_netUDPPortStepper intValue]];
@@ -1016,7 +1013,7 @@ static NSString *kCaptureTabViewId  = @"capture";
             else
                 mrlString = @"rtp://";
 
-            if (port != config_GetInt("server-port")) {
+            if (port != config_GetInt(getIntf(), "server-port")) {
                 mrlString =
                 [mrlString stringByAppendingFormat: @"@:%i", port];
             }
@@ -1030,7 +1027,7 @@ static NSString *kCaptureTabViewId  = @"capture";
             else
                 mrlString = [NSString stringWithFormat: @"rtp://@%@", oAddress];
 
-            if (iPort != config_GetInt("server-port")) {
+            if (iPort != config_GetInt(getIntf(), "server-port")) {
                 mrlString =
                 [mrlString stringByAppendingFormat: @":%i", iPort];
             }
@@ -1044,8 +1041,11 @@ static NSString *kCaptureTabViewId  = @"capture";
 - (IBAction)openNetUDPButtonAction:(id)sender
 {
     if (sender == _netOpenUDPButton) {
-        [self.window beginSheet:self.netUDPPanel
-              completionHandler:nil];
+        [NSApp beginSheet: self.netUDPPanel
+           modalForWindow: self.window
+            modalDelegate: self
+           didEndSelector: NULL
+              contextInfo: nil];
         [self openNetInfoChanged:nil];
     }
     else if (sender == _netUDPCancelButton) {
@@ -1062,7 +1062,7 @@ static NSString *kCaptureTabViewId  = @"capture";
             else
                 mrlString = @"rtp://";
 
-            if (port != config_GetInt("server-port")) {
+            if (port != config_GetInt(getIntf(), "server-port")) {
                 mrlString =
                 [mrlString stringByAppendingFormat: @"@:%i", port];
             }
@@ -1076,7 +1076,7 @@ static NSString *kCaptureTabViewId  = @"capture";
             else
                 mrlString = [NSString stringWithFormat: @"rtp://@%@", oAddress];
 
-            if (iPort != config_GetInt("server-port")) {
+            if (iPort != config_GetInt(getIntf(), "server-port")) {
                 mrlString =
                 [mrlString stringByAppendingFormat: @":%i", iPort];
             }
@@ -1093,19 +1093,21 @@ static NSString *kCaptureTabViewId  = @"capture";
 
 - (IBAction)openCaptureModeChanged:(id)sender
 {
+    intf_thread_t * p_intf = getIntf();
+
     if ([[[_captureModePopup selectedItem] title] isEqualToString: _NS("Screen")]) {
         [_captureTabView selectTabViewItemAtIndex:1];
 
         [self setMRL: @"screen://"];
-        [_screenHeightTextField setIntegerValue: config_GetInt("screen-height")];
-        [_screenWidthTextField setIntegerValue: config_GetInt("screen-width")];
-        [_screenFPSTextField setFloatValue: config_GetFloat("screen-fps")];
-        [_screenLeftTextField setIntegerValue: config_GetInt("screen-left")];
-        [_screenTopTextField setIntegerValue: config_GetInt("screen-top")];
-        [_screenFollowMouseCheckbox setIntegerValue: config_GetInt("screen-follow-mouse")];
+        [_screenHeightTextField setIntValue: config_GetInt(p_intf, "screen-height")];
+        [_screenWidthTextField setIntValue: config_GetInt(p_intf, "screen-width")];
+        [_screenFPSTextField setFloatValue: config_GetFloat(p_intf, "screen-fps")];
+        [_screenLeftTextField setIntValue: config_GetInt(p_intf, "screen-left")];
+        [_screenTopTextField setIntValue: config_GetInt(p_intf, "screen-top")];
+        [_screenFollowMouseCheckbox setIntValue: config_GetInt(p_intf, "screen-follow-mouse")];
 
-        NSInteger screenIindex = config_GetInt("screen-index");
-        NSInteger displayID = config_GetInt("screen-display-id");
+        int screenIindex = config_GetInt(p_intf, "screen-index");
+        int displayID = config_GetInt(p_intf, "screen-display-id");
         unsigned int displayCount = 0;
         CGError returnedError;
         struct display_info_t *item;
@@ -1169,9 +1171,8 @@ static NSString *kCaptureTabViewId  = @"capture";
 
 - (IBAction)screenChanged:(id)sender
 {
-    NSInteger selected_index = [_screenPopup indexOfSelectedItem];
-    if (selected_index >= [_displayInfos count])
-        return;
+    int selected_index = [_screenPopup indexOfSelectedItem];
+    if (selected_index >= [_displayInfos count]) return;
 
     NSValue *v = [_displayInfos objectAtIndex:selected_index];
     struct display_info_t *item = (struct display_info_t *)[v pointerValue];
@@ -1238,7 +1239,11 @@ static NSString *kCaptureTabViewId  = @"capture";
 
 - (IBAction)subSettings:(id)sender
 {
-    [[self window] beginSheet:self.fileSubSheet completionHandler:nil];
+    [NSApp beginSheet: self.fileSubSheet
+       modalForWindow: [sender window]
+        modalDelegate: self
+       didEndSelector: NULL
+          contextInfo: nil];
 }
 
 - (IBAction)subCloseSheet:(id)sender
@@ -1255,7 +1260,7 @@ static NSString *kCaptureTabViewId  = @"capture";
     [openPanel setTitle: _NS("Open File")];
     [openPanel setPrompt: _NS("Open")];
 
-    if ([openPanel runModal] == NSModalResponseOK) {
+    if ([openPanel runModal] == NSOKButton) {
         _subPath = [[[openPanel URLs] firstObject] path];
         [_fileSubtitlesFilenameLabel setStringValue: [[NSFileManager defaultManager] displayNameAtPath:_subPath]];
         [_fileSubPathTextField setStringValue: [_fileSubtitlesFilenameLabel stringValue]];

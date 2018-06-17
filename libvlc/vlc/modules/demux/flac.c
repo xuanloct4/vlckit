@@ -70,7 +70,7 @@ typedef struct
     uint64_t i_byte_offset;
 } flac_seekpoint_t;
 
-typedef struct
+struct demux_sys_t
 {
     bool  b_start;
     int   i_next_block_flags;
@@ -82,7 +82,7 @@ typedef struct
 
     vlc_meta_t *p_meta;
 
-    mtime_t i_pts;
+    int64_t i_pts;
     struct flac_stream_info stream_info;
     bool b_stream_info;
 
@@ -102,7 +102,7 @@ typedef struct
     input_attachment_t **attachments;
     int                i_cover_idx;
     int                i_cover_score;
-} demux_sys_t;
+};
 
 #define FLAC_PACKET_SIZE 16384
 #define FLAC_MAX_PREROLL      (CLOCK_FREQ * 4)
@@ -509,8 +509,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
     if( i_query == DEMUX_GET_META )
     {
         vlc_meta_t *p_meta = va_arg( args, vlc_meta_t * );
-        if( p_sys->p_meta )
-            vlc_meta_Merge( p_meta, p_sys->p_meta );
+        if( p_demux->p_sys->p_meta )
+            vlc_meta_Merge( p_meta, p_demux->p_sys->p_meta );
         return VLC_SUCCESS;
     }
     else if( i_query == DEMUX_HAS_UNSUPPORTED_META )

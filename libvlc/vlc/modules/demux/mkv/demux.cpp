@@ -34,7 +34,6 @@ event_thread_t::event_thread_t(demux_t *p_demux) : p_demux(p_demux)
     vlc_mutex_init( &lock );
     vlc_cond_init( &wait );
     is_running = false;
-    memset(&pci_packet, 0, sizeof(pci_packet));
 }
 event_thread_t::~event_thread_t()
 {
@@ -136,7 +135,7 @@ int event_thread_t::EventInput( vlc_object_t *p_this, char const *,
 
 void event_thread_t::EventThread()
 {
-    demux_sys_t *p_sys = (demux_sys_t *)p_demux->p_sys;
+    demux_sys_t    *p_sys = p_demux->p_sys;
     vlc_object_t   *p_vout = NULL;
     int canc = vlc_savecancel ();
 
@@ -450,11 +449,11 @@ demux_sys_t::~demux_sys_t()
 }
 
 
-bool demux_sys_t::AnalyseAllSegmentsFound( demux_t *p_demux, matroska_stream_c *p_stream1 )
+bool demux_sys_t::AnalyseAllSegmentsFound( demux_t *p_demux, matroska_stream_c *p_stream1, bool b_initial )
 {
     int i_upper_lvl = 0;
     EbmlElement *p_l0;
-    bool b_keep_stream = false;
+    bool b_keep_stream = false, b_keep_segment = false;
 
     /* verify the EBML Header... it shouldn't be bigger than 1kB */
     p_l0 = p_stream1->estream.FindNextID(EBML_INFO(EbmlHead), 1024);
@@ -511,7 +510,7 @@ bool demux_sys_t::AnalyseAllSegmentsFound( demux_t *p_demux, matroska_stream_c *
             p_segment1->Preload();
 
             if ( !p_segment1->p_segment_uid ||
-                 FindSegment( *p_segment1->p_segment_uid ) == NULL)
+                 (b_keep_segment = (FindSegment( *p_segment1->p_segment_uid ) == NULL)))
             {
                 opened_segments.push_back( p_segment1 );
                 b_keep_stream = true;
@@ -525,9 +524,6 @@ bool demux_sys_t::AnalyseAllSegmentsFound( demux_t *p_demux, matroska_stream_c *
 
             b_l0_handled = true;
         }
-
-        if ( !b_seekable )
-            break;
 
         EbmlElement* p_l0_prev = p_l0;
 
@@ -705,26 +701,22 @@ bool demux_sys_t::PreloadLinked()
 
 void demux_sys_t::FreeUnused()
 {
-    for (std::vector<matroska_stream_c*>::reverse_iterator i = streams.rbegin();
-         i != streams.rend(); ++i)
+    size_t i;
+    for( i = 0; i < streams.size(); i++ )
     {
-        matroska_stream_c *p_s = *i;
+        struct matroska_stream_c *p_s = streams[i];
         if( !p_s->isUsed() )
         {
-            std::advance(i, 1);
-            streams.erase( i.base() );
+            streams[i] = NULL;
             delete p_s;
         }
     }
-    for (std::vector<matroska_segment_c*>::reverse_iterator i = opened_segments.rbegin();
-         i != opened_segments.rend(); ++i)
+    for( i = 0; i < opened_segments.size(); i++)
     {
-        matroska_segment_c *p_sg = *i;
-        if( !p_sg->b_preloaded )
+        if( !opened_segments[i]->b_preloaded )
         {
-            std::advance(i, 1);
-            opened_segments.erase( i.base() );
-            delete p_sg;
+            delete opened_segments[i];
+            opened_segments[i] = NULL;
         }
     }
 }

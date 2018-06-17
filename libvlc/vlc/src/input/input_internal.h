@@ -25,7 +25,6 @@
 #define LIBVLC_INPUT_INTERNAL_H 1
 
 #include <stddef.h>
-#include <stdatomic.h>
 
 #include <vlc_access.h>
 #include <vlc_demux.h>
@@ -34,8 +33,6 @@
 #include <libvlc.h>
 #include "input_interface.h"
 #include "misc/interrupt.h"
-
-struct input_stats;
 
 /*****************************************************************************
  *  Private input fields
@@ -46,7 +43,7 @@ struct input_stats;
 /* input_source_t: gathers all information per input source */
 typedef struct
 {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
 
     demux_t  *p_demux; /**< Demux object (most downstream) */
 
@@ -72,7 +69,7 @@ typedef struct
     double f_fps;
 
     /* */
-    mtime_t i_pts_delay;
+    int64_t i_pts_delay;
 
     bool       b_eof;   /* eof of demuxer */
 
@@ -103,9 +100,9 @@ typedef struct input_thread_private_t
     int         i_rate;
 
     /* Playtime configuration and state */
-    mtime_t     i_start;    /* :start-time,0 by default */
-    mtime_t     i_stop;     /* :stop-time, 0 if none */
-    mtime_t     i_time;     /* Current time */
+    int64_t     i_start;    /* :start-time,0 by default */
+    int64_t     i_stop;     /* :stop-time, 0 if none */
+    int64_t     i_time;     /* Current time */
     bool        b_fast_seek;/* :input-fast-seek */
 
     /* Output */
@@ -150,7 +147,26 @@ typedef struct input_thread_private_t
     input_resource_t *p_resource_private;
 
     /* Stats counters */
-    struct input_stats *stats;
+    struct {
+        counter_t *p_read_packets;
+        counter_t *p_read_bytes;
+        counter_t *p_input_bitrate;
+        counter_t *p_demux_read;
+        counter_t *p_demux_bitrate;
+        counter_t *p_demux_corrupted;
+        counter_t *p_demux_discontinuity;
+        counter_t *p_decoded_audio;
+        counter_t *p_decoded_video;
+        counter_t *p_decoded_sub;
+        counter_t *p_sout_sent_packets;
+        counter_t *p_sout_sent_bytes;
+        counter_t *p_sout_send_bitrate;
+        counter_t *p_played_abuffers;
+        counter_t *p_lost_abuffers;
+        counter_t *p_displayed_pictures;
+        counter_t *p_lost_pictures;
+        vlc_mutex_t counters_lock;
+    } counters;
 
     /* Buffer of pending actions */
     vlc_mutex_t lock_control;
@@ -229,7 +245,7 @@ void input_ControlPush( input_thread_t *, int i_type, vlc_value_t * );
 bool input_Stopped( input_thread_t * );
 
 /* Bound pts_delay */
-#define INPUT_PTS_DELAY_MAX (CLOCK_FREQ*60)
+#define INPUT_PTS_DELAY_MAX INT64_C(60000000)
 
 /**********************************************************************
  * Item metadata
@@ -254,42 +270,15 @@ void input_ConfigVarInit ( input_thread_t * );
 int subtitles_Detect( input_thread_t *, char *, const char *, input_item_slave_t ***, int * );
 int subtitles_Filter( const char *);
 
+/* input.c */
+void input_SplitMRL( const char **, const char **, const char **,
+                     const char **, char * );
+
 /* meta.c */
 void vlc_audio_replay_gain_MergeFromMeta( audio_replay_gain_t *p_dst,
                                           const vlc_meta_t *p_meta );
 
 /* item.c */
 void input_item_node_PostAndDelete( input_item_node_t *p_node );
-
-/* stats.c */
-typedef struct input_rate_t
-{
-    vlc_mutex_t lock;
-    uintmax_t updates;
-    uintmax_t value;
-    struct
-    {
-        uintmax_t value;
-        mtime_t   date;
-    } samples[2];
-} input_rate_t;
-
-struct input_stats {
-    input_rate_t input_bitrate;
-    input_rate_t demux_bitrate;
-    atomic_uintmax_t demux_corrupted;
-    atomic_uintmax_t demux_discontinuity;
-    atomic_uintmax_t decoded_audio;
-    atomic_uintmax_t decoded_video;
-    atomic_uintmax_t played_abuffers;
-    atomic_uintmax_t lost_abuffers;
-    atomic_uintmax_t displayed_pictures;
-    atomic_uintmax_t lost_pictures;
-};
-
-struct input_stats *input_stats_Create(void);
-void input_stats_Destroy(struct input_stats *);
-void input_rate_Add(input_rate_t *, uintmax_t);
-void input_stats_Compute(struct input_stats *, input_stats_t*);
 
 #endif

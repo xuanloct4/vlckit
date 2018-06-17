@@ -29,11 +29,11 @@
 #endif
 
 #include <vlc_common.h>
+#include <vlc_atomic.h>
 
 #include "libvlc.h"
 #include <signal.h>
 #include <errno.h>
-#include <stdatomic.h>
 #include <time.h>
 #include <assert.h>
 
@@ -139,12 +139,6 @@ void vlc_mutex_unlock (vlc_mutex_t *p_mutex)
 {
     int val = pthread_mutex_unlock( p_mutex );
     VLC_THREAD_ASSERT ("unlocking mutex");
-}
-
-void vlc_once(vlc_once_t *once, void (*cb)(void))
-{
-    int val = pthread_once(once, cb);
-    VLC_THREAD_ASSERT("initializing once");
 }
 
 struct vlc_thread
@@ -416,7 +410,6 @@ mtime_t mdate (void)
     if (unlikely(clock_gettime (CLOCK_MONOTONIC, &ts) != 0))
         abort ();
 
-    static_assert(INT64_C(1000000) == CLOCK_FREQ, "CLOCK_FREQ mismatch");
     return (INT64_C(1000000) * ts.tv_sec) + (ts.tv_nsec / 1000);
 }
 

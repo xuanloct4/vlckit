@@ -57,15 +57,16 @@ typedef struct
 
 static int icmp (const void *a, const void *b)
 {
-    const int *key = a;
+    int key = (intptr_t)a;
     const dvb_int_map_t *entry = b;
-    return *key - entry->vlc;
+    return key - entry->vlc;
 }
 
 /** Maps a VLC config integer to a Linux DVB enum value */
 static int dvb_parse_int (int i, const dvb_int_map_t *map, size_t n, int def)
 {
-    const dvb_int_map_t *p = bsearch(&i, map, n, sizeof (*map), icmp);
+    const void *k = (const void *)(intptr_t)i;
+    const dvb_int_map_t *p = bsearch (k, map, n, sizeof (*map), icmp);
     return (p != NULL) ? p->linux_ : def;
 }
 

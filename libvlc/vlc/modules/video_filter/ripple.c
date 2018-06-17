@@ -66,11 +66,11 @@ vlc_module_end ()
  * This structure is part of the video output thread descriptor.
  * It describes the Distort specific properties of an output thread.
  *****************************************************************************/
-typedef struct
+struct filter_sys_t
 {
     double  f_angle;
     mtime_t last_date;
-} filter_sys_t;
+};
 
 /*****************************************************************************
  * Create: allocates Distort video thread output method
@@ -87,14 +87,14 @@ static int Create( vlc_object_t *p_this )
         return VLC_EGENERIC;
 
     /* Allocate structure */
-    filter_sys_t *p_sys = malloc( sizeof( filter_sys_t ) );
-    if( p_sys == NULL )
+    p_filter->p_sys = malloc( sizeof( filter_sys_t ) );
+    if( p_filter->p_sys == NULL )
         return VLC_ENOMEM;
-    p_filter->p_sys = p_sys;
+
     p_filter->pf_video_filter = Filter;
 
-    p_sys->f_angle = 0.0;
-    p_sys->last_date = 0;
+    p_filter->p_sys->f_angle = 0.0;
+    p_filter->p_sys->last_date = 0;
 
     return VLC_SUCCESS;
 }
@@ -132,11 +132,9 @@ static picture_t *Filter( filter_t *p_filter, picture_t *p_pic )
         return NULL;
     }
 
-    filter_sys_t *p_sys = p_filter->p_sys;
-
-    p_sys->f_angle -= (p_sys->last_date - new_date) / 100000.0;
-    p_sys->last_date = new_date;
-    f_angle = p_sys->f_angle;
+    p_filter->p_sys->f_angle -= (p_filter->p_sys->last_date - new_date) / 100000.0;
+    p_filter->p_sys->last_date = new_date;
+    f_angle = p_filter->p_sys->f_angle;
 
     for( int i_index = 0; i_index < p_pic->i_planes; i_index++ )
     {

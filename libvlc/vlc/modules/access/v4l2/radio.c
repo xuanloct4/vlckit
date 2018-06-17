@@ -30,12 +30,12 @@
 
 #include "v4l2.h"
 
-typedef struct
+struct demux_sys_t
 {
     int fd;
     vlc_v4l2_ctrl_t *controls;
     mtime_t start;
-} demux_sys_t;
+};
 
 static int RadioControl (demux_t *demux, int query, va_list args)
 {
@@ -68,8 +68,6 @@ static int RadioControl (demux_t *demux, int query, va_list args)
 int RadioOpen (vlc_object_t *obj)
 {
     demux_t *demux = (demux_t *)obj;
-    if (demux->out == NULL)
-        return VLC_EGENERIC;
 
     /* Parse MRL */
     size_t pathlen = strcspn (demux->psz_location, ":;");
@@ -106,6 +104,9 @@ int RadioOpen (vlc_object_t *obj)
     demux->p_sys = sys;
     demux->pf_demux = NULL;
     demux->pf_control = RadioControl;
+    demux->info.i_update = 0;
+    demux->info.i_title = 0;
+    demux->info.i_seekpoint = 0;
     return VLC_SUCCESS;
 
 error:

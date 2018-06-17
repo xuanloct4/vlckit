@@ -155,7 +155,7 @@ static void updateProgressCallback(void *p_data,
 
     if (self) {
         msg_Dbg(getIntf(), "Register dialog provider");
-        [[NSBundle mainBundle] loadNibNamed:@"CoreDialogs" owner:self topLevelObjects:nil];
+        [NSBundle loadNibNamed:@"CoreDialogs" owner: self];
 
         _errorPanel = [[VLCErrorWindowController alloc] init];
 
@@ -188,14 +188,14 @@ static void updateProgressCallback(void *p_data,
 -(void)awakeFromNib
 {
     _progressCancelled = NO;
-    [_authenticationLoginLabel setStringValue: _NS("Username")];
-    [_authenticationPasswordLabel setStringValue: _NS("Password")];
-    [_authenticationCancelButton setTitle: _NS("Cancel")];
-    [_authenticationOkButton setTitle: _NS("OK")];
-    [_authenticationStorePasswordCheckbox setTitle:_NS("Remember")];
+    [authenticationLoginLabel setStringValue: _NS("Username")];
+    [authenticationPasswordLabel setStringValue: _NS("Password")];
+    [authenticationCancelButton setTitle: _NS("Cancel")];
+    [authenticationOkButton setTitle: _NS("OK")];
+    [authenticationStorePasswordCheckbox setTitle:_NS("Remember")];
 
-    [_progressCancelButton setTitle: _NS("Cancel")];
-    [_progressIndicator setUsesThreadedAnimation: YES];
+    [progressCancelButton setTitle: _NS("Cancel")];
+    [progressIndicator setUsesThreadedAnimation: YES];
 }
 
 - (void)displayError:(NSArray *)dialogData
@@ -206,29 +206,29 @@ static void updateProgressCallback(void *p_data,
 
 - (void)displayLoginDialog:(NSArray *)dialogData
 {
-    [_authenticationTitleLabel setStringValue:[dialogData objectAtIndex:1]];
-    _authenticationWindow.title = [dialogData objectAtIndex:1];
-    [_authenticationDescriptionLabel setStringValue:[dialogData objectAtIndex:2]];
+    [authenticationTitleLabel setStringValue:[dialogData objectAtIndex:1]];
+    authenticationWindow.title = [dialogData objectAtIndex:1];
+    [authenticationDescriptionLabel setStringValue:[dialogData objectAtIndex:2]];
 
-    [_authenticationLoginTextField setStringValue:[dialogData objectAtIndex:3]];
-    [_authenticationPasswordTextField setStringValue:@""];
+    [authenticationLoginTextField setStringValue:[dialogData objectAtIndex:3]];
+    [authenticationPasswordTextField setStringValue:@""];
 
-    _authenticationStorePasswordCheckbox.hidden = ![[dialogData objectAtIndex:4] boolValue];
-    _authenticationStorePasswordCheckbox.state = NSOffState;
+    authenticationStorePasswordCheckbox.hidden = ![[dialogData objectAtIndex:4] boolValue];
+    authenticationStorePasswordCheckbox.state = NSOffState;
 
-    [_authenticationWindow center];
-    NSInteger returnValue = [NSApp runModalForWindow:_authenticationWindow];
-    [_authenticationWindow close];
+    [authenticationWindow center];
+    NSInteger returnValue = [NSApp runModalForWindow:authenticationWindow];
+    [authenticationWindow close];
 
-    NSString *username = _authenticationLoginTextField.stringValue;
-    NSString *password = _authenticationPasswordTextField.stringValue;
+    NSString *username = authenticationLoginTextField.stringValue;
+    NSString *password = authenticationPasswordTextField.stringValue;
     if (returnValue == 0)
         vlc_dialog_id_dismiss([[dialogData objectAtIndex:0] pointerValue]);
     else
         vlc_dialog_id_post_login([[dialogData objectAtIndex:0] pointerValue],
                              username ? [username UTF8String] : NULL,
                              password ? [password UTF8String] : NULL,
-                             _authenticationStorePasswordCheckbox.state == NSOnState);
+                             authenticationStorePasswordCheckbox.state == NSOnState);
 }
 
 - (IBAction)authenticationDialogAction:(id)sender
@@ -241,12 +241,11 @@ static void updateProgressCallback(void *p_data,
 
 - (void)displayQuestion:(NSArray *)dialogData
 {
-    NSAlert *alert = [[NSAlert alloc] init];
-    [alert setMessageText:[dialogData objectAtIndex:1]];
-    [alert setInformativeText:[dialogData objectAtIndex:2]];
-    [alert addButtonWithTitle:[dialogData objectAtIndex:5]];
-    [alert addButtonWithTitle:[dialogData objectAtIndex:6]];
-    [alert addButtonWithTitle:[dialogData objectAtIndex:4]];
+    NSAlert *alert = [NSAlert alertWithMessageText:[dialogData objectAtIndex:1]
+                                     defaultButton:[dialogData objectAtIndex:5]
+                                   alternateButton:[dialogData objectAtIndex:6]
+                                       otherButton:[dialogData objectAtIndex:4]
+                         informativeTextWithFormat:@"%@", [dialogData objectAtIndex:2]];
 
     switch ([[dialogData objectAtIndex:3] intValue]) {
         case VLC_DIALOG_QUESTION_WARNING:
@@ -262,15 +261,15 @@ static void updateProgressCallback(void *p_data,
 
     NSInteger returnValue = [alert runModal];
     switch (returnValue) {
-        case NSAlertFirstButtonReturn:
+        case NSAlertDefaultReturn:
             vlc_dialog_id_post_action([[dialogData objectAtIndex:0] pointerValue], 1);
             break;
 
-        case NSAlertSecondButtonReturn:
+        case NSAlertAlternateReturn:
             vlc_dialog_id_post_action([[dialogData objectAtIndex:0] pointerValue], 2);
             break;
 
-        case NSAlertThirdButtonReturn:
+        case NSAlertOtherReturn:
         default:
             vlc_dialog_id_dismiss([[dialogData objectAtIndex:0] pointerValue]);
     }
@@ -279,29 +278,29 @@ static void updateProgressCallback(void *p_data,
 
 - (void)displayProgressDialog:(NSArray *)dialogData
 {
-    _progressTitleLabel.stringValue = [dialogData objectAtIndex:1];
-    _progressWindow.title = [dialogData objectAtIndex:1];
+    progressTitleLabel.stringValue = [dialogData objectAtIndex:1];
+    progressWindow.title = [dialogData objectAtIndex:1];
 
-    _progressDescriptionLabel.stringValue = [dialogData objectAtIndex:2];
+    progressDescriptionLabel.stringValue = [dialogData objectAtIndex:2];
 
-    _progressIndicator.indeterminate = [[dialogData objectAtIndex:3] boolValue];
-    _progressIndicator.doubleValue = [[dialogData objectAtIndex:4] doubleValue];
+    progressIndicator.indeterminate = [[dialogData objectAtIndex:3] boolValue];
+    progressIndicator.doubleValue = [[dialogData objectAtIndex:4] doubleValue];
 
     if ([[dialogData objectAtIndex:5] length] > 0) {
-        _progressCancelButton.title = [dialogData objectAtIndex:5];
-        _progressCancelButton.enabled = YES;
+        progressCancelButton.title = [dialogData objectAtIndex:5];
+        progressCancelButton.enabled = YES;
     } else {
-        _progressCancelButton.title = _NS("Cancel");
-        _progressCancelButton.enabled = NO;
+        progressCancelButton.title = _NS("Cancel");
+        progressCancelButton.enabled = NO;
     }
 
-    [_progressIndicator startAnimation:self];
+    [progressIndicator startAnimation:self];
 
-    [_progressWindow center];
-    [NSApp runModalForWindow:_progressWindow];
-    [_progressWindow close];
+    [progressWindow center];
+    NSInteger returnValue = [NSApp runModalForWindow:progressWindow];
+    [progressWindow close];
 
-    [_progressIndicator stopAnimation:self];
+    [progressIndicator stopAnimation:self];
 
     vlc_dialog_id_dismiss([[dialogData objectAtIndex:0] pointerValue]);
 }
@@ -309,9 +308,9 @@ static void updateProgressCallback(void *p_data,
 - (void)updateDisplayedProgressDialog:(NSArray *)dialogData
 
 {
-    if (!_progressIndicator.indeterminate) {
-        _progressIndicator.doubleValue = [[dialogData objectAtIndex:1] doubleValue];
-        _progressDescriptionLabel.stringValue = [dialogData objectAtIndex:2];
+    if (!progressIndicator.indeterminate) {
+        progressIndicator.doubleValue = [[dialogData objectAtIndex:1] doubleValue];
+        progressDescriptionLabel.stringValue = [dialogData objectAtIndex:2];
     }
 }
 

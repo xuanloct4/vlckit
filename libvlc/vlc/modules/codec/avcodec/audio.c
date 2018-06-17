@@ -47,7 +47,7 @@
 /*****************************************************************************
  * decoder_sys_t : decoder descriptor
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     AVCodecContext *p_context;
     const AVCodec  *p_codec;
@@ -66,7 +66,7 @@ typedef struct
     int     pi_extraction[AOUT_CHAN_MAX];
     int     i_previous_channels;
     uint64_t i_previous_layout;
-} decoder_sys_t;
+};
 
 #define BLOCK_FLAG_PRIVATE_REALLOCATED (1 << BLOCK_FLAG_PRIVATE_SHIFT)
 
@@ -251,6 +251,7 @@ int InitAudioDec( vlc_object_t *obj )
     /* Try to set as much information as possible but do not trust it */
     SetupOutputFormat( p_dec, false );
 
+    date_Set( &p_sys->end_date, VLC_TS_INVALID );
     if( !p_dec->fmt_out.audio.i_rate )
         p_dec->fmt_out.audio.i_rate = p_dec->fmt_in.audio.i_rate;
     if( p_dec->fmt_out.audio.i_rate )
@@ -335,8 +336,7 @@ static int DecodeBlock( decoder_t *p_dec, block_t **pp_block )
         }
 
         /* We've just started the stream, wait for the first PTS. */
-        if( p_block->i_pts == VLC_TS_INVALID &&
-            date_Get( &p_sys->end_date ) == VLC_TS_INVALID )
+        if( !date_Get( &p_sys->end_date ) && p_block->i_pts <= VLC_TS_INVALID )
             goto drop;
 
         if( p_block->i_buffer <= 0 )
@@ -591,9 +591,9 @@ static void SetupOutputFormat( decoder_t *p_dec, bool b_trust )
     uint32_t pi_order_src[i_order_max];
 
     int i_channels_src = 0;
-    uint64_t channel_layout =
+    int64_t channel_layout =
         p_sys->p_context->channel_layout ? p_sys->p_context->channel_layout :
-        (uint64_t)av_get_default_channel_layout( p_sys->p_context->channels );
+        av_get_default_channel_layout( p_sys->p_context->channels );
 
     if( channel_layout )
     {

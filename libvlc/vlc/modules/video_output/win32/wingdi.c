@@ -80,6 +80,7 @@ struct vout_display_sys_t
 static picture_pool_t *Pool  (vout_display_t *, unsigned);
 static void           Display(vout_display_t *, picture_t *, subpicture_t *subpicture);
 static int            Control(vout_display_t *, int, va_list);
+static void           Manage (vout_display_t *);
 
 static int            Init(vout_display_t *, video_format_t *, int, int);
 static void           Clean(vout_display_t *);
@@ -117,6 +118,7 @@ static int Open(vlc_object_t *object)
     vd->pool    = Pool;
     vd->prepare = NULL;
     vd->display = Display;
+    vd->manage  = Manage;
     vd->control = Control;
     return VLC_SUCCESS;
 
@@ -186,7 +188,6 @@ static void Display(vout_display_t *vd, picture_t *picture, subpicture_t *subpic
     VLC_UNUSED(subpicture);
 
     CommonDisplay(vd);
-    CommonManage(vd);
 }
 
 static int Control(vout_display_t *vd, int query, va_list args)
@@ -199,6 +200,11 @@ static int Control(vout_display_t *vd, int query, va_list args)
         return CommonControl(vd, query, args);
     }
 
+}
+
+static void Manage(vout_display_t *vd)
+{
+    CommonManage(vd);
 }
 
 static int Init(vout_display_t *vd,

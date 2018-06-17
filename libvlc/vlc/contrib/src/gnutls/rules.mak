@@ -74,22 +74,10 @@ ifeq ($(ARCH),x86_64)
 	GNUTLS_CONF += --disable-hardware-acceleration
 endif
 endif
-ifdef HAVE_WIN32
-	GNUTLS_CONF += --without-libidn2
-ifdef HAVE_CLANG
-ifneq ($(findstring $(ARCH), x86_64 aarch64),)
-	GNUTLS_CONF += --disable-hardware-acceleration
-endif
-endif
-endif
-
-ifdef HAVE_NACL
-	GNUTLS_CONF += --disable-hardware-acceleration
-endif
 
 .gnutls: gnutls
 	$(RECONF)
 	cd $< && $(GNUTLS_ENV) ./configure $(GNUTLS_CONF)
-	cd $< && $(MAKE) -C gl install
-	cd $< && $(MAKE) -C lib install
+	cd $</gl && $(MAKE) install
+	cd $</lib && $(MAKE) install
 	touch $@

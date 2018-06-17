@@ -79,7 +79,7 @@ static vlc_mutex_t sap_mutex = VLC_STATIC_MUTEX;
 #define MIN_INTERVAL 2
 #define MAX_INTERVAL 300
 
-noreturn static void *RunThread (void *);
+static void *RunThread (void *);
 
 static sap_address_t *AddressCreate (vlc_object_t *obj, const char *group)
 {
@@ -192,13 +192,13 @@ sout_AnnounceRegisterSDP (vlc_object_t *obj, const char *sdp,
 
     if (vlc_getaddrinfo (dst, 0, NULL, &res) == 0)
     {
-        if ((size_t)res->ai_addrlen <= sizeof (addr))
+        if (res->ai_addrlen <= sizeof (addr))
             memcpy (&addr, res->ai_addr, res->ai_addrlen);
         addrlen = res->ai_addrlen;
         freeaddrinfo (res);
     }
 
-    if (addrlen == 0 || (size_t)addrlen > sizeof (addr))
+    if (addrlen == 0 || addrlen > sizeof (addr))
     {
         msg_Err (obj, "No/invalid address specified for SAP announce" );
         return NULL;

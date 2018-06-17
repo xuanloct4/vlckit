@@ -123,7 +123,7 @@ typedef struct
 /**
  * Private data holder
  */
-typedef struct
+struct filter_sys_t
 {
     filter_t *p_blend;
 
@@ -138,7 +138,7 @@ typedef struct
 
     /* On the fly control variable */
     bool b_spu_update;
-} filter_sys_t;
+};
 
 static const char *const ppsz_filter_options[] = {
     "x", "y", "transparency", "position", "barWidth", "barHeight", NULL

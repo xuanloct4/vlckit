@@ -204,10 +204,10 @@ vdp_t *vdp_hold_x11(vdp_t *vdp, VdpDevice *device);
 void vdp_release_x11(vdp_t *);
 
 /* VLC specifics */
-# include <stdatomic.h>
 # include <stdbool.h>
 # include <vlc_common.h>
 # include <vlc_fourcc.h>
+# include <vlc_atomic.h>
 # include <vlc_picture.h>
 
 /** Converts VLC YUV format to VDPAU chroma type and YCbCr format */
@@ -256,13 +256,13 @@ bool vlc_fourcc_to_vdp_ycc(vlc_fourcc_t fourcc,
     return true;
 }
 
-typedef struct
+struct picture_sys_t
 {
     VdpOutputSurface surface;
     VdpDevice device;
     vdp_t *vdp;
     void *gl_nv_surface;
-} picture_sys_t;
+};
 
 typedef struct vlc_vdp_video_frame
 {

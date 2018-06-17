@@ -56,8 +56,7 @@ static int Open (vlc_object_t *);
 static void Close (vlc_object_t *);
 
 static picture_pool_t *Pool (vout_display_t *vd, unsigned requested_count);
-static void PictureRender (vout_display_t *vd, picture_t *pic, subpicture_t *subpicture,
-                           mtime_t date);
+static void PictureRender (vout_display_t *vd, picture_t *pic, subpicture_t *subpicture);
 static void PictureDisplay (vout_display_t *vd, picture_t *pic, subpicture_t *subpicture);
 static int Control (vout_display_t *vd, int query, va_list ap);
 
@@ -151,7 +150,9 @@ static int Open (vlc_object_t *this)
 
         /* Get the drawable object */
         id container = var_CreateGetAddress (vd, "drawable-nsobject");
-        if (!container) {
+        if (container)
+            vout_display_DeleteWindow (vd, NULL);
+        else {
             sys->embed = vout_display_NewWindow (vd, VOUT_WINDOW_TYPE_NSOBJECT);
             if (sys->embed)
                 container = sys->embed->handle.nsobject;
@@ -298,6 +299,8 @@ void Close (vlc_object_t *this)
 
         [sys->glView release];
 
+        if (sys->embed)
+            vout_display_DeleteWindow (vd, sys->embed);
         free (sys);
     }
 }
@@ -318,10 +321,9 @@ static picture_pool_t *Pool (vout_display_t *vd, unsigned requested_count)
     return sys->pool;
 }
 
-static void PictureRender (vout_display_t *vd, picture_t *pic, subpicture_t *subpicture,
-                           mtime_t date)
+static void PictureRender (vout_display_t *vd, picture_t *pic, subpicture_t *subpicture)
 {
-    VLC_UNUSED(date);
+
     vout_display_sys_t *sys = vd->sys;
 
     if (vlc_gl_MakeCurrent(sys->gl) == VLC_SUCCESS)
@@ -484,6 +486,7 @@ static void OpenglSwap (vlc_gl_t *gl)
         NSOpenGLPFAColorSize, 24,
         NSOpenGLPFAAlphaSize, 8,
         NSOpenGLPFADepthSize, 24,
+        NSOpenGLPFAWindow,
         NSOpenGLPFAAllowOfflineRenderers,
         0
     };

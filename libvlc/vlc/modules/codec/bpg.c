@@ -29,10 +29,10 @@
 #include <vlc_codec.h>
 #include <libbpg.h>
 
-typedef struct
+struct decoder_sys_t
 {
     struct BPGDecoderContext *p_bpg;
-} decoder_sys_t;
+};
 
 static int  OpenDecoder(vlc_object_t *);
 static void CloseDecoder(vlc_object_t *);
@@ -149,7 +149,7 @@ static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
         }
     }
 
-    p_pic->date = p_block->i_pts != VLC_TS_INVALID ? p_block->i_pts : p_block->i_dts;
+    p_pic->date = p_block->i_pts > VLC_TS_INVALID ? p_block->i_pts : p_block->i_dts;
 
     decoder_QueueVideo( p_dec, p_pic );
 error:

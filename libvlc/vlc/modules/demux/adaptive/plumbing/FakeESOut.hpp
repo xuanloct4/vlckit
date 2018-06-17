@@ -33,7 +33,6 @@ namespace adaptive
 
     class CommandsQueue;
     class FakeESOutID;
-    struct es_out_fake;
 
     class FakeESOut
     {
@@ -74,7 +73,7 @@ namespace adaptive
             ExtraFMTInfoInterface *extrainfo;
             mtime_t getTimestampOffset() const;
             CommandsQueue *commandsqueue;
-            struct es_out_fake *fakeesout;
+            es_out_t *fakeesout;
             mtime_t timestamps_offset;
             mtime_t timestamps_expected;
             bool timestamps_check_done;

@@ -42,7 +42,7 @@
 #include "gstvlcpictureplaneallocator.h"
 #include "gstvlcvideosink.h"
 
-typedef struct
+struct decoder_sys_t
 {
     GstElement *p_decoder;
     GstElement *p_decode_src;
@@ -57,7 +57,7 @@ typedef struct
     GstAtomicQueue *p_que;
     bool b_prerolled;
     bool b_running;
-} decoder_sys_t;
+};
 
 typedef struct
 {
@@ -682,17 +682,17 @@ static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
             return VLCDEC_ECRITICAL;
         }
 
-        if( p_block->i_dts != VLC_TS_INVALID )
+        if( p_block->i_dts > VLC_TS_INVALID )
             GST_BUFFER_DTS( p_buf ) = gst_util_uint64_scale( p_block->i_dts,
                     GST_SECOND, GST_MSECOND );
 
-        if( p_block->i_pts == VLC_TS_INVALID )
+        if( p_block->i_pts <= VLC_TS_INVALID )
             GST_BUFFER_PTS( p_buf ) = GST_BUFFER_DTS( p_buf );
         else
             GST_BUFFER_PTS( p_buf ) = gst_util_uint64_scale( p_block->i_pts,
                     GST_SECOND, GST_MSECOND );
 
-        if( p_block->i_length != VLC_TS_INVALID )
+        if( p_block->i_length > VLC_TS_INVALID )
             GST_BUFFER_DURATION( p_buf ) = gst_util_uint64_scale(
                     p_block->i_length, GST_SECOND, GST_MSECOND );
 

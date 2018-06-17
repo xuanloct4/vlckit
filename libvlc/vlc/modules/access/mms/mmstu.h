@@ -34,7 +34,7 @@
 
 #define MMS_BUFFER_SIZE 100000
 
-typedef struct
+struct access_sys_t
 {
     int         i_proto;        /* MMS_PROTO_TCP, MMS_PROTO_UDP */
     int         i_handle_tcp;   /* TCP socket for communication with server */
@@ -100,6 +100,6 @@ typedef struct
     vlc_mutex_t  lock_netwrite;
     bool         b_keep_alive;
     vlc_thread_t keep_alive;
-} access_sys_t;
+};
 
 #endif

@@ -62,21 +62,6 @@ CLEAN_FILE += .yasm
 CLEAN_PKG += yasm
 DISTCLEAN_PKG += yasm-$(YASM_VERSION).tar.gz
 
-nasm-$(NASM_VERSION).tar.gz:
-	$(call download_pkg,$(NASM_URL),nasm)
-
-nasm: nasm-$(NASM_VERSION).tar.gz
-	$(UNPACK)
-	$(MOVE)
-
-.nasm: nasm
-	(cd $<; ./configure --prefix=$(PREFIX) && $(MAKE) && $(MAKE) install)
-	touch $@
-
-CLEAN_FILE += .nasm
-CLEAN_PKG += nasm
-DISTCLEAN_PKG += nasm-$(NASM_VERSION).tar.gz
-
 # cmake
 
 cmake-$(CMAKE_VERSION).tar.gz:
@@ -103,7 +88,6 @@ libtool: libtool-$(LIBTOOL_VERSION).tar.gz
 	$(UNPACK)
 	$(APPLY) libtool-2.4.2-bitcode.patch
 	$(APPLY) libtool-2.4.2-san.patch
-	$(APPLY) libtool-2.4.6-clang-libs.patch
 	$(MOVE)
 
 .libtool: libtool .automake

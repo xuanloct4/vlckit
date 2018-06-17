@@ -72,16 +72,16 @@ static const char *ppsz_sout_options[] = {
     "id", "delay", NULL
 };
 
-static void *Add( sout_stream_t *, const es_format_t * );
-static void  Del( sout_stream_t *, void * );
-static int   Send( sout_stream_t *, void *, block_t * );
+static sout_stream_id_sys_t *Add( sout_stream_t *, const es_format_t * );
+static void              Del   ( sout_stream_t *, sout_stream_id_sys_t * );
+static int               Send  ( sout_stream_t *, sout_stream_id_sys_t *, block_t * );
 
-typedef struct
+struct sout_stream_sys_t
 {
-    void *id;
+    sout_stream_id_sys_t *id;
     int i_id;
     mtime_t i_delay;
-} sout_stream_sys_t;
+};
 
 /*****************************************************************************
  * Open:
@@ -128,7 +128,7 @@ static void Close( vlc_object_t * p_this )
     free( p_sys );
 }
 
-static void *Add( sout_stream_t *p_stream, const es_format_t *p_fmt )
+static sout_stream_id_sys_t * Add( sout_stream_t *p_stream, const es_format_t *p_fmt )
 {
     sout_stream_sys_t *p_sys = (sout_stream_sys_t *)p_stream->p_sys;
 
@@ -136,24 +136,25 @@ static void *Add( sout_stream_t *p_stream, const es_format_t *p_fmt )
     {
         msg_Dbg( p_stream, "delaying ID %d by %"PRId64,
                  p_sys->i_id, p_sys->i_delay );
-        p_sys->id = sout_StreamIdAdd( p_stream->p_next, p_fmt );
+        p_sys->id = p_stream->p_next->pf_add( p_stream->p_next, p_fmt );
         return p_sys->id;
     }
 
-    return sout_StreamIdAdd( p_stream->p_next, p_fmt );
+    return p_stream->p_next->pf_add( p_stream->p_next, p_fmt );
 }
 
-static void Del( sout_stream_t *p_stream, void *id )
+static void Del( sout_stream_t *p_stream, sout_stream_id_sys_t *id )
 {
     sout_stream_sys_t *p_sys = (sout_stream_sys_t *)p_stream->p_sys;
 
     if ( id == p_sys->id )
         p_sys->id = NULL;
 
-    sout_StreamIdDel( p_stream->p_next, id );
+    p_stream->p_next->pf_del( p_stream->p_next, id );
 }
 
-static int Send( sout_stream_t *p_stream, void *id, block_t *p_buffer )
+static int Send( sout_stream_t *p_stream, sout_stream_id_sys_t *id,
+                 block_t *p_buffer )
 {
     sout_stream_sys_t *p_sys = (sout_stream_sys_t *)p_stream->p_sys;
 
@@ -170,5 +171,5 @@ static int Send( sout_stream_t *p_stream, void *id, block_t *p_buffer )
         }
     }
 
-    return sout_StreamIdSend( p_stream->p_next, id, p_buffer );
+    return p_stream->p_next->pf_send( p_stream->p_next, id, p_buffer );
 }

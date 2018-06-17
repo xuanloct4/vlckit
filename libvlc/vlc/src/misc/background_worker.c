@@ -74,7 +74,7 @@ static void* Thread( void* data )
                 vlc_array_remove( &worker->tail.data, 0 );
             }
 
-            if( worker->head.deadline == VLC_TS_INVALID && item == NULL )
+            if( worker->head.deadline == VLC_TS_0 && item == NULL )
                 worker->head.active = false;
             worker->head.id = item ? item->id : NULL;
             vlc_cond_broadcast( &worker->head.wait );
@@ -86,17 +86,17 @@ static void* Thread( void* data )
                 else
                     worker->head.deadline = INT64_MAX;
             }
-            else if( worker->head.deadline != VLC_TS_INVALID )
+            else if( worker->head.deadline != VLC_TS_0 )
             {
                 /* Wait 1 seconds for new inputs before terminating */
-                mtime_t deadline = mdate() + 1*CLOCK_FREQ;
+                mtime_t deadline = mdate() + INT64_C(1000000);
                 int ret = vlc_cond_timedwait( &worker->tail.wait,
                                               &worker->lock, deadline );
                 if( ret != 0 )
                 {
                     /* Timeout: if there is still no items, the thread will be
                      * terminated at next loop iteration (active = false). */
-                    worker->head.deadline = VLC_TS_INVALID;
+                    worker->head.deadline = VLC_TS_0;
                 }
                 continue;
             }
@@ -173,7 +173,7 @@ static void BackgroundWorkerCancel( struct background_worker* worker, void* id)
     while( ( id == NULL && worker->head.active )
         || ( id != NULL && worker->head.id == id ) )
     {
-        worker->head.deadline = VLC_TS_INVALID;
+        worker->head.deadline = VLC_TS_0;
         vlc_cond_signal( &worker->head.worker_wait );
         vlc_cond_signal( &worker->tail.wait );
         vlc_cond_wait( &worker->head.wait, &worker->lock );

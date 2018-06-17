@@ -107,11 +107,11 @@ typedef struct
 
 } asf_track_t;
 
-typedef struct
+struct demux_sys_t
 {
     mtime_t             i_time;     /* s */
     mtime_t             i_sendtime;
-    mtime_t             i_length;   /* length of file */
+    mtime_t             i_length;   /* length of file file */
     uint64_t            i_bitrate;  /* global file bitrate */
     bool                b_eos;      /* end of current stream */
     bool                b_eof;      /* end of current media */
@@ -136,7 +136,7 @@ typedef struct
     asf_packet_sys_t    packet_sys;
 
     vlc_meta_t          *meta;
-} demux_sys_t;
+};
 
 static int      DemuxInit( demux_t * );
 static void     DemuxEnd( demux_t * );
@@ -237,7 +237,7 @@ static int Demux( demux_t *p_demux )
                 p_sys->b_eof = true;
         }
 
-        if ( p_sys->i_time == VLC_TS_INVALID )
+        if ( p_sys->i_time == -1 )
             p_sys->i_time = p_sys->i_sendtime;
     }
 
@@ -356,7 +356,7 @@ static int SeekIndex( demux_t *p_demux, mtime_t i_date, float f_pos )
     asf_object_index_t *p_index;
 
     msg_Dbg( p_demux, "seek with index: %i seconds, position %f",
-             i_date >= 0 ? (int)(i_date/CLOCK_FREQ) : -1, f_pos );
+             i_date >= 0 ? (int)(i_date/1000000) : -1, f_pos );
 
     if( i_date < 0 )
         i_date = p_sys->i_length * f_pos;
@@ -392,7 +392,7 @@ static void SeekPrepare( demux_t *p_demux )
 
     p_sys->b_eof = false;
     p_sys->b_eos = false;
-    p_sys->i_time = VLC_TS_INVALID;
+    p_sys->i_time = -1;
     p_sys->i_sendtime = -1;
     p_sys->i_preroll_start = ASFPACKET_PREROLL_FROM_CURRENT;
 
@@ -402,7 +402,7 @@ static void SeekPrepare( demux_t *p_demux )
         if( tk )
         {
             FlushQueue( tk );
-            tk->i_time = VLC_TS_INVALID;
+            tk->i_time = -1;
         }
     }
 
@@ -429,7 +429,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
     case DEMUX_GET_TIME:
         pi64 = va_arg( args, int64_t * );
-        if( p_sys->i_time == VLC_TS_INVALID ) return VLC_EGENERIC;
+        if( p_sys->i_time < 0 ) return VLC_EGENERIC;
         *pi64 = p_sys->i_time;
         return VLC_SUCCESS;
 
@@ -485,7 +485,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
                     if( !tk || !tk->p_fmt || tk->i_cat != -1 * i )
                         continue;
                     FlushQueue( tk );
-                    tk->i_time = VLC_TS_INVALID;
+                    tk->i_time = -1;
                 }
             }
 
@@ -497,7 +497,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
     }
 
     case DEMUX_GET_POSITION:
-        if( p_sys->i_time == VLC_TS_INVALID ) return VLC_EGENERIC;
+        if( p_sys->i_time < 0 ) return VLC_EGENERIC;
         if( p_sys->i_length > 0 )
         {
             pf = va_arg( args, double * );
@@ -561,9 +561,7 @@ static void Packet_SetAR( asf_packet_sys_t *p_packetsys, uint8_t i_stream_number
                           uint8_t i_ratio_x, uint8_t i_ratio_y )
 {
     demux_t *p_demux = p_packetsys->p_demux;
-    demux_sys_t *p_sys = p_demux->p_sys;
-    asf_track_t *tk = p_sys->track[i_stream_number];
-
+    asf_track_t *tk = p_demux->p_sys->track[i_stream_number];
     if ( !tk->p_fmt || (tk->p_fmt->video.i_sar_num == i_ratio_x && tk->p_fmt->video.i_sar_den == i_ratio_y ) )
         return;
 
@@ -584,19 +582,13 @@ static void Packet_SetAR( asf_packet_sys_t *p_packetsys, uint8_t i_stream_number
 
 static void Packet_SetSendTime( asf_packet_sys_t *p_packetsys, mtime_t i_time )
 {
-    demux_t *p_demux = p_packetsys->p_demux;
-    demux_sys_t *p_sys = p_demux->p_sys;
-
-    p_sys->i_sendtime = i_time;
+    p_packetsys->p_demux->p_sys->i_sendtime = i_time;
 }
 
 static void Packet_UpdateTime( asf_packet_sys_t *p_packetsys, uint8_t i_stream_number,
                                mtime_t i_time )
 {
-    demux_t *p_demux = p_packetsys->p_demux;
-    demux_sys_t *p_sys = p_demux->p_sys;
-    asf_track_t *tk = p_sys->track[i_stream_number];
-
+    asf_track_t *tk = p_packetsys->p_demux->p_sys->track[i_stream_number];
     if ( tk )
         tk->i_time = i_time;
 }
@@ -604,10 +596,7 @@ static void Packet_UpdateTime( asf_packet_sys_t *p_packetsys, uint8_t i_stream_n
 static asf_track_info_t * Packet_GetTrackInfo( asf_packet_sys_t *p_packetsys,
                                                uint8_t i_stream_number )
 {
-    demux_t *p_demux = p_packetsys->p_demux;
-    demux_sys_t *p_sys = p_demux->p_sys;
-    asf_track_t *tk = p_sys->track[i_stream_number];
-
+    asf_track_t *tk = p_packetsys->p_demux->p_sys->track[i_stream_number];
     if (!tk)
         return NULL;
     else
@@ -687,7 +676,7 @@ static bool Block_Dequeue( demux_t *p_demux, mtime_t i_nexttime )
             else
                 p_block->p_next = NULL;
 
-            if( p_sys->i_time == VLC_TS_INVALID )
+            if( p_sys->i_time < VLC_TS_0 )
             {
                 es_out_SetPCR( p_demux->out, VLC_TS_0 + p_sys->i_time );
 #ifdef ASF_DEBUG
@@ -785,7 +774,7 @@ static int DemuxInit( demux_t *p_demux )
     demux_sys_t *p_sys = p_demux->p_sys;
 
     /* init context */
-    p_sys->i_time   = VLC_TS_INVALID;
+    p_sys->i_time   = -1;
     p_sys->i_sendtime    = -1;
     p_sys->i_length = 0;
     p_sys->b_eos = false;
@@ -864,7 +853,7 @@ static int DemuxInit( demux_t *p_demux )
         ASF_fillup_es_bitrate_priorities_ex( p_sys, p_hdr_ext, &fmt_priorities_bitrate_ex );
     }
 
-    const bool b_mms = !strncasecmp( p_demux->psz_url, "mms:", 4 );
+    const bool b_mms = !strncmp( p_demux->psz_access, "mms", 3 );
     bool b_dvrms = false;
 
     if( b_mms )
@@ -890,7 +879,7 @@ static int DemuxInit( demux_t *p_demux )
             goto error;
         memset( tk, 0, sizeof( asf_track_t ) );
 
-        tk->i_time = VLC_TS_INVALID;
+        tk->i_time = -1;
         tk->info.p_sp = p_sp;
         tk->p_es = NULL;
         tk->info.p_esp = NULL;
@@ -1255,7 +1244,7 @@ static int DemuxInit( demux_t *p_demux )
 
         if( p_sys->i_length > 0 )
         {
-            p_sys->i_bitrate = 8 * i_size * CLOCK_FREQ / p_sys->i_length;
+            p_sys->i_bitrate = 8 * i_size * 1000000 / p_sys->i_length;
         }
     }
 

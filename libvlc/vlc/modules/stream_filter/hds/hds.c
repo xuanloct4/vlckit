@@ -122,7 +122,7 @@ typedef struct hds_stream_s
 
 #define BITRATE_AS_BYTES_PER_SECOND 1024/8
 
-typedef struct
+struct stream_sys_t
 {
     char         *base_url;    /* URL common part for chunks */
     vlc_thread_t live_thread;
@@ -144,7 +144,7 @@ typedef struct
 
     bool         live;
     bool         closed;
-} stream_sys_t;
+};
 
 typedef struct _bootstrap_info {
     uint8_t* data;
@@ -207,7 +207,7 @@ vlc_module_begin()
     set_subcategory( SUBCAT_INPUT_STREAM_FILTER )
     set_description( N_("HTTP Dynamic Streaming") )
     set_shortname( "Dynamic Streaming")
-    set_capability( "stream_filter", 330 )
+    set_capability( "stream_filter", 30 )
     set_callbacks( Open, Close )
 vlc_module_end()
 
@@ -223,7 +223,7 @@ static inline bool isFQUrl( const char* url )
 static bool isHDS( stream_t *s )
 {
     const uint8_t *peek;
-    int i_size = vlc_stream_Peek( s->s, &peek, 200 );
+    int i_size = vlc_stream_Peek( s->p_source, &peek, 200 );
     if( i_size < 200 )
         return false;
 
@@ -1181,7 +1181,7 @@ static void* live_thread( void* p )
 static int init_Manifest( stream_t *s, manifest_t *m )
 {
     memset(m, 0, sizeof(*m));
-    stream_t *st = s->s;
+    stream_t *st = s->p_source;
 
     m->vlc_reader = xml_ReaderCreate( st, st );
     if( !m->vlc_reader )

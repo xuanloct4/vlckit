@@ -96,10 +96,10 @@ static void vpx_err_msg(vlc_object_t *this, struct vpx_codec_ctx *ctx,
 /*****************************************************************************
  * decoder_sys_t: libvpx decoder descriptor
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     struct vpx_codec_ctx ctx;
-} decoder_sys_t;
+};
 
 static const struct
 {
@@ -161,8 +161,7 @@ static vlc_fourcc_t FindVlcChroma( struct vpx_image *img )
  ****************************************************************************/
 static int Decode(decoder_t *dec, block_t *block)
 {
-    decoder_sys_t *p_sys = dec->p_sys;
-    struct vpx_codec_ctx *ctx = &p_sys->ctx;
+    struct vpx_codec_ctx *ctx = &dec->p_sys->ctx;
 
     if (block == NULL) /* No Drain */
         return VLCDEC_SUCCESS;
@@ -290,7 +289,6 @@ static int OpenDecoder(vlc_object_t *p_this)
     switch (dec->fmt_in.i_codec)
     {
 #ifdef ENABLE_VP8_DECODER
-    case VLC_CODEC_WEBP:
     case VLC_CODEC_VP8:
         iface = &vpx_codec_vp8_dx_algo;
         vp_version = 8;
@@ -364,11 +362,11 @@ static void CloseDecoder(vlc_object_t *p_this)
 /*****************************************************************************
  * encoder_sys_t: libvpx encoder descriptor
  *****************************************************************************/
-typedef struct
+struct encoder_sys_t
 {
     struct vpx_codec_ctx ctx;
     unsigned long quality;
-} encoder_sys_t;
+};
 
 /*****************************************************************************
  * OpenEncoder: probe the encoder
@@ -406,7 +404,7 @@ static int OpenEncoder(vlc_object_t *p_this)
         return VLC_EGENERIC;
     }
 
-    struct vpx_codec_enc_cfg enccfg = {0};
+    struct vpx_codec_enc_cfg enccfg = {};
     vpx_codec_enc_config_default(iface, &enccfg, 0);
     enccfg.g_threads = __MIN(vlc_GetCPUCount(), 4);
     enccfg.g_w = p_enc->fmt_in.video.i_visible_width;
@@ -452,20 +450,28 @@ static block_t *Encode(encoder_t *p_enc, picture_t *p_pict)
 
     if (!p_pict) return NULL;
 
-    vpx_image_t img = {0};
+    vpx_image_t img = {};
     unsigned i_w = p_enc->fmt_in.video.i_visible_width;
     unsigned i_h = p_enc->fmt_in.video.i_visible_height;
 
     /* Create and initialize the vpx_image */
-    if (!vpx_img_wrap(&img, VPX_IMG_FMT_I420, i_w, i_h, 32, p_pict->p[0].p_pixels)) {
-        VPX_ERR(p_enc, ctx, "Failed to wrap image");
+    if (!vpx_img_alloc(&img, VPX_IMG_FMT_I420, i_w, i_h, 1)) {
+        VPX_ERR(p_enc, ctx, "Failed to allocate image");
         return NULL;
     }
+    for (int plane = 0; plane < p_pict->i_planes; plane++) {
+        uint8_t *src = p_pict->p[plane].p_pixels;
+        uint8_t *dst = img.planes[plane];
+        int src_stride = p_pict->p[plane].i_pitch;
+        int dst_stride = img.stride[plane];
 
-    /* Correct chroma plane offsets. */
-    for (int plane = 1; plane < p_pict->i_planes; plane++) {
-        img.planes[plane] = p_pict->p[plane].p_pixels;
-        img.stride[plane] = p_pict->p[plane].i_pitch;
+        int size = __MIN(src_stride, dst_stride);
+        for (int line = 0; line < p_pict->p[plane].i_visible_lines; line++)
+        {
+            memcpy(dst, src, size);
+            src += src_stride;
+            dst += dst_stride;
+        }
     }
 
     int flags = 0;
@@ -487,12 +493,6 @@ static block_t *Encode(encoder_t *p_enc, picture_t *p_pict)
         {
             int keyframe = pkt->data.frame.flags & VPX_FRAME_IS_KEY;
             block_t *p_block = block_Alloc(pkt->data.frame.sz);
-            if (unlikely(p_block == NULL))
-            {
-                block_ChainRelease(p_out);
-                p_out = NULL;
-                break;
-            }
 
             memcpy(p_block->p_buffer, pkt->data.frame.buf, pkt->data.frame.sz);
             p_block->i_dts = p_block->i_pts = pkt->data.frame.pts;

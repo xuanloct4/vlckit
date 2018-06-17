@@ -326,7 +326,9 @@ void WindowManager::maximize( TopWindow &rWindow )
                                rWindow.getTop() + rWindow.getHeight() );
 
     // maximise the window within the current screen (multiple screens allowed)
-    SkinsRect workArea = OSFactory::instance( getIntf() )->getWorkArea();
+    int x, y, width, height;
+    rWindow.getMonitorInfo( &x, &y, &width, &height );
+    SkinsRect workArea(x, y, x + width, y + height);
 
     // Move the window
     startMove( rWindow );
@@ -438,10 +440,10 @@ void WindowManager::showAll( bool firstTime ) const
 
 void WindowManager::show( TopWindow &rWindow ) const
 {
+    rWindow.show();
+
     if( isOpacityNeeded() )
         rWindow.setOpacity( m_alpha );
-
-    rWindow.show();
 }
 
 

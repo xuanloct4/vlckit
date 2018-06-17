@@ -52,19 +52,17 @@ int Import_QTL ( vlc_object_t * );
 int Import_IFO ( vlc_object_t * );
 void Close_IFO ( vlc_object_t * );
 
-int Import_BDMV ( vlc_object_t * );
-void Close_BDMV ( vlc_object_t * );
-
 int Import_iTML ( vlc_object_t * );
 
 int Import_WPL ( vlc_object_t * );
 void Close_WPL ( vlc_object_t * );
 
 #define GetCurrentItem(obj) input_GetItem((obj)->p_input)
-#define GetSource(obj) ((obj)->s)
+#define GetSource(obj) ((obj)->p_source)
 
 #define CHECK_FILE(obj) \
 do { \
-    if( GetSource(obj)->pf_readdir != NULL ) \
+    if( vlc_stream_Control( GetSource(obj), \
+                            STREAM_IS_DIRECTORY ) == VLC_SUCCESS ) \
         return VLC_EGENERIC; \
 } while(0)

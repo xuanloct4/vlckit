@@ -1,7 +1,7 @@
 /*****************************************************************************
  * VLCStringUtility.m: MacOS X interface module
  *****************************************************************************
- * Copyright (C) 2002-2018 VLC authors and VideoLAN
+ * Copyright (C) 2002-2014 VLC authors and VideoLAN
  * $Id$
  *
  * Authors: Jon Lech Johansen <jon-vl@nanocrew.net>
@@ -28,9 +28,6 @@
 
 #import "VLCMain.h"
 #import "CompatibilityFixes.h"
-
-#import <sys/param.h>
-#import <sys/mount.h>
 
 #import <IOKit/storage/IOMedia.h>
 #import <IOKit/storage/IOCDMedia.h>
@@ -73,8 +70,8 @@ NSString *const kVLCMediaUnknown = @"Unknown";
     NSMutableString *o_wrapped;
     NSString *o_out_string;
     NSRange glyphRange, effectiveRange, charRange;
-    NSUInteger glyphIndex;
-    unsigned breaksInserted = 0;
+    NSRect lineFragmentRect;
+    unsigned glyphIndex, breaksInserted = 0;
 
     NSTextStorage *o_storage = [[NSTextStorage alloc] initWithString: o_in_string
                                                           attributes: [NSDictionary dictionaryWithObjectsAndKeys:
@@ -91,8 +88,8 @@ NSString *const kVLCMediaUnknown = @"Unknown";
 
     for (glyphIndex = glyphRange.location ; glyphIndex < NSMaxRange(glyphRange) ;
         glyphIndex += effectiveRange.length) {
-        [o_layout_manager lineFragmentRectForGlyphAtIndex: glyphIndex
-                                           effectiveRange: &effectiveRange];
+        lineFragmentRect = [o_layout_manager lineFragmentRectForGlyphAtIndex: glyphIndex
+                                                              effectiveRange: &effectiveRange];
         charRange = [o_layout_manager characterRangeForGlyphRange: effectiveRange
                                                  actualGlyphRange: &effectiveRange];
         if ([o_wrapped lineRangeForRange:
@@ -118,9 +115,9 @@ NSString *const kVLCMediaUnknown = @"Unknown";
         mtime_t remaining = 0;
         if (dur > t)
             remaining = dur - t;
-        return [NSString stringWithFormat: @"-%s", secstotimestr(psz_time, (int)(remaining / 1000000))];
+        return [NSString stringWithFormat: @"-%s", secstotimestr(psz_time, (remaining / 1000000))];
     } else
-        return toNSStr(secstotimestr(psz_time, (int)(t / CLOCK_FREQ )));
+        return toNSStr(secstotimestr(psz_time, t / CLOCK_FREQ ));
 }
 
 - (NSString *)stringForTime:(long long int)time
@@ -386,26 +383,77 @@ NSString *toNSStr(const char *str) {
 
 - (NSString *) getBSDNodeFromMountPath:(NSString *)mountPath
 {
-    struct statfs stf;
-    int ret = statfs([mountPath fileSystemRepresentation], &stf);
-    if (ret != 0) {
+    OSStatus err;
+    FSRef ref;
+    FSVolumeRefNum actualVolume;
+    err = FSPathMakeRef ((const UInt8 *) [mountPath fileSystemRepresentation], &ref, NULL);
+
+    // get a FSVolumeRefNum from mountPath
+    if (noErr == err) {
+        FSCatalogInfo   catalogInfo;
+        err = FSGetCatalogInfo (&ref,
+                                kFSCatInfoVolume,
+                                &catalogInfo,
+                                NULL,
+                                NULL,
+                                NULL
+                                );
+        if (noErr == err)
+            actualVolume = catalogInfo.volume;
+        else
+            return @"";
+    }
+    else
         return @"";
+
+    GetVolParmsInfoBuffer volumeParms;
+    err = FSGetVolumeParms(actualVolume, &volumeParms, sizeof(volumeParms));
+    if (noErr == err) {
+        NSString *bsdName = [NSString stringWithUTF8String:(char *)volumeParms.vMDeviceID];
+        return [NSString stringWithFormat:@"/dev/r%@", bsdName];
     }
 
-    return [NSString stringWithFormat:@"r%s", stf.f_mntfromname];
+    return @"";
 }
 
 - (NSString *)getVolumeTypeFromMountPath:(NSString *)mountPath
 {
-    struct statfs stf;
-    int ret = statfs([mountPath fileSystemRepresentation], &stf);
-    if (ret != 0) {
-        return @"";
+    OSStatus err;
+    FSRef ref;
+    FSVolumeRefNum actualVolume;
+    NSString *returnValue;
+    err = FSPathMakeRef ((const UInt8 *) [mountPath fileSystemRepresentation], &ref, NULL);
+
+    // get a FSVolumeRefNum from mountPath
+    if (noErr == err) {
+        FSCatalogInfo   catalogInfo;
+        err = FSGetCatalogInfo (&ref,
+                                kFSCatInfoVolume,
+                                &catalogInfo,
+                                NULL,
+                                NULL,
+                                NULL
+                                );
+        if (noErr == err)
+            actualVolume = catalogInfo.volume;
+        else
+            goto out;
+    }
+    else
+        goto out;
+
+    GetVolParmsInfoBuffer volumeParms;
+    err = FSGetVolumeParms(actualVolume, &volumeParms, sizeof(volumeParms));
+
+    CFMutableDictionaryRef matchingDict;
+    io_service_t service;
+
+    if (!volumeParms.vMDeviceID) {
+        goto out;
     }
 
-    CFMutableDictionaryRef matchingDict = IOBSDNameMatching(kIOMasterPortDefault, 0, stf.f_mntfromname);
-    io_service_t service = IOServiceGetMatchingService(kIOMasterPortDefault, matchingDict);
-    NSString *returnValue;
+    matchingDict = IOBSDNameMatching(kIOMasterPortDefault, 0, volumeParms.vMDeviceID);
+    service = IOServiceGetMatchingService(kIOMasterPortDefault, matchingDict);
 
     if (IO_OBJECT_NULL != service) {
         if (IOObjectConformsTo(service, kIOCDMediaClass))
@@ -465,7 +513,14 @@ NSString *toNSStr(const char *str) {
 
 @end
 
-NSImage *imageFromRes(NSString *name)
+NSImage *imageFromRes(NSString *o_id)
 {
-    return [NSImage imageNamed:name];
+    NSString *result = @"";
+    if (OSX_YOSEMITE_AND_HIGHER) {
+        result = [result stringByAppendingString:@"ys-"];
+    }
+
+    result = [result stringByAppendingString:o_id];
+
+    return [NSImage imageNamed:result];
 }

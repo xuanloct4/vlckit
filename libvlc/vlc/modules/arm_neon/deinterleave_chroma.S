@@ -52,7 +52,6 @@ function deinterleave_chroma_neon
 	sub		IPAD,	IPITCH,	WIDTH, lsl #1
 	sub		OPAD,	OPITCH,	WIDTH
 1:
-	ite		gt
 	movsgt		COUNT,	WIDTH
 	pople		{r4-r6,pc}
 2:

@@ -350,7 +350,7 @@ DiscOpenPanel::DiscOpenPanel( QWidget *_parent, intf_thread_t *_p_intf ) :
     };
     QComboBox *discCombo = ui.deviceCombo; /* avoid namespacing in macro */
     POPULATE_WITH_DEVS( ppsz_discdevices, discCombo );
-    char *psz_config = config_GetPsz( "dvd" );
+    char *psz_config = config_GetPsz( p_intf, "dvd" );
     int temp = ui.deviceCombo->findData( psz_config, Qt::UserRole, Qt::MatchStartsWith );
     free( psz_config );
     if( temp != -1 )
@@ -388,8 +388,7 @@ void DiscOpenPanel::onFocus()
     if( GetLogicalDriveStringsW( sizeof( szDrives ) / sizeof( *szDrives ) - 1, szDrives ) )
     {
         wchar_t *drive = szDrives;
-        DWORD oldMode;
-        SetThreadErrorMode( SEM_FAILCRITICALERRORS, &oldMode );
+        UINT oldMode = SetErrorMode( SEM_FAILCRITICALERRORS );
         while( *drive )
         {
             if( GetDriveTypeW(drive) == DRIVE_CDROM )
@@ -412,10 +411,10 @@ void DiscOpenPanel::onFocus()
             /* go to next drive */
             while( *(drive++) );
         }
-        SetThreadErrorMode(oldMode, NULL);
+        SetErrorMode(oldMode);
     }
 
-    char *psz_config = config_GetPsz( "dvd" );
+    char *psz_config = config_GetPsz( p_intf, "dvd" );
     int temp = ui.deviceCombo->findData( psz_config, Qt::UserRole, Qt::MatchStartsWith );
     free( psz_config );
     if( temp != -1 )

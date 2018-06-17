@@ -152,9 +152,14 @@ LIBVLC_API const char *libvlc_printerr (const char *fmt, ...);
    pthread_sigmask(SIG_BLOCK, &set, NULL);
  * @endcode
  *
- * On Microsoft Windows, setting the default DLL directories to SYSTEM32
- * exclusively is strongly recommended for security reasons:
+ * On Microsoft Windows Vista/2008, the process error mode
+ * SEM_FAILCRITICALERRORS flag <b>must</b> be set before using LibVLC.
+ * On later versions, that is optional and unnecessary.
+ * Also on Microsoft Windows (Vista and any later version), setting the default
+ * DLL directories to SYSTEM32 exclusively is strongly recommended for
+ * security reasons:
  * @code
+   SetErrorMode(SEM_FAILCRITICALERRORS);
    SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32);
  * @endcode
  *
@@ -219,6 +224,7 @@ int libvlc_add_intf( libvlc_instance_t *p_instance, const char *name );
  * \param cb callback to invoke when LibVLC wants to exit,
  *           or NULL to disable the exit handler (as by default)
  * \param opaque data pointer for the callback
+ * \warning This function and libvlc_wait() cannot be used at the same time.
  */
 LIBVLC_API
 void libvlc_set_exit_handler( libvlc_instance_t *p_instance,

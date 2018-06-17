@@ -29,9 +29,7 @@
 #include <vlc_input.h>
 #include <vlc_plugin.h>
 #include <vlc_dialog.h>
-#ifdef HAVE_SEARCH_H
 #include <search.h>
-#endif
 
 #include "dtv/dtv.h"
 
@@ -426,12 +424,12 @@ vlc_module_begin ()
 #endif
 vlc_module_end ()
 
-typedef struct
+struct access_sys_t
 {
     dvb_device_t *dev;
     uint8_t signal_poll;
     tuner_setup_t pf_setup;
-} access_sys_t;
+};
 
 static block_t *Read (stream_t *, bool *);
 static int Control (stream_t *, int, va_list);
@@ -578,7 +576,7 @@ static int Control (stream_t *access, int query, va_list args)
 
         case STREAM_SET_PRIVATE_ID_CA:
         {
-            en50221_capmt_info_t *pmt = va_arg(args, void *);
+            en50221_capmt_info_t *pmt = va_arg (args, en50221_capmt_info_t *);
 
             if( !dvb_set_ca_pmt (dev, pmt) )
                 return VLC_EGENERIC;

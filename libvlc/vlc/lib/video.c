@@ -192,6 +192,24 @@ int libvlc_video_get_size( libvlc_media_player_t *p_mi, unsigned num,
     return ret;
 }
 
+int libvlc_video_get_height( libvlc_media_player_t *p_mi )
+{
+    unsigned width, height;
+
+    if (libvlc_video_get_size (p_mi, 0, &width, &height))
+        return 0;
+    return height;
+}
+
+int libvlc_video_get_width( libvlc_media_player_t *p_mi )
+{
+    unsigned width, height;
+
+    if (libvlc_video_get_size (p_mi, 0, &width, &height))
+        return 0;
+    return width;
+}
+
 int libvlc_video_get_cursor( libvlc_media_player_t *mp, unsigned num,
                              int *restrict px, int *restrict py )
 {
@@ -353,18 +371,16 @@ libvlc_track_description_t *
 int libvlc_video_set_spu( libvlc_media_player_t *p_mi, int i_spu )
 {
     input_thread_t *p_input_thread = libvlc_get_input_thread( p_mi );
-    vlc_value_t *list;
-    size_t count;
+    vlc_value_t list;
     int i_ret = -1;
 
     if( !p_input_thread )
         return -1;
 
-    var_Change(p_input_thread, "spu-es", VLC_VAR_GETCHOICES,
-               &count, &list, (char ***)NULL);
-    for (size_t i = 0; i < count; i++)
+    var_Change (p_input_thread, "spu-es", VLC_VAR_GETCHOICES, &list, NULL);
+    for (int i = 0; i < list.p_list->i_count; i++)
     {
-        if( i_spu == list[i].i_int )
+        if( i_spu == list.p_list->p_values[i].i_int )
         {
             if( var_SetInteger( p_input_thread, "spu-es", i_spu ) < 0 )
                 break;
@@ -375,8 +391,29 @@ int libvlc_video_set_spu( libvlc_media_player_t *p_mi, int i_spu )
     libvlc_printerr( "Track identifier not found" );
 end:
     vlc_object_release (p_input_thread);
-    free(list);
+    var_FreeList (&list, NULL);
     return i_ret;
+}
+
+int libvlc_video_set_subtitle_file( libvlc_media_player_t *p_mi,
+                                    const char *psz_subtitle )
+{
+    input_thread_t *p_input_thread = libvlc_get_input_thread ( p_mi );
+    bool b_ret = false;
+
+    if( p_input_thread )
+    {
+        char* psz_mrl = vlc_path2uri( psz_subtitle, NULL );
+        if( psz_mrl )
+        {
+            if( !input_AddSlave( p_input_thread, SLAVE_TYPE_SPU, psz_mrl,
+                                 true, false, false ) )
+                b_ret = true;
+            free( psz_mrl );
+        }
+        vlc_object_release( p_input_thread );
+    }
+    return b_ret;
 }
 
 int64_t libvlc_video_get_spu_delay( libvlc_media_player_t *p_mi )
@@ -417,6 +454,21 @@ int libvlc_video_set_spu_delay( libvlc_media_player_t *p_mi,
     return ret;
 }
 
+libvlc_track_description_t *
+        libvlc_video_get_title_description( libvlc_media_player_t *p_mi )
+{
+    return libvlc_get_track_description( p_mi, "title" );
+}
+
+libvlc_track_description_t *
+        libvlc_video_get_chapter_description( libvlc_media_player_t *p_mi,
+                                              int i_title )
+{
+    char psz_title[sizeof ("title ") + 3 * sizeof (int)];
+    sprintf( psz_title,  "title %2u", i_title );
+    return libvlc_get_track_description( p_mi, psz_title );
+}
+
 char *libvlc_video_get_crop_geometry (libvlc_media_player_t *p_mi)
 {
     return var_GetNonEmptyString (p_mi, "crop");
@@ -452,16 +504,15 @@ static void teletext_enable( input_thread_t *p_input_thread, bool b_enable )
 {
     if( b_enable )
     {
-        vlc_value_t *list;
-        size_t count;
-
+        vlc_value_t list;
         if( !var_Change( p_input_thread, "teletext-es", VLC_VAR_GETCHOICES,
-                         &count, &list, (char ***)NULL ) )
+                         &list, NULL ) )
         {
-            if( count > 0 )
-                var_SetInteger( p_input_thread, "spu-es", list[0].i_int );
+            if( list.p_list->i_count > 0 )
+                var_SetInteger( p_input_thread, "spu-es",
+                                list.p_list->p_values[0].i_int );
 
-            free(list);
+            var_FreeList( &list, NULL );
         }
     }
     else
@@ -535,6 +586,23 @@ void libvlc_video_set_teletext( libvlc_media_player_t *p_mi, int i_page )
     vlc_object_release( p_input_thread );
 }
 
+void libvlc_toggle_teletext( libvlc_media_player_t *p_mi )
+{
+    input_thread_t *p_input_thread;
+
+    p_input_thread = libvlc_get_input_thread(p_mi);
+    if( !p_input_thread ) return;
+
+    if( var_CountChoices( p_input_thread, "teletext-es" ) <= 0 )
+    {
+        vlc_object_release( p_input_thread );
+        return;
+    }
+    const bool b_selected = var_GetInteger( p_input_thread, "teletext-es" ) >= 0;
+    teletext_enable( p_input_thread, !b_selected );
+    vlc_object_release( p_input_thread );
+}
+
 int libvlc_video_get_track_count( libvlc_media_player_t *p_mi )
 {
     input_thread_t *p_input_thread = libvlc_get_input_thread( p_mi );
@@ -570,18 +638,16 @@ int libvlc_video_get_track( libvlc_media_player_t *p_mi )
 int libvlc_video_set_track( libvlc_media_player_t *p_mi, int i_track )
 {
     input_thread_t *p_input_thread = libvlc_get_input_thread( p_mi );
-    vlc_value_t *val_list;
-    size_t count;
+    vlc_value_t val_list;
     int i_ret = -1;
 
     if( !p_input_thread )
         return -1;
 
-    var_Change( p_input_thread, "video-es", VLC_VAR_GETCHOICES,
-                &count, &val_list, (char ***)NULL );
-    for( size_t i = 0; i < count; i++ )
+    var_Change( p_input_thread, "video-es", VLC_VAR_GETCHOICES, &val_list, NULL );
+    for( int i = 0; i < val_list.p_list->i_count; i++ )
     {
-        if( i_track == val_list[i].i_int )
+        if( i_track == val_list.p_list->p_values[i].i_int )
         {
             if( var_SetInteger( p_input_thread, "video-es", i_track ) < 0 )
                 break;
@@ -591,7 +657,7 @@ int libvlc_video_set_track( libvlc_media_player_t *p_mi, int i_track )
     }
     libvlc_printerr( "Track identifier not found" );
 end:
-    free(val_list);
+    var_FreeList( &val_list, NULL );
     vlc_object_release( p_input_thread );
     return i_ret;
 }
@@ -742,7 +808,7 @@ static bool find_sub_source_by_name( libvlc_media_player_t *p_mi, const char *re
 }
 
 typedef const struct {
-    const char name[20];
+    const char name[25];
     unsigned type;
 } opt_t;
 
@@ -769,6 +835,7 @@ set_value( libvlc_media_player_t *p_mi, const char *restrict name,
         }
         case VLC_VAR_INTEGER:
         case VLC_VAR_FLOAT:
+        case VLC_VAR_BOOL:
         case VLC_VAR_STRING:
             if( i_expected_type != opt->type )
             {
@@ -1015,4 +1082,70 @@ float libvlc_video_get_adjust_float( libvlc_media_player_t *p_mi,
                                      unsigned option )
 {
     return get_float( p_mi, "adjust", adjust_option_bynumber(option) );
+}
+
+/* SPU HACK */
+
+static const opt_t *
+textrenderer_option_bynumber( unsigned option )
+{
+    static const opt_t optlist[] =
+    {
+    { "freetype-font",            VLC_VAR_STRING },
+    { "freetype-rel-fontsize",    VLC_VAR_INTEGER },
+    { "freetype-color",           VLC_VAR_INTEGER },
+    { "freetype-bold",            VLC_VAR_BOOL },
+    };
+    enum { num_opts = sizeof(optlist) / sizeof(*optlist) };
+
+    const opt_t *r = option < num_opts ? optlist+option : NULL;
+    if( !r )
+        libvlc_printerr( "Unknown freetype option" );
+    return r;
+}
+
+/* basic text renderer support */
+
+void libvlc_video_set_textrenderer_bool( libvlc_media_player_t *p_mi,
+                                        unsigned option, bool value )
+{
+    set_value( p_mi, "freetype", textrenderer_option_bynumber(option), VLC_VAR_BOOL,
+               &(vlc_value_t) { .b_bool = value }, false );
+}
+
+
+bool libvlc_video_get_textrenderer_bool( libvlc_media_player_t *p_mi,
+                                         unsigned option )
+{
+    return get_int( p_mi, "freetype", textrenderer_option_bynumber(option) );
+}
+
+
+void libvlc_video_set_textrenderer_int( libvlc_media_player_t *p_mi,
+                                       unsigned option, int value )
+{
+    set_value( p_mi, "freetype", textrenderer_option_bynumber(option), VLC_VAR_INTEGER,
+               &(vlc_value_t) { .i_int = value }, false );
+}
+
+
+int libvlc_video_get_textrenderer_int( libvlc_media_player_t *p_mi,
+                                      unsigned option )
+{
+    return get_int( p_mi, "freetype", textrenderer_option_bynumber(option) );
+}
+
+
+void libvlc_video_set_textrenderer_string( libvlc_media_player_t *p_mi,
+                                          unsigned option, const char *psz_value )
+{
+    set_value( p_mi, "freetype", textrenderer_option_bynumber(option), VLC_VAR_STRING,
+               &(vlc_value_t){ .psz_string = (char *)psz_value }, true );
+}
+
+
+char * libvlc_video_get_textrenderer_string( libvlc_media_player_t *p_mi,
+                                            unsigned option )
+{
+    return get_string( p_mi, "freetype", textrenderer_option_bynumber(option) );
 }

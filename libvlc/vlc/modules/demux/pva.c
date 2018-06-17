@@ -52,7 +52,7 @@ vlc_module_end ()
  * Local prototypes
  *****************************************************************************/
 
-typedef struct
+struct demux_sys_t
 {
     es_out_id_t *p_video;
     es_out_id_t *p_audio;
@@ -66,7 +66,7 @@ typedef struct
     block_t     *p_es;  /* video */
 
     int64_t     b_pcr_audio;
-} demux_sys_t;
+};
 
 static int  Demux   ( demux_t *p_demux );
 static int  Control ( demux_t *p_demux, int i_query, va_list args );
@@ -153,19 +153,19 @@ static int Demux( demux_t *p_demux )
     if( vlc_stream_Peek( p_demux->s, &p_peek, 8 ) < 8 )
     {
         msg_Warn( p_demux, "eof ?" );
-        return VLC_DEMUXER_EOF;
+        return 0;
     }
     if( p_peek[0] != 'A' || p_peek[1] != 'V' || p_peek[4] != 0x55 )
     {
         msg_Warn( p_demux, "lost synchro" );
         if( ReSynch( p_demux ) )
         {
-            return VLC_DEMUXER_EGENERIC;
+            return -1;
         }
         if( vlc_stream_Peek( p_demux->s, &p_peek, 8 ) < 8 )
         {
             msg_Warn( p_demux, "eof ?" );
-            return VLC_DEMUXER_EOF;
+            return 0;
         }
     }
 
@@ -215,14 +215,15 @@ static int Demux( demux_t *p_demux )
                 if( ( p_frame = p_sys->p_es ) )
                 {
 
-                    if( p_frame->i_pts != VLC_TS_INVALID && !p_sys->b_pcr_audio )
+                    if( p_frame->i_pts > VLC_TS_INVALID && !p_sys->b_pcr_audio )
                     {
                         es_out_SetPCR( p_demux->out, p_frame->i_pts);
                     }
 
                     p_frame = block_ChainGather( p_frame );
-                    if( likely(p_frame) )
-                        es_out_Send( p_demux->out, p_sys->p_video, p_frame );
+                    if( unlikely(p_frame == NULL) )
+                        abort();
+                    es_out_Send( p_demux->out, p_sys->p_video, p_frame );
 
                     p_sys->p_es = NULL;
                 }
@@ -278,10 +279,10 @@ static int Demux( demux_t *p_demux )
         default:
             msg_Warn( p_demux, "unknown id=0x%x", p_peek[2] );
             if( vlc_stream_Read( p_demux->s, NULL, i_size + 8 ) < i_size + 8 )
-                return VLC_DEMUXER_EOF;
+                return 0;
             break;
     }
-    return VLC_DEMUXER_SUCCESS;
+    return 1;
 }
 
 /*****************************************************************************
@@ -333,7 +334,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             pi64 = va_arg( args, int64_t * );
             if( p_sys->i_mux_rate > 0 )
             {
-                *pi64 = CLOCK_FREQ * ( stream_Size( p_demux->s ) / 50 ) / p_sys->i_mux_rate;
+                *pi64 = (int64_t)1000000 * ( stream_Size( p_demux->s ) / 50 ) / p_sys->i_mux_rate;
                 return VLC_SUCCESS;
             }
             *pi64 = 0;
@@ -345,12 +346,6 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             *pf = (double)1000000.0 / (double)p_sys->i_pcr_inc;
             return VLC_SUCCESS;
 #endif
-        case DEMUX_CAN_PAUSE:
-        case DEMUX_SET_PAUSE_STATE:
-        case DEMUX_CAN_CONTROL_PACE:
-        case DEMUX_GET_PTS_DELAY:
-            return demux_vaControlHelper( p_demux->s, 0, -1, 0, 1, i_query, args );
-
         case DEMUX_SET_TIME:
         default:
             return VLC_EGENERIC;
@@ -439,7 +434,7 @@ static void ParsePES( demux_t *p_demux )
 
     p_pes = block_ChainGather( p_pes );
     if( unlikely(p_pes == NULL) )
-        return;
+        abort();
     if( p_pes->i_buffer <= i_skip )
     {
         block_ChainRelease( p_pes );

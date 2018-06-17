@@ -28,8 +28,8 @@ As VLCKit is an open-source project hosted by VideoLAN, we happily welcome all k
 For detailed information on the development process, please read below and our wiki page on [how to send patches].
 
 ### Build
-
-Run `compileAndBuildVLCKit.sh` with the `-a ${ARCH}` option
+1. Remove libvlc directory if exists
+2. Run `compileAndBuildVLCKit.sh` with the `-a ${ARCH}` option
 
 ### Build with your own VLC repository
 1. Put a vlc repository inside libvlc/vlc
@@ -42,7 +42,7 @@ Run `compileAndBuildVLCKit.sh` with the `-a ${ARCH}` option
 
     `git am ../../Resources/MobileVLCKit/patches/* `
 
-3. run `compileAndBuildVLCKit.sh` with the `-n` and the `-a ${ARCH}` option
+3. cd ../.. run `compileAndBuildVLCKit.sh` with the `-n` and the `-a ${ARCH}` option
 
 ## Get in touch!
 

@@ -57,11 +57,11 @@ vlc_module_begin ()
 #endif
 vlc_module_end ()
 
-typedef struct
+struct decoder_sys_t
 {
     const int16_t *table;
     date_t end_date;
-} decoder_sys_t;
+};
 
 static const uint16_t pi_channels_maps[] =
 {
@@ -202,6 +202,7 @@ static int DecoderOpen( vlc_object_t *p_this )
     p_sys->table = table;
 
     date_Init( &p_sys->end_date, p_dec->fmt_out.audio.i_rate, 1 );
+    date_Set( &p_sys->end_date, 0 );
 
     return VLC_SUCCESS;
 }
@@ -210,7 +211,7 @@ static void Flush( decoder_t *p_dec )
 {
     decoder_sys_t *p_sys = p_dec->p_sys;
 
-    date_Set( &p_sys->end_date, VLC_TS_INVALID );
+    date_Set( &p_sys->end_date, 0 );
 }
 
 static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
@@ -230,12 +231,12 @@ static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
         }
     }
 
-    if( p_block->i_pts != VLC_TS_INVALID &&
+    if( p_block->i_pts > VLC_TS_INVALID &&
         p_block->i_pts != date_Get( &p_sys->end_date ) )
     {
         date_Set( &p_sys->end_date, p_block->i_pts );
     }
-    else if( date_Get( &p_sys->end_date ) == VLC_TS_INVALID )
+    else if( !date_Get( &p_sys->end_date ) )
     {
         /* We've just started the stream, wait for the first PTS. */
         block_Release( p_block );

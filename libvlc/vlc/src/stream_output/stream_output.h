@@ -37,8 +37,7 @@ struct sout_packetizer_input_t
 {
     sout_instance_t     *p_sout;
 
-    void                *id;
-    bool                 b_flushed;
+    sout_stream_id_sys_t    *id;
 };
 
 sout_instance_t *sout_NewInstance( vlc_object_t *, const char * );

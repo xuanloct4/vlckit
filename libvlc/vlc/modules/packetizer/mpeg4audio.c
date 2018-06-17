@@ -114,7 +114,7 @@ typedef struct
     int i_crc;  /* -1 if not set */
 } latm_mux_t;
 
-typedef struct
+struct decoder_sys_t
 {
     /*
      * Input properties
@@ -142,7 +142,7 @@ typedef struct
     latm_mux_t latm;
 
     int i_warnings;
-} decoder_sys_t;
+};
 
 enum
 {
@@ -150,10 +150,9 @@ enum
 };
 
 #define WARN_ONCE(warn, msg) do{\
-        decoder_sys_t *p_sys = p_dec->p_sys;\
-        if( (p_sys->i_warnings & warn) == 0 )\
+        if( (p_dec->p_sys->i_warnings & warn) == 0 )\
         {\
-            p_sys->i_warnings |= warn;\
+            p_dec->p_sys->i_warnings |= warn;\
             msg_Warn( p_dec, msg );\
         }\
     } while(0)
@@ -215,6 +214,7 @@ static int OpenPacketizer(vlc_object_t *p_this)
     /* Misc init */
     p_sys->i_state = STATE_NOSYNC;
     p_sys->b_discontuinity = false;
+    date_Set(&p_sys->end_date, 0);
     block_BytestreamInit(&p_sys->bytestream);
     p_sys->b_latm_cfg = false;
     p_sys->i_warnings = 0;
@@ -330,10 +330,10 @@ static block_t *ForwardRawBlock(decoder_t *p_dec, block_t **pp_block)
     *pp_block = NULL; /* Don't reuse this block */
 
     int64_t i_diff = 0;
-    if (p_block->i_pts != VLC_TS_INVALID &&
+    if (p_block->i_pts > VLC_TS_INVALID &&
         p_block->i_pts != date_Get(&p_sys->end_date))
     {
-        if(date_Get(&p_sys->end_date) != VLC_TS_INVALID)
+        if(date_Get(&p_sys->end_date) > VLC_TS_INVALID)
             i_diff = llabs( date_Get(&p_sys->end_date) - p_block->i_pts );
         date_Set(&p_sys->end_date, p_block->i_pts);
     }
@@ -972,7 +972,10 @@ static void SetupOutput(decoder_t *p_dec, block_t *p_block)
     {
         msg_Info(p_dec, "AAC channels: %d samplerate: %d",
                   p_sys->i_channels, p_sys->i_rate);
-        date_Change(&p_sys->end_date, p_sys->i_rate, 1);
+
+        const mtime_t i_end_date = date_Get(&p_sys->end_date);
+        date_Init(&p_sys->end_date, p_sys->i_rate, 1);
+        date_Set(&p_sys->end_date, i_end_date);
     }
 
     p_dec->fmt_out.audio.i_rate     = p_sys->i_rate;
@@ -1068,7 +1071,7 @@ static block_t *PacketizeStreamBlock(decoder_t *p_dec, block_t **pp_block)
     case STATE_SYNC:
         /* New frame, set the Presentation Time Stamp */
         p_sys->i_pts = p_sys->bytestream.p_block->i_pts;
-        if (p_sys->i_pts != VLC_TS_INVALID &&
+        if (p_sys->i_pts > VLC_TS_INVALID &&
             p_sys->i_pts != date_Get(&p_sys->end_date))
             date_Set(&p_sys->end_date, p_sys->i_pts);
         p_sys->i_state = STATE_HEADER;
@@ -1240,8 +1243,7 @@ static block_t *Packetize(decoder_t *p_dec, block_t **pp_block)
             }
         }
 
-        if ( p_block->i_pts == VLC_TS_INVALID &&
-             date_Get(&p_sys->end_date) == VLC_TS_INVALID )
+        if (!date_Get(&p_sys->end_date) && p_block->i_pts <= VLC_TS_INVALID)
         {
             /* We've just started the stream, wait for the first PTS. */
             block_Release(p_block);

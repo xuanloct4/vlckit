@@ -74,7 +74,7 @@ static size_t EnumDeviceCaps( vlc_object_t *, IBaseFilter *,
                               AM_MEDIA_TYPE *mt, size_t, bool );
 static bool ConnectFilters( vlc_object_t *, access_sys_t *,
                             IBaseFilter *, CaptureFilter * );
-static int FindDevices( const char *, char ***, char *** );
+static int FindDevices( vlc_object_t *, const char *, char ***, char *** );
 
 static void ShowPropertyPage( IUnknown * );
 static void ShowDeviceProperties( vlc_object_t *, ICaptureGraphBuilder2 *,
@@ -291,7 +291,7 @@ vlc_module_begin ()
                  AUDIO_BITSPERSAMPLE_LONGTEXT, true )
 
     add_shortcut( "dshow" )
-    set_capability( "access", 1 )
+    set_capability( "access_demux", 0 )
     set_callbacks( DemuxOpen, DemuxClose )
 
     add_submodule ()
@@ -670,9 +670,6 @@ static int DemuxOpen( vlc_object_t *p_this )
     demux_t      *p_demux = (demux_t *)p_this;
     access_sys_t *p_sys;
 
-    if (p_demux->out == NULL)
-        return VLC_EGENERIC;
-
     p_sys = (access_sys_t*)calloc( 1, sizeof( access_sys_t ) );
     if( !p_sys )
         return VLC_ENOMEM;
@@ -703,6 +700,8 @@ static int DemuxOpen( vlc_object_t *p_this )
 
     p_demux->pf_demux   = Demux;
     p_demux->pf_control = DemuxControl;
+    p_demux->info.i_title = 0;
+    p_demux->info.i_seekpoint = 0;
 
     std::vector<dshow_stream_t*>::iterator it = p_sys->pp_streams.begin();
     std::vector<dshow_stream_t*>::iterator end = p_sys->pp_streams.end();
@@ -1887,8 +1886,8 @@ static int Demux( demux_t *p_demux )
                     i_pts = VLC_TS_INVALID;
             }
 
-            if( i_pts != VLC_TS_INVALID ) {
-                i_pts += 5;
+            if( i_pts > VLC_TS_INVALID ) {
+                i_pts += (i_pts >= 0) ? +5 : -4;
                 i_pts /= 10; /* 100-ns to µs conversion */
                 i_pts += VLC_TS_0;
             }
@@ -1901,7 +1900,7 @@ static int Demux( demux_t *p_demux )
             memcpy( p_block->p_buffer, p_data, i_data_size );
             p_block->i_pts = p_block->i_dts = i_pts;
 
-            if( i_pts != VLC_TS_INVALID )
+            if( i_pts > VLC_TS_INVALID )
                 es_out_SetPCR( p_demux->out, i_pts );
             es_out_Send( p_demux->out, p_stream->p_es, p_block );
 
@@ -2046,7 +2045,8 @@ static int AppendAudioEnabledVDevs( vlc_object_t *p_this, std::list<std::string>
 /*****************************************************************************
  * config variable callback
  *****************************************************************************/
-static int FindDevices( const char *psz_name, char ***vp, char ***tp )
+static int FindDevices( vlc_object_t *p_this, const char *psz_name,
+                            char ***vp, char ***tp )
 {
     /* Find list of devices */
     std::list<std::string> list_devices;
@@ -2058,19 +2058,19 @@ static int FindDevices( const char *psz_name, char ***vp, char ***tp )
         // initialized as STA.
         ComContext ctx( COINIT_APARTMENTTHREADED );
 
-        FindCaptureDevice( NULL, NULL, &list_devices, b_audio );
+        FindCaptureDevice( p_this, NULL, &list_devices, b_audio );
 
         if( b_audio )
         {
             std::list<std::string> list_vdevs;
-            FindCaptureDevice( NULL, NULL, &list_vdevs, false );
+            FindCaptureDevice( p_this, NULL, &list_vdevs, false );
             if( !list_vdevs.empty() )
-                AppendAudioEnabledVDevs( NULL, list_devices, list_vdevs );
+                AppendAudioEnabledVDevs( p_this, list_devices, list_vdevs );
         }
     }
     catch (const std::runtime_error& ex)
     {
-        msg_Err( (vlc_object_t *)NULL, "Failed fetch devices: %s", ex.what() );
+        msg_Err( p_this, "Failed fetch devices: %s", ex.what() );
     }
 
     unsigned count = 2 + list_devices.size(), i = 2;

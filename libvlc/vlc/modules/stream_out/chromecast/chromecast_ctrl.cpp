@@ -492,7 +492,7 @@ int intf_sys_t::pace()
     m_interrupted = false;
     vlc_interrupt_register( interrupt_wake_up_cb, this );
     int ret = 0;
-    mtime_t deadline = mdate() + CLOCK_FREQ/2;
+    mtime_t deadline = mdate() + INT64_C(500000);
 
     /* Wait for the sout to send more data via http (m_pace), or wait for the
      * CC to finish. In case the demux filter is EOF, we always wait for
@@ -1053,14 +1053,14 @@ States intf_sys_t::state() const
 
 mtime_t intf_sys_t::timeCCToVLC(double time)
 {
-    return mtime_t(time * (double)CLOCK_FREQ);
+    return mtime_t(time * 1000000.0);
 }
 
 std::string intf_sys_t::timeVLCToCC(mtime_t time)
 {
     std::stringstream ss;
     ss.setf(std::ios_base::fixed, std::ios_base::floatfield);
-    ss << std::setprecision(6) << (double (time) / (double)CLOCK_FREQ);
+    ss << std::setprecision(6) << (double (time) / 1000000.0);
     return ss.str();
 }
 

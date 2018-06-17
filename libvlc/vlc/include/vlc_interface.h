@@ -34,7 +34,6 @@ typedef struct intf_dialog_args_t intf_dialog_args_t;
 
 /**
  * \defgroup interface Interface
- * \ingroup vlc
  * VLC user interfaces
  * @{
  * \file
@@ -46,7 +45,7 @@ typedef struct intf_sys_t intf_sys_t;
 /** Describe all interface-specific data of the interface thread */
 typedef struct intf_thread_t
 {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
 
     struct intf_thread_t *p_next; /** LibVLC interfaces book keeping */
 

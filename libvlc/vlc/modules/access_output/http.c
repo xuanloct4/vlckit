@@ -72,7 +72,8 @@ vlc_module_begin ()
     set_subcategory( SUBCAT_SOUT_ACO )
     add_string( SOUT_CFG_PREFIX "user", "",
                 USER_TEXT, USER_LONGTEXT, true )
-    add_password(SOUT_CFG_PREFIX "pwd", "", PASS_TEXT, PASS_LONGTEXT)
+    add_password( SOUT_CFG_PREFIX "pwd", "",
+                  PASS_TEXT, PASS_LONGTEXT, true )
     add_string( SOUT_CFG_PREFIX "mime", "",
                 MIME_TEXT, MIME_LONGTEXT, true )
     add_bool( SOUT_CFG_PREFIX "metacube", false,
@@ -91,7 +92,7 @@ static const char *const ppsz_sout_options[] = {
 static ssize_t Write( sout_access_out_t *, block_t * );
 static int Control( sout_access_out_t *, int, va_list );
 
-typedef struct
+struct sout_access_out_sys_t
 {
     /* host */
     httpd_host_t        *p_httpd_host;
@@ -106,7 +107,7 @@ typedef struct
     bool                b_header_complete;
     bool                b_metacube;
     bool                b_has_keyframes;
-} sout_access_out_sys_t;
+};
 
 /* Definitions for the Metacube2 protocol, used to communicate with Cubemap. */
 

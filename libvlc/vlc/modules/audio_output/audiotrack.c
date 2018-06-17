@@ -38,7 +38,7 @@
 #define SMOOTHPOS_SAMPLE_COUNT 10
 #define SMOOTHPOS_INTERVAL_US INT64_C(30000) // 30ms
 
-#define AUDIOTIMESTAMP_INTERVAL_US (CLOCK_FREQ/2) // 500ms
+#define AUDIOTIMESTAMP_INTERVAL_US INT64_C(500000) // 500ms
 
 static int  Open( vlc_object_t * );
 static void Close( vlc_object_t * );
@@ -79,8 +79,7 @@ static const struct {
     {  NULL, NULL, AT_DEV_DEFAULT },
 };
 
-typedef struct
-{
+struct aout_sys_t {
     /* sw gain */
     float soft_gain;
     bool soft_mute;
@@ -167,7 +166,7 @@ typedef struct
             } bytebuffer;
         } u;
     } circular;
-} aout_sys_t;
+};
 
 /* Soft volume helper */
 #include "audio_output/volume.h"
@@ -1727,7 +1726,7 @@ AudioTrack_Thread( void *p_data )
 }
 
 static void
-Play( audio_output_t *p_aout, block_t *p_buffer, mtime_t i_date )
+Play( audio_output_t *p_aout, block_t *p_buffer )
 {
     JNIEnv *env = NULL;
     size_t i_buffer_offset = 0;
@@ -1803,7 +1802,6 @@ Play( audio_output_t *p_aout, block_t *p_buffer, mtime_t i_date )
 bailout:
     vlc_mutex_unlock( &p_sys->lock );
     block_Release( p_buffer );
-    (void) i_date;
 }
 
 static void

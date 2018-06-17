@@ -44,7 +44,7 @@
     [NSApp endSheet: self.window];
 
     if (_completionBlock)
-        _completionBlock(sender == _okButton ? NSModalResponseOK : NSModalResponseCancel, [_popupButton indexOfSelectedItem]);
+        _completionBlock(sender == _okButton ? NSOKButton : NSCancelButton, [_popupButton indexOfSelectedItem]);
 }
 
 - (void)runModalForWindow:(NSWindow *)window completionHandler:(PopupPanelCompletionBlock)handler;
@@ -61,7 +61,7 @@
 
     _completionBlock = [handler copy];
 
-    [window beginSheet:self.window completionHandler:nil];
+    [NSApp beginSheet:self.window modalForWindow:window modalDelegate:self didEndSelector:NULL contextInfo:nil];
 }
 
 @end

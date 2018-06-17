@@ -42,7 +42,7 @@
         GLenum ret = tc->vt->GetError(); \
         if (ret != GL_NO_ERROR) \
         { \
-            msg_Err(tc->gl, #fct " failed: 0x%x", ret); \
+            msg_Err(tc->gl, #fct " failed: 0x%x\n", ret); \
             return VLC_EGENERIC; \
         } \
     }
@@ -66,10 +66,9 @@ static PFNGLVDPAUUNMAPSURFACESNVPROC            _glVDPAUUnmapSurfacesNV;
 static void
 pool_pic_destroy_cb(picture_t *pic)
 {
-    picture_sys_t *p_sys = pic->p_sys;
-    vdp_output_surface_destroy(p_sys->vdp, p_sys->surface);
-    vdp_release_x11(p_sys->vdp);
-    free(p_sys);
+    vdp_output_surface_destroy(pic->p_sys->vdp, pic->p_sys->surface);
+    vdp_release_x11(pic->p_sys->vdp);
+    free(pic->p_sys);
     free(pic);
 }
 
@@ -130,10 +129,8 @@ tc_vdpau_gl_update(opengl_tex_converter_t const *tc, GLuint textures[],
     VLC_UNUSED(tex_heights);
     VLC_UNUSED(plane_offsets);
 
-    picture_sys_t *p_sys = pic->p_sys;
-
     GLvdpauSurfaceNV *p_gl_nv_surface =
-        (GLvdpauSurfaceNV *)&p_sys->gl_nv_surface;
+        (GLvdpauSurfaceNV *)&pic->p_sys->gl_nv_surface;
 
     if (*p_gl_nv_surface)
     {
@@ -151,7 +148,7 @@ tc_vdpau_gl_update(opengl_tex_converter_t const *tc, GLuint textures[],
 
     *p_gl_nv_surface =
         INTEROP_CALL(glVDPAURegisterOutputSurfaceNV,
-                     (void *)(size_t)p_sys->surface,
+                     (void *)(size_t)pic->p_sys->surface,
                      GL_TEXTURE_2D, tc->tex_count, textures);
     INTEROP_CALL(glVDPAUSurfaceAccessNV, *p_gl_nv_surface, GL_READ_ONLY);
     INTEROP_CALL(glVDPAUMapSurfacesNV, 1, p_gl_nv_surface);
@@ -175,7 +172,7 @@ Open(vlc_object_t *obj)
     if ((tc->fmt.i_chroma != VLC_CODEC_VDPAU_VIDEO_420 &&
          tc->fmt.i_chroma != VLC_CODEC_VDPAU_VIDEO_422 &&
          tc->fmt.i_chroma != VLC_CODEC_VDPAU_VIDEO_444) ||
-        !vlc_gl_StrHasToken(tc->glexts, "GL_NV_vdpau_interop") ||
+        !HasExtension(tc->glexts, "GL_NV_vdpau_interop") ||
         tc->gl->surface->type != VOUT_WINDOW_TYPE_XID)
         return VLC_EGENERIC;
 

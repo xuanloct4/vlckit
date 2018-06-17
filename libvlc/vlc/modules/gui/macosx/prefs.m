@@ -91,7 +91,7 @@
 
 - (id)initWithName:(NSString*)name;
 
-- (NSInteger)numberOfChildren;
+- (int)numberOfChildren;
 - (VLCTreeItem *)childAtIndex:(NSInteger)i_index;
 
 - (NSString *)name;
@@ -325,7 +325,7 @@
     return [[self children] objectAtIndex:i_index];
 }
 
-- (NSInteger)numberOfChildren
+- (int)numberOfChildren
 {
     return [[self children] count];
 }
@@ -508,15 +508,15 @@
         for (unsigned int j = 0; j < confsize; j++) {
             int configType = p_configs[j].i_type;
             if (configType == CONFIG_CATEGORY) {
-                categoryItem = [self itemRepresentingCategory:(int)p_configs[j].value.i];
+                categoryItem = [self itemRepresentingCategory:p_configs[j].value.i];
                 if (!categoryItem) {
-                    categoryItem = [VLCTreeCategoryItem categoryTreeItemWithCategory:(int)p_configs[j].value.i];
+                    categoryItem = [VLCTreeCategoryItem categoryTreeItemWithCategory:p_configs[j].value.i];
                     if (categoryItem)
                         [[self children] addObject:categoryItem];
                 }
             }
             else if (configType == CONFIG_SUBCATEGORY) {
-                lastsubcat = (int)p_configs[j].value.i;
+                lastsubcat = p_configs[j].value.i;
                 if (categoryItem && ![self isSubCategoryGeneral:lastsubcat]) {
                     subCategoryItem = [categoryItem itemRepresentingSubCategory:lastsubcat];
                     if (!subCategoryItem) {
@@ -542,6 +542,9 @@
                 if (pluginItem) {
                     [[pluginItem options] addObject:[[VLCTreeLeafItem alloc] initWithConfigItem:&p_configs[j]]];
                 }
+            }
+            else {
+                msg_Err(getIntf(), "failed to handle index %i which is neither a category nor a subcategory", j);
             }
         }
     }

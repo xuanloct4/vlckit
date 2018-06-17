@@ -42,11 +42,11 @@
 #include <vlc_fs.h>
 #include <vlc_url.h>
 
-typedef struct
+struct access_sys_t
 {
     char *base_uri;
     DIR *dir;
-} access_sys_t;
+};
 
 /*****************************************************************************
  * DirInit: Init the directory access with a directory stream

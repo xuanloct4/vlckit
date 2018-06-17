@@ -52,12 +52,12 @@ static int  Open     ( vlc_object_t * );
 static void Close    ( vlc_object_t * );
 static block_t *DoWork( filter_t *, block_t * );
 
-typedef struct
+struct filter_sys_t
 {
     int i_nb;
     float *p_last;
     float f_max;
-} filter_sys_t;
+};
 
 /*****************************************************************************
  * Module descriptor
@@ -110,7 +110,7 @@ static int Open( vlc_object_t *p_this )
     if( p_sys->f_max <= 0 ) p_sys->f_max = 0.01;
 
     /* We need to store (nb_buffers+1)*nb_channels floats */
-    p_sys->p_last = calloc( i_channels * (p_sys->i_nb + 2), sizeof(float) );
+    p_sys->p_last = calloc( i_channels * (p_filter->p_sys->i_nb + 2), sizeof(float) );
     if( !p_sys->p_last )
     {
         free( p_sys );
@@ -140,7 +140,7 @@ static block_t *DoWork( filter_t *p_filter, block_t *p_in_buf )
     float *p_out = (float*)p_in_buf->p_buffer;
     float *p_in =  (float*)p_in_buf->p_buffer;
 
-    filter_sys_t *p_sys = p_filter->p_sys;
+    struct filter_sys_t *p_sys = p_filter->p_sys;
 
     pf_sum = calloc( i_channels, sizeof(float) );
     if( !pf_sum )

@@ -28,7 +28,6 @@
 # include "config.h"
 #endif
 
-#include <math.h>
 #include <string.h>
 #include <assert.h>
 
@@ -38,6 +37,7 @@
 #include <vlc_aout.h>
 #include <vlc_filter.h>
 #include <vlc_vout.h>                  /* for vout_Request */
+#include <vlc_input.h>
 
 #include <libvlc.h>
 #include "aout_internal.h"
@@ -101,11 +101,8 @@ static filter_t *FindResampler (vlc_object_t *obj,
                                 const audio_sample_format_t *infmt,
                                 const audio_sample_format_t *outfmt)
 {
-    char *modlist = var_InheritString(obj, "audio-resampler");
-    filter_t *filter = CreateFilter (obj, "audio resampler", modlist, NULL,
-                                     infmt, outfmt, NULL, true);
-    free(modlist);
-    return filter;
+    return CreateFilter (obj, "audio resampler", "$audio-resampler", NULL,
+                         infmt, outfmt, NULL, true);
 }
 
 /**
@@ -699,11 +696,11 @@ bool aout_FiltersAdjustResampling (aout_filters_t *filters, int adjust)
     return filters->resampling != 0;
 }
 
-block_t *aout_FiltersPlay(aout_filters_t *filters, block_t *block, float rate)
+block_t *aout_FiltersPlay (aout_filters_t *filters, block_t *block, int rate)
 {
     int nominal_rate = 0;
 
-    if (rate != 1.f)
+    if (rate != INPUT_RATE_DEFAULT)
     {
         filter_t *rate_filter = filters->rate_filter;
 
@@ -712,7 +709,8 @@ block_t *aout_FiltersPlay(aout_filters_t *filters, block_t *block, float rate)
 
         /* Override input rate */
         nominal_rate = rate_filter->fmt_in.audio.i_rate;
-        rate_filter->fmt_in.audio.i_rate = lroundf(nominal_rate / rate);
+        rate_filter->fmt_in.audio.i_rate =
+            (nominal_rate * INPUT_RATE_DEFAULT) / rate;
     }
 
     block = aout_FiltersPipelinePlay (filters->tab, filters->count, block);

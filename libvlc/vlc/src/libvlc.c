@@ -141,7 +141,7 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
      * We have to do it before config_Load*() because this also gets the
      * list of configuration options exported by each module and loads their
      * default values. */
-    module_LoadPlugins (p_libvlc);
+    size_t module_count = module_LoadPlugins (p_libvlc);
 
     /*
      * Override default configuration with config file settings
@@ -179,6 +179,13 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
         exit(0);
     }
 
+    if( module_count <= 1 )
+    {
+        msg_Err( p_libvlc, "No plugins found! Check your VLC installation.");
+        i_ret = VLC_ENOMOD;
+        goto error;
+    }
+
 #ifdef HAVE_DAEMON
     /* Check for daemon mode */
     if( var_InheritBool( p_libvlc, "daemon" ) )
@@ -206,6 +213,11 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
             free( pidfile );
         }
     }
+    else
+    {
+        var_Create( p_libvlc, "pidfile", VLC_VAR_STRING );
+        var_SetString( p_libvlc, "pidfile", "" );
+    }
 #endif
 
     i_ret = VLC_ENOMEM;
@@ -216,6 +228,8 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
         msg_Warn( p_libvlc, "memory keystore init failed" );
 
     vlc_CPU_dump( VLC_OBJECT(p_libvlc) );
+
+    priv->b_stats = var_InheritBool( p_libvlc, "stats" );
 
     /*
      * Initialize hotkey handling
@@ -229,6 +243,19 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
     priv->parser = playlist_preparser_New(VLC_OBJECT(p_libvlc));
     if( !priv->parser )
         goto error;
+
+    /* Create a variable for showing the fullscreen interface */
+    var_Create( p_libvlc, "intf-toggle-fscontrol", VLC_VAR_BOOL );
+    var_SetBool( p_libvlc, "intf-toggle-fscontrol", true );
+
+    /* Create a variable for the Boss Key */
+    var_Create( p_libvlc, "intf-boss", VLC_VAR_VOID );
+
+    /* Create a variable for showing the main interface */
+    var_Create( p_libvlc, "intf-show", VLC_VAR_BOOL );
+
+    /* Create a variable for showing the right click menu */
+    var_Create( p_libvlc, "intf-popupmenu", VLC_VAR_BOOL );
 
     /* variables for signalling creation of new files */
     var_Create( p_libvlc, "snapshot-file", VLC_VAR_STRING );
@@ -258,21 +285,21 @@ int libvlc_InternalInit( libvlc_int_t *p_libvlc, int i_argc,
 
 #ifdef ENABLE_VLM
     /* Initialize VLM if vlm-conf is specified */
-    psz_parser = var_InheritString( p_libvlc, "vlm-conf" );
+    psz_parser = var_CreateGetNonEmptyString( p_libvlc, "vlm-conf" );
     if( psz_parser )
     {
-        priv->p_vlm = vlm_New( p_libvlc, psz_parser );
+        priv->p_vlm = vlm_New( p_libvlc );
         if( !priv->p_vlm )
             msg_Err( p_libvlc, "VLM initialization failed" );
-        free( psz_parser );
     }
+    free( psz_parser );
 #endif
 
     /*
      * Load background interfaces
      */
-    psz_modules = var_InheritString( p_libvlc, "extraintf" );
-    psz_control = var_InheritString( p_libvlc, "control" );
+    psz_modules = var_CreateGetNonEmptyString( p_libvlc, "extraintf" );
+    psz_control = var_CreateGetNonEmptyString( p_libvlc, "control" );
 
     if( psz_modules && psz_control )
     {

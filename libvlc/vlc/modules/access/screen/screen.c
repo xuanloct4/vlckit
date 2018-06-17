@@ -113,7 +113,7 @@ vlc_module_begin ()
 #endif
 
 #ifdef SCREEN_MOUSE
-    add_loadfile("screen-mouse-image", "", MOUSE_TEXT, MOUSE_LONGTEXT)
+    add_loadfile( "screen-mouse-image", "", MOUSE_TEXT, MOUSE_LONGTEXT, true )
 #endif
 
 #ifdef _WIN32
@@ -125,7 +125,7 @@ vlc_module_begin ()
     add_integer( "screen-index", 0, INDEX_TEXT, INDEX_LONGTEXT, true )
 #endif
 
-    set_capability( "access", 0 )
+    set_capability( "access_demux", 0 )
     add_shortcut( "screen" )
     set_callbacks( Open, Close )
 vlc_module_end ()
@@ -144,9 +144,6 @@ static int Open( vlc_object_t *p_this )
     demux_t     *p_demux = (demux_t*)p_this;
     demux_sys_t *p_sys;
 
-    if (p_demux->out == NULL)
-        return VLC_EGENERIC;
-
     /* Fill p_demux field */
     p_demux->pf_demux = Demux;
     p_demux->pf_control = Control;
@@ -155,7 +152,7 @@ static int Open( vlc_object_t *p_this )
         return VLC_ENOMEM;
 
     p_sys->f_fps = var_CreateGetFloat( p_demux, "screen-fps" );
-    p_sys->i_incr = CLOCK_FREQ / p_sys->f_fps;
+    p_sys->i_incr = 1000000 / p_sys->f_fps;;
     p_sys->i_next_date = 0;
 
 #ifdef SCREEN_SUBSCREEN

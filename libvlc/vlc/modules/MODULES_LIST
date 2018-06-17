@@ -1,7 +1,8 @@
-List of VLC plugins:
+List of vlc plugins (491):
 $Id$
 
  * a52: A/52 audio decoder plugin, using liba52
+ * aa: Ascii art video output
  * access_alsa: Alsa access module
  * access_concat: concatenated access
  * access_imem: memory bitstream access module
@@ -40,7 +41,7 @@ $Id$
  * android_logger: logger output to native Android logs (adb logcat)
  * android_window: Android direct/undirect rendering video output
  * antiflicker: anti-flicker video filter
- * aom: AOM encoder and decoder (AV1)
+ * aom: AOM decoder (AV1)
  * araw: Pseudo audio decoder for raw PCM
  * archive: libarchive based access and stream filter and stream_extractor
  * aribcam: ARIB STD-B25 decoder/virtual CAM
@@ -106,6 +107,7 @@ $Id$
  * demux_chromecast: Internal demux filter to report the playback time on the Chromecast
  * demux_stl: EBU STL subtitles demuxer
  * demuxdump: Pseudo-demuxer that dumps the stream
+ * diracsys: BBC Dirac demuxer
  * direct3d11: video output module using the Direct3D11 API
  * direct3d11_filters: adjust|deinterlacer filter for Direct3D11 video decoding
  * direct3d9: video output module using the Direct3D9 API
@@ -136,6 +138,7 @@ $Id$
  * equalizer: a equalizer audio filter
  * erase: Logo erase video filter
  * es: input module for MPEG ES decapsulation
+ * evas: EFL Evas video output with Tizen TBM Surface support
  * export: playlist export module
  * extract: Extract RGB components video filter
  * faad: AAC decoder using libfaad2
@@ -185,6 +188,7 @@ $Id$
  * hqdn3d: High Quality denoising filter
  * http: HTTP Network access module
  * https: HTTP/TLS access module for HTTP 2.0 support
+ * i420_10_p010: I420 to NV12 in 10bits conversion, aka IA0L->P010
  * i420_nv12: planar YUV to semi-planar YUV conversion functions
  * i420_rgb: planar YUV to packed RGB conversion functions
  * i420_rgb_mmx: MMX accelerated version of i420_rgb
@@ -203,6 +207,7 @@ $Id$
  * inflate: zlib decompression stream_filter module
  * integer_mixer: Integer audio mixer
  * invert: inverse video filter
+ * iomx: IPC/OpenMaxIL for Android
  * jack: jack server audio output
  * jpeg: JPEG image decoder
  * kai: OS/2 audio output
@@ -275,21 +280,22 @@ $Id$
  * oldmovie: oldmovie style video filter
  * oldrc: old interface module using stdio
  * omxil: OpenMAX IL audio/video decoder
+ * omxil_vout: OpenMAX IL video output
  * opencv_example: OpenCV example (face identification)
  * opencv_wrapper: OpenCV wrapper video filter
  * opensles_android: OpenSL ES audio output for Android
  * opus: a opus audio decoder/packetizer/encoder using the libopus library
  * os2drive: service discovery for OS/2 drives
  * oss: audio output module using the OSS /dev/dsp interface
- * osx_notifications: announce currently playing stream to OS X
+ * osx_notifications: announce currently playing stream to OS X/Growl
  * packetizer_a52: A/52 basic parser/packetizer
  * packetizer_avparser: libavcodec packetizer
  * packetizer_copy: Simple copy packetizer
+ * packetizer_dirac: Dirac video packetizer
  * packetizer_dts: DTS basic parser/packetizer
  * packetizer_flac: FLAC audio packetizer
  * packetizer_h264: H264 video packetizer
  * packetizer_hevc: H.265/HEVC video packetizer
- * packetizer_mjpeg: MJPEG packetizer
  * packetizer_mlp: MLP/TrueHD audio packetizer
  * packetizer_mpeg4audio: MPEG4 audio packetizer
  * packetizer_mpeg4video: MPEG4 video packetizer
@@ -329,7 +335,6 @@ $Id$
  * rtp: rtp demux module
  * rtpvideo: encoder for raw video over RTP
  * rv32: RV32 image format conversion module
- * samba: Samba / libsmbclient input
  * samplerate: Secret Rabbit Code (libsamplerate) audio resampler
  * sap: Interface module to read SAP/SDP announcements
  * sapi: Windows Text to Speech Synthetizer using the SAPI 5.1 API
@@ -356,6 +361,7 @@ $Id$
  * simple_channel_mixer: channel mixer
  * skins2: Skinnable interface, new generation
  * skiptags: APE & ID3 tags-skipping stream filter
+ * smb: SMB shares access module
  * smf: Standard MIDI file demuxer
  * sndio: OpenBSD sndio audio output
  * soxr: SoX Resampler library audio filter
@@ -390,7 +396,7 @@ $Id$
  * stream_out_transcode: audio & video transcoder
  * subsdec: a codec to output textual subtitles
  * subsdelay: subtitles delay filter
- * substx3g: tx3g styled subtitles encoder and decoder
+ * substx3g: tx3g styled subtitles decoder
  * subsusf: a demuxer for USF subtitles
  * subtitle: a demuxer for subtitle files
  * svcdsub: SVCD subtitles decoder
@@ -420,7 +426,6 @@ $Id$
  * udp: UDP Network access module
  * ugly_resampler: Ugly audio resampler
  * uleaddvaudio: codec for DV Audio from Ulead
- * unc: Microsoft Windows networking / Universal Naming Convention
  * upnp: libupnp UPNP service discovery
  * v4l2: Video 4 Linux 2 input module
  * vaapi: VAAPI hardware-accelerated decoding with vout backend
@@ -455,8 +460,7 @@ $Id$
  * wav: Wav demuxer
  * wave: Wave video effect
  * waveout: simple audio output module for Windows
- * wdummy: dummy window provider
- * webvtt: WEBVTT subtitles decoder, encoder and demuxer
+ * webvtt: WEBVTT subtitles decoder and demuxer
  * wgl: WGL extension for OpenGL
  * win_hotkeys: module to catch hotkeys when application doesn't have the focus
  * win_msg: Windows Messages module
@@ -464,8 +468,6 @@ $Id$
  * wingdi: WIN 32 / WIN CE GDI video output
  * winhibit: Win32 screensaver inhibition
  * winstore: Windows Store App audio output
- * wl_idle_inhibit: Wayland idle inhibitor
- * wl_screenshooter: Wayland screen capture input
  * wl_shell: Wayland shell surface window provider
  * wl_shm: Wayland shared memory video output
  * wma_fixed: wma decoder using integer decoder from Rockbox

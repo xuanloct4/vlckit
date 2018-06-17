@@ -76,13 +76,29 @@ char *secstotimestr( char *psz_buffer, int32_t i_seconds )
  * Date management (internal and external)
  */
 
+/**
+ * Initialize a date_t.
+ *
+ * \param date to initialize
+ * \param divider (sample rate) numerator
+ * \param divider (sample rate) denominator
+ */
+
 void date_Init( date_t *p_date, uint32_t i_divider_n, uint32_t i_divider_d )
 {
-    p_date->date = VLC_TS_INVALID;
+    p_date->date = 0;
     p_date->i_divider_num = i_divider_n;
     p_date->i_divider_den = i_divider_d;
     p_date->i_remainder = 0;
 }
+
+/**
+ * Change a date_t.
+ *
+ * \param date to change
+ * \param divider (sample rate) numerator
+ * \param divider (sample rate) denominator
+ */
 
 void date_Change( date_t *p_date, uint32_t i_divider_n, uint32_t i_divider_d )
 {
@@ -92,10 +108,50 @@ void date_Change( date_t *p_date, uint32_t i_divider_n, uint32_t i_divider_d )
     p_date->i_divider_den = i_divider_d;
 }
 
+/**
+ * Set the date value of a date_t.
+ *
+ * \param date to set
+ * \param date value
+ */
+void date_Set( date_t *p_date, mtime_t i_new_date )
+{
+    p_date->date = i_new_date;
+    p_date->i_remainder = 0;
+}
+
+/**
+ * Get the date of a date_t
+ *
+ * \param date to get
+ * \return date value
+ */
+mtime_t date_Get( const date_t *p_date )
+{
+    return p_date->date;
+}
+
+/**
+ * Move forwards or backwards the date of a date_t.
+ *
+ * \param date to move
+ * \param difference value
+ */
+void date_Move( date_t *p_date, mtime_t i_difference )
+{
+    p_date->date += i_difference;
+}
+
+/**
+ * Increment the date and return the result, taking into account
+ * rounding errors.
+ *
+ * \param date to increment
+ * \param incrementation in number of samples
+ * \return date value
+ */
 mtime_t date_Increment( date_t *p_date, uint32_t i_nb_samples )
 {
-    if(unlikely(p_date->date == VLC_TS_INVALID))
-        return VLC_TS_INVALID;
     assert( p_date->i_divider_num != 0 );
     mtime_t i_dividend = i_nb_samples * CLOCK_FREQ * p_date->i_divider_den;
     lldiv_t d = lldiv( i_dividend, p_date->i_divider_num );
@@ -114,10 +170,16 @@ mtime_t date_Increment( date_t *p_date, uint32_t i_nb_samples )
     return p_date->date;
 }
 
+/**
+ * Decrement the date and return the result, taking into account
+ * rounding errors.
+ *
+ * \param date to decrement
+ * \param decrementation in number of samples
+ * \return date value
+ */
 mtime_t date_Decrement( date_t *p_date, uint32_t i_nb_samples )
 {
-    if(unlikely(p_date->date == VLC_TS_INVALID))
-        return VLC_TS_INVALID;
     mtime_t i_dividend = (mtime_t)i_nb_samples * CLOCK_FREQ * p_date->i_divider_den;
     p_date->date -= i_dividend / p_date->i_divider_num;
     unsigned i_rem_adjust = i_dividend % p_date->i_divider_num;

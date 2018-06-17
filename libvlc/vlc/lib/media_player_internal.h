@@ -38,7 +38,7 @@
 
 struct libvlc_media_player_t
 {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
 
     int                i_refcount;
     vlc_mutex_t        object_lock;

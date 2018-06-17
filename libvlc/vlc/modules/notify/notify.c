@@ -172,6 +172,7 @@ static int ItemChange( vlc_object_t *p_this, const char *psz_var,
 
     /* Playing something ... */
     input_item_t *p_input_item = input_GetItem( p_input );
+    psz_title = input_item_GetTitleFbName( p_input_item );
 
     /* Checking for click on directories */
     if(p_input_item->i_type == ITEM_TYPE_DIRECTORY || p_input_item->i_type == ITEM_TYPE_PLAYLIST
@@ -180,7 +181,6 @@ static int ItemChange( vlc_object_t *p_this, const char *psz_var,
         return VLC_SUCCESS;
     }
 
-    psz_title = input_item_GetTitleFbName( p_input_item );
     /* We need at least a title */
     if( EMPTY_STR( psz_title ) )
     {
@@ -233,13 +233,14 @@ static int ItemChange( vlc_object_t *p_this, const char *psz_var,
         {
         /* Load icon from share/ */
             GError *p_error = NULL;
-            char *psz_pixbuf = config_GetSysPath(VLC_SYSDATA_DIR,
-                                     "icons/hicolor/48x48/"PACKAGE_NAME".png");
-            if (psz_pixbuf != NULL)
+            char *psz_pixbuf;
+            char *psz_data = config_GetDataDir();
+            if( asprintf( &psz_pixbuf, "%s/icons/48x48/vlc.png", psz_data ) >= 0 )
             {
                 pix = gdk_pixbuf_new_from_file( psz_pixbuf, &p_error );
                 free( psz_pixbuf );
             }
+            free( psz_data );
         }
     }
 

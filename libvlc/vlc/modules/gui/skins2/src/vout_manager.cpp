@@ -353,8 +353,4 @@ void VoutManager::configureFullscreen( VoutWindow& rWindow )
             m_pFscWindow->moveTo( x, y, w, h );
         }
     }
-
-    // place voutWindow within fullscreen
-    rWindow.move( x, y );
-    rWindow.resize( w, h );
 }

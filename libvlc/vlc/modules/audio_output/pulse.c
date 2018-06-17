@@ -61,22 +61,21 @@ struct sink
     char name[1];
 };
 
-typedef struct
+struct aout_sys_t
 {
     pa_stream *stream; /**< PulseAudio playback stream object */
     pa_context *context; /**< PulseAudio connection context */
     pa_threaded_mainloop *mainloop; /**< PulseAudio thread */
     pa_time_event *trigger; /**< Deferred stream trigger */
     pa_cvolume cvolume; /**< actual sink input volume */
-    mtime_t first_pts; /**< Play stream timestamp of buffer start */
-    mtime_t first_date; /**< Play system timestamp of buffer start */
+    mtime_t first_pts; /**< Play time of buffer start */
 
     pa_volume_t volume_force; /**< Forced volume (stream must be NULL) */
     pa_stream_flags_t flags_force; /**< Forced flags (stream must be NULL) */
     char *sink_force; /**< Forced sink name (stream must be NULL) */
 
     struct sink *sinks; /**< Locally-cached list of sinks */
-} aout_sys_t;
+};
 
 static void VolumeReport(audio_output_t *aout)
 {
@@ -176,7 +175,7 @@ static void stream_start_now(pa_stream *s, audio_output_t *aout)
 {
     pa_operation *op;
 
-    assert ( ((aout_sys_t *)aout->sys)->trigger == NULL );
+    assert (aout->sys->trigger == NULL);
 
     op = pa_stream_cork(s, 0, NULL, NULL);
     if (op != NULL)
@@ -222,7 +221,7 @@ static void stream_trigger_cb(pa_mainloop_api *api, pa_time_event *e,
  * in order to minimize desync and resampling during early playback.
  * @note PulseAudio lock required.
  */
-static void stream_start(pa_stream *s, audio_output_t *aout, mtime_t date)
+static void stream_start(pa_stream *s, audio_output_t *aout)
 {
     aout_sys_t *sys = aout->sys;
     mtime_t delta;
@@ -240,7 +239,7 @@ static void stream_start(pa_stream *s, audio_output_t *aout, mtime_t date)
         delta = 0; /* screwed */
     }
 
-    delta = (date - mdate()) - delta;
+    delta = (sys->first_pts - mdate()) - delta;
     if (delta > 0) {
         msg_Dbg(aout, "deferring start (%"PRId64" us)", delta);
         delta += pa_rtclock_now();
@@ -261,7 +260,7 @@ static void stream_latency_cb(pa_stream *s, void *userdata)
     if (sys->first_pts == VLC_TS_INVALID)
         return; /* nothing to do if buffers are (still) empty */
     if (pa_stream_is_corked(s) > 0)
-        stream_start(s, aout, sys->first_date);
+        stream_start(s, aout);
 }
 
 
@@ -486,7 +485,7 @@ static void *data_convert(block_t **pp)
 /**
  * Queue one audio frame to the playback stream
  */
-static void Play(audio_output_t *aout, block_t *block, mtime_t date)
+static void Play(audio_output_t *aout, block_t *block)
 {
     aout_sys_t *sys = aout->sys;
     pa_stream *s = sys->stream;
@@ -504,13 +503,11 @@ static void Play(audio_output_t *aout, block_t *block, mtime_t date)
      * will take place, and sooner or later a deadlock. */
     pa_threaded_mainloop_lock(sys->mainloop);
 
-    if (sys->first_pts == VLC_TS_INVALID) {
+    if (sys->first_pts == VLC_TS_INVALID)
         sys->first_pts = block->i_pts;
-        sys->first_date = date;
-    }
 
     if (pa_stream_is_corked(s) > 0)
-        stream_start(s, aout, date);
+        stream_start(s, aout);
 
 #if 0 /* Fault injector to test underrun recovery */
     static volatile unsigned u = 0;

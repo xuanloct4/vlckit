@@ -111,13 +111,14 @@ static int InputEvent( vlc_object_t *p_this, char const *psz_cmd,
 
 static vlc_mutex_t vlm_mutex = VLC_STATIC_MUTEX;
 
+#undef vlm_New
 /*****************************************************************************
  * vlm_New:
  *****************************************************************************/
-vlm_t *vlm_New( libvlc_int_t *libvlc, const char *psz_vlmconf )
+vlm_t *vlm_New ( vlc_object_t *p_this )
 {
-    vlm_t *p_vlm = NULL, **pp_vlm = &(libvlc_priv(libvlc)->p_vlm);
-    vlc_object_t *p_this = VLC_OBJECT(libvlc);
+    vlm_t *p_vlm = NULL, **pp_vlm = &(libvlc_priv (p_this->obj.libvlc)->p_vlm);
+    char *psz_vlmconf;
 
     /* Avoid multiple creation */
     vlc_mutex_lock( &vlm_mutex );
@@ -166,10 +167,9 @@ vlm_t *vlm_New( libvlc_int_t *libvlc, const char *psz_vlmconf )
 
     *pp_vlm = p_vlm; /* for future reference */
 
-    vlc_mutex_unlock( &vlm_mutex );
-
     /* Load our configuration file */
-    if( psz_vlmconf != NULL )
+    psz_vlmconf = var_CreateGetString( p_vlm, "vlm-conf" );
+    if( psz_vlmconf && *psz_vlmconf )
     {
         vlm_message_t *p_message = NULL;
         char *psz_buffer = NULL;
@@ -185,6 +185,9 @@ vlm_t *vlm_New( libvlc_int_t *libvlc, const char *psz_vlmconf )
             free( psz_buffer );
         }
     }
+    free( psz_vlmconf );
+
+    vlc_mutex_unlock( &vlm_mutex );
 
     return p_vlm;
 }
@@ -733,7 +736,7 @@ static int vlm_ControlMediaAdd( vlm_t *p_vlm, vlm_media_t *p_cfg, int64_t *p_id 
     {
         p_vlm->p_vod = vlc_custom_create( VLC_OBJECT(p_vlm), sizeof( vod_t ),
                                           "vod server" );
-        p_vlm->p_vod->p_module = module_need_var( p_vlm->p_vod, "vod server", "vod-server" );
+        p_vlm->p_vod->p_module = module_need( p_vlm->p_vod, "vod server", "$vod-server", false );
         if( !p_vlm->p_vod->p_module )
         {
             msg_Err( p_vlm, "cannot find vod server" );

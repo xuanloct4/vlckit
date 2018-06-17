@@ -51,7 +51,7 @@ typedef jack_default_audio_sample_t jack_sample_t;
  * This structure is part of the audio output thread descriptor.
  * It describes some JACK specific variables.
  *****************************************************************************/
-typedef struct
+struct aout_sys_t
 {
     jack_ringbuffer_t *p_jack_ringbuffer;
     jack_client_t  *p_jack_client;
@@ -63,14 +63,14 @@ typedef struct
     float soft_gain;
     bool soft_mute;
     mtime_t paused; /**< Time when (last) paused */
-} aout_sys_t;
+};
 
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
 static int  Open         ( vlc_object_t * );
 static void Close        ( vlc_object_t * );
-static void Play         ( audio_output_t * p_aout, block_t *, mtime_t );
+static void Play         ( audio_output_t * p_aout, block_t * p_block );
 static void Pause        ( audio_output_t *aout, bool paused, mtime_t date );
 static void Flush        ( audio_output_t *p_aout, bool wait );
 static int  TimeGet      ( audio_output_t *, mtime_t * );
@@ -116,7 +116,7 @@ vlc_module_end ()
 static int Start( audio_output_t *p_aout, audio_sample_format_t *restrict fmt )
 {
     char *psz_name;
-    aout_sys_t *p_sys = p_aout->sys;
+    struct aout_sys_t *p_sys = p_aout->sys;
     int status = VLC_SUCCESS;
     unsigned int i;
     int i_error;
@@ -283,9 +283,9 @@ error_out:
     return status;
 }
 
-static void Play(audio_output_t * p_aout, block_t * p_block, mtime_t date)
+static void Play (audio_output_t * p_aout, block_t * p_block)
 {
-    aout_sys_t *p_sys = p_aout->sys;
+    struct aout_sys_t *p_sys = p_aout->sys;
     jack_ringbuffer_t *rb = p_sys->p_jack_ringbuffer;
     const size_t bytes_per_frame = p_sys->i_channels * sizeof(jack_sample_t);
 
@@ -310,7 +310,6 @@ static void Play(audio_output_t * p_aout, block_t * p_block, mtime_t date)
     }
 
     block_Release(p_block);
-    (void) date;
 }
 
 /**
@@ -331,7 +330,7 @@ static void Pause(audio_output_t *aout, bool paused, mtime_t date)
 
 static void Flush(audio_output_t *p_aout, bool wait)
 {
-    aout_sys_t * p_sys = p_aout->sys;
+    struct aout_sys_t * p_sys = p_aout->sys;
     jack_ringbuffer_t *rb = p_sys->p_jack_ringbuffer;
 
     /* Sleep if wait was requested */
@@ -348,7 +347,7 @@ static void Flush(audio_output_t *p_aout, bool wait)
 
 static int TimeGet(audio_output_t *p_aout, mtime_t *delay)
 {
-    aout_sys_t * p_sys = p_aout->sys;
+    struct aout_sys_t * p_sys = p_aout->sys;
     jack_ringbuffer_t *rb = p_sys->p_jack_ringbuffer;
     const size_t bytes_per_frame = p_sys->i_channels * sizeof(jack_sample_t);
 
@@ -368,7 +367,7 @@ int Process( jack_nframes_t i_frames, void *p_arg )
     size_t bytes_read = 0;
     size_t frames_read;
     audio_output_t *p_aout = (audio_output_t*) p_arg;
-    aout_sys_t *p_sys = p_aout->sys;
+    struct aout_sys_t *p_sys = p_aout->sys;
 
     /* Get the next audio data buffer unless paused */
 
@@ -415,7 +414,7 @@ int Process( jack_nframes_t i_frames, void *p_arg )
 static int GraphChange( void *p_arg )
 {
   audio_output_t *p_aout = (audio_output_t*) p_arg;
-  aout_sys_t *p_sys = p_aout->sys;
+  struct aout_sys_t *p_sys = p_aout->sys;
   unsigned int i;
   jack_latency_range_t port_latency;
 
@@ -440,7 +439,7 @@ static int GraphChange( void *p_arg )
 static void Stop( audio_output_t *p_aout )
 {
     int i_error;
-    aout_sys_t *p_sys = p_aout->sys;
+    struct aout_sys_t *p_sys = p_aout->sys;
 
     i_error = jack_deactivate( p_sys->p_jack_client );
     if( i_error )

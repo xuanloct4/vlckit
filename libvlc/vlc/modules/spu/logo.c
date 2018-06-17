@@ -94,7 +94,7 @@ vlc_module_begin ()
     set_shortname( N_("Logo overlay") )
     add_shortcut( "logo" )
 
-    add_loadfile(CFG_PREFIX "file", NULL, FILE_TEXT, FILE_LONGTEXT)
+    add_loadfile( CFG_PREFIX "file", NULL, FILE_TEXT, FILE_LONGTEXT, false )
     add_integer( CFG_PREFIX "x", -1, POSX_TEXT, POSX_LONGTEXT, true )
     add_integer( CFG_PREFIX "y", -1, POSY_TEXT, POSY_LONGTEXT, true )
     /* default to 1000 ms per image, continuously cycle through them */
@@ -151,7 +151,7 @@ typedef struct
 /**
  * Private logo data holder
  */
-typedef struct
+struct filter_sys_t
 {
     filter_t *p_blend;
 
@@ -169,7 +169,7 @@ typedef struct
 
     /* */
     bool b_mouse_grab;
-} filter_sys_t;
+};
 
 static const char *const ppsz_filter_options[] = {
     "file", "x", "y", "delay", "repeat", "opacity", "position", NULL

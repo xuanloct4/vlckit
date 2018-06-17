@@ -39,7 +39,7 @@
 /*****************************************************************************
  * decoder_sys_t : oggspots decoder descriptor
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     /* Module mode */
     bool b_packetizer;
@@ -58,7 +58,7 @@ typedef struct
      * Common properties
      */
     mtime_t i_pts;
-} decoder_sys_t;
+};
 
 /*****************************************************************************
  * Local prototypes
@@ -138,12 +138,11 @@ static int OpenDecoder(vlc_object_t* p_this)
 static int OpenPacketizer(vlc_object_t* p_this)
 {
     decoder_t* p_dec = (decoder_t*)p_this;
-    decoder_sys_t *p_sys = p_dec->p_sys;
 
     int i_ret = OpenDecoder(p_this);
 
     if (i_ret == VLC_SUCCESS) {
-        p_sys->b_packetizer = true;
+        p_dec->p_sys->b_packetizer = true;
         p_dec->fmt_out.i_codec = VLC_CODEC_OGGSPOTS;
     }
 
@@ -310,7 +309,7 @@ static void* ProcessPacket(decoder_t* p_dec, block_t* p_block)
     }
 
     /* Date management */
-    if (p_block->i_pts != VLC_TS_INVALID && p_block->i_pts != p_sys->i_pts) {
+    if (p_block->i_pts > VLC_TS_INVALID && p_block->i_pts != p_sys->i_pts) {
         p_sys->i_pts = p_block->i_pts;
     }
 

@@ -32,7 +32,6 @@
 #endif
 
 #include <math.h>
-#include <stdatomic.h>
 
 #include <vlc_common.h>
 #include <vlc_atomic.h>
@@ -112,7 +111,7 @@ static const char *const ppsz_filter_options[] = {
 /*****************************************************************************
  * filter_sys_t: adjust filter method descriptor
  *****************************************************************************/
-typedef struct
+struct filter_sys_t
 {
     vlc_atomic_float f_contrast;
     vlc_atomic_float f_brightness;
@@ -124,7 +123,7 @@ typedef struct
                                int, int );
     int (*pf_process_sat_hue_clip)( picture_t *, picture_t *, int, int,
                                     int, int, int );
-} filter_sys_t;
+};
 
 /*****************************************************************************
  * Create: allocates adjust video filter

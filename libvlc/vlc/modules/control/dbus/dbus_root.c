@@ -268,7 +268,7 @@ DBUS_METHOD( Quit )
 DBUS_METHOD( Raise )
 {/* shows vlc's main window */
     REPLY_INIT;
-    var_TriggerCallback( pl_Get(INTF), "intf-show" );
+    var_ToggleBool( INTF->obj.libvlc, "intf-show" );
     REPLY_SEND;
 }
 

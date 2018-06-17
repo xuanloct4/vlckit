@@ -210,9 +210,9 @@ uint_fast32_t vlc_str2keycode (const char *name)
     return code;
 }
 
-static const char *nooptext (const char *txt)
+static char *nooptext (const char *txt)
 {
-    return txt;
+    return (char *)txt;
 }
 
 /**
@@ -225,7 +225,7 @@ static const char *nooptext (const char *txt)
  */
 char *vlc_keycode2str (uint_fast32_t code, bool locale)
 {
-    const char *(*tr)(const char *) = locale ? vlc_gettext : nooptext;
+    char *(*tr) (const char *) = locale ? vlc_gettext : nooptext;
     const char *name;
     char *str, buf[5];
     uintptr_t key = code & ~KEY_MODIFIER;

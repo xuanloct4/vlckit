@@ -79,14 +79,9 @@ vlc_module_begin ()
 vlc_module_end ()
 
 /* Store the filter chain */
-typedef struct
+struct filter_sys_t
 {
     filter_chain_t *p_chain;
-} filter_sys_t;
-
-static const struct filter_video_callbacks filter_video_edge_cbs =
-{
-    .buffer_new = new_frame,
 };
 
 /*****************************************************************************
@@ -101,8 +96,10 @@ static int Open( vlc_object_t *p_this )
     int i_ret;
     filter_t *p_filter = (filter_t *)p_this;
     filter_owner_t owner = {
-        .video = &filter_video_edge_cbs,
         .sys = p_filter,
+        .video = {
+            .buffer_new = new_frame,
+        },
     };
     /* Store the filter chain in p_sys */
     p_filter->p_sys = (filter_sys_t *)filter_chain_NewVideo( p_filter, true, &owner );

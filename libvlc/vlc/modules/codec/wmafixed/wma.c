@@ -40,7 +40,7 @@
 /*****************************************************************************
  * decoder_sys_t : wma decoder descriptor
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     date_t end_date; /* To set the PTS */
     WMADecodeContext wmadec; /* name is self explanative */
@@ -50,7 +50,7 @@ typedef struct
     /* to not give too much samples at once to the audio output */
     int8_t *p_samples; /* point into p_output */
     unsigned int i_samples; /* number of buffered samples available */
-} decoder_sys_t;
+};
 
 /* FIXME : check supported configurations */
 /* channel configuration */
@@ -222,14 +222,14 @@ static int DecodeFrame( decoder_t *p_dec, block_t *p_block )
     }
 
     /* Date management */
-    if( p_block->i_pts != VLC_TS_INVALID &&
+    if( p_block->i_pts > VLC_TS_INVALID &&
         p_block->i_pts != date_Get( &p_sys->end_date ) )
     {
         date_Set( &p_sys->end_date, p_block->i_pts );
         /* don't reuse the same pts */
         p_block->i_pts = VLC_TS_INVALID;
     }
-    else if( date_Get( &p_sys->end_date ) == VLC_TS_INVALID )
+    else if( !date_Get( &p_sys->end_date ) )
     {
         /* We've just started the stream, wait for the first PTS. */
         block_Release( p_block );

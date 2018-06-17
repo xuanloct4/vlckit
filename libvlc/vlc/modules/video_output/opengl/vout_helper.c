@@ -36,6 +36,7 @@
 #include <vlc_picture_pool.h>
 #include <vlc_subpicture.h>
 #include <vlc_opengl.h>
+#include <vlc_memory.h>
 #include <vlc_modules.h>
 #include <vlc_vout.h>
 #include <vlc_viewpoint.h>
@@ -168,12 +169,8 @@ struct vout_display_opengl_t {
     float f_fovx; /* f_fovx and f_fovy are linked but we keep both */
     float f_fovy; /* to avoid recalculating them when needed.      */
     float f_z;    /* Position of the camera on the shpere radius vector */
+    float f_z_min;
     float f_sar;
-};
-
-static const vlc_fourcc_t gl_subpicture_chromas[] = {
-    VLC_CODEC_RGBA,
-    0
 };
 
 static const GLfloat identity[] = {
@@ -274,7 +271,8 @@ static void getViewpointMatrixes(vout_display_opengl_t *vgl,
     if (projection_mode == PROJECTION_MODE_EQUIRECTANGULAR
         || projection_mode == PROJECTION_MODE_CUBEMAP_LAYOUT_STANDARD)
     {
-        getProjectionMatrix(vgl->f_sar, vgl->f_fovy, prgm->var.ProjectionMatrix);
+        float sar = (float) vgl->f_sar;
+        getProjectionMatrix(sar, vgl->f_fovy, prgm->var.ProjectionMatrix);
         getYRotMatrix(vgl->f_teta, prgm->var.YRotMatrix);
         getXRotMatrix(vgl->f_phi, prgm->var.XRotMatrix);
         getZRotMatrix(vgl->f_roll, prgm->var.ZRotMatrix);
@@ -473,7 +471,7 @@ opengl_link_program(struct prgm *prgm)
             int charsWritten;
             tc->vt->GetShaderInfoLog(shaders[i], infoLength, &charsWritten,
                                       infolog);
-            msg_Err(tc->gl, "shader %u: %s", i, infolog);
+            msg_Err(tc->gl, "shader %d: %s", i, infolog);
             free(infolog);
         }
     }
@@ -516,7 +514,7 @@ opengl_link_program(struct prgm *prgm)
     x = tc->vt->Get##type##Location(prgm->id, str); \
     assert(x != -1); \
     if (x == -1) { \
-        msg_Err(tc->gl, "Unable to Get"#type"Location(%s)", str); \
+        msg_Err(tc->gl, "Unable to Get"#type"Location(%s)\n", str); \
         goto error; \
     } \
 } while (0)
@@ -660,7 +658,7 @@ opengl_init_program(vout_display_opengl_t *vgl, struct prgm *prgm,
         if (desc->plane_count == 0)
         {
             /* Opaque chroma: load a module to handle it */
-            tc->p_module = module_need_var(tc, "glconv", "glconv");
+            tc->p_module = module_need(tc, "glconv", "$glconv", true);
         }
 
         if (tc->p_module != NULL)
@@ -733,6 +731,11 @@ vout_display_opengl_t *vout_display_opengl_New(video_format_t *fmt,
                                                vlc_gl_t *gl,
                                                const vlc_viewpoint_t *viewpoint)
 {
+    if (gl->getProcAddress == NULL) {
+        msg_Err(gl, "getProcAddress not implemented, bailing out\n");
+        return NULL;
+    }
+
     vout_display_opengl_t *vgl = calloc(1, sizeof(*vgl));
     if (!vgl)
         return NULL;
@@ -747,7 +750,7 @@ vout_display_opengl_t *vout_display_opengl_New(video_format_t *fmt,
 #define GET_PROC_ADDR_EXT(name, critical) do { \
     vgl->vt.name = vlc_gl_GetProcAddress(gl, "gl"#name); \
     if (vgl->vt.name == NULL && critical) { \
-        msg_Err(gl, "gl"#name" symbol not found, bailing out"); \
+        msg_Err(gl, "gl"#name" symbol not found, bailing out\n"); \
         free(vgl); \
         return NULL; \
     } \
@@ -842,7 +845,7 @@ vout_display_opengl_t *vout_display_opengl_New(video_format_t *fmt,
     assert(extensions);
     if (!extensions)
     {
-        msg_Err(gl, "glGetString returned NULL");
+        msg_Err(gl, "glGetString returned NULL\n");
         free(vgl);
         return NULL;
     }
@@ -851,7 +854,7 @@ vout_display_opengl_t *vout_display_opengl_New(video_format_t *fmt,
     bool supports_shaders = strverscmp((const char *)ogl_version, "2.0") >= 0;
     if (!supports_shaders)
     {
-        msg_Err(gl, "shaders not supported, bailing out");
+        msg_Err(gl, "shaders not supported, bailing out\n");
         free(vgl);
         return NULL;
     }
@@ -871,8 +874,8 @@ vout_display_opengl_t *vout_display_opengl_New(video_format_t *fmt,
      * so checks for extensions are bound to fail. Check for OpenGL ES version instead. */
     vgl->supports_npot = true;
 #else
-    vgl->supports_npot = vlc_gl_StrHasToken(extensions, "GL_ARB_texture_non_power_of_two") ||
-                         vlc_gl_StrHasToken(extensions, "GL_APPLE_texture_2D_limited_npot");
+    vgl->supports_npot = HasExtension(extensions, "GL_ARB_texture_non_power_of_two") ||
+                         HasExtension(extensions, "GL_APPLE_texture_2D_limited_npot");
 #endif
 
     bool b_dump_shaders = var_InheritInteger(gl, "verbose") >= 4;
@@ -1053,12 +1056,11 @@ static void UpdateFOVy(vout_display_opengl_t *vgl)
 int vout_display_opengl_SetViewpoint(vout_display_opengl_t *vgl,
                                      const vlc_viewpoint_t *p_vp)
 {
-    if (p_vp->fov > FIELD_OF_VIEW_DEGREES_MAX
-            || p_vp->fov < FIELD_OF_VIEW_DEGREES_MIN)
-        return VLC_EBADVAR;
-
 #define RAD(d) ((float) ((d) * M_PI / 180.f))
     float f_fovx = RAD(p_vp->fov);
+    if (f_fovx > FIELD_OF_VIEW_DEGREES_MAX * M_PI / 180 + 0.001f
+        || f_fovx < -0.001f)
+        return VLC_EBADVAR;
 
     vgl->f_teta = RAD(p_vp->yaw) - (float) M_PI_2;
     vgl->f_phi  = RAD(p_vp->pitch);

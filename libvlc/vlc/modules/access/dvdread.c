@@ -80,7 +80,7 @@ vlc_module_begin ()
     add_integer( "dvdread-angle", 1, ANGLE_TEXT,
         ANGLE_LONGTEXT, false )
     add_obsolete_string( "dvdread-css-method" ) /* obsolete since 1.1.0 */
-    set_capability( "access", 0 )
+    set_capability( "access_demux", 0 )
     add_shortcut( "dvd", "dvdread", "dvdsimple" )
     set_callbacks( Open, Close )
 vlc_module_end ()
@@ -92,7 +92,7 @@ vlc_module_end ()
  * Local prototypes
  *****************************************************************************/
 
-typedef struct
+struct demux_sys_t
 {
     /* DVDRead state */
     dvd_reader_t *p_dvdread;
@@ -101,11 +101,8 @@ typedef struct
     ifo_handle_t *p_vmg_file;
     ifo_handle_t *p_vts_file;
 
-    unsigned updates;
     int i_title;
-    int cur_title;
     int i_chapter, i_chapters;
-    int cur_chapter;
     int i_angle, i_angles;
 
     tt_srpt_t    *p_tt_srpt;
@@ -145,7 +142,7 @@ typedef struct
 
     /* SPU */
     uint32_t clut[16];
-} demux_sys_t;
+};
 
 static int Control   ( demux_t *, int, va_list );
 static int Demux     ( demux_t * );
@@ -169,13 +166,16 @@ static int Open( vlc_object_t *p_this )
     char         *psz_file;
     ifo_handle_t *p_vmg_file;
 
-    if (p_demux->out == NULL)
-        return VLC_EGENERIC;
+    if( !p_demux->psz_file || !*p_demux->psz_file )
+    {
+        /* Only when selected */
+        if( !*p_demux->psz_access )
+            return VLC_EGENERIC;
 
-    if( !p_demux->psz_filepath || !*p_demux->psz_filepath )
         psz_file = var_InheritString( p_this, "dvd" );
+    }
     else
-        psz_file = strdup( p_demux->psz_filepath );
+        psz_file = strdup( p_demux->psz_file );
 
 #if defined( _WIN32 ) || defined( __OS2__ )
     if( psz_file != NULL )
@@ -238,9 +238,7 @@ static int Open( vlc_object_t *p_this )
     p_sys->p_title = NULL;
     p_sys->p_vts_file = NULL;
 
-    p_sys->updates = 0;
     p_sys->i_title = p_sys->i_chapter = -1;
-    p_sys->cur_title = p_sys->cur_chapter = 0;
     p_sys->i_mux_rate = 0;
 
     p_sys->i_angle = var_CreateGetInteger( p_demux, "dvdread-angle" );
@@ -364,7 +362,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         }
         case DEMUX_GET_TIME:
             pi64 = va_arg( args, int64_t * );
-            if( p_sys->cur_title >= 0 && p_sys->cur_title < p_sys->i_titles )
+            if( p_demux->info.i_title >= 0 && p_demux->info.i_title < p_sys->i_titles )
             {
                 *pi64 = (int64_t) dvdtime_to_time( &p_sys->p_cur_pgc->playback_time, 0 ) /
                         p_sys->i_title_blocks * p_sys->i_title_offset;
@@ -375,7 +373,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
         case DEMUX_GET_LENGTH:
             pi64 = va_arg( args, int64_t * );
-            if( p_sys->cur_title >= 0 && p_sys->cur_title < p_sys->i_titles )
+            if( p_demux->info.i_title >= 0 && p_demux->info.i_title < p_sys->i_titles )
             {
                 *pi64 = (int64_t)dvdtime_to_time( &p_sys->p_cur_pgc->playback_time, 0 );
                 return VLC_SUCCESS;
@@ -417,9 +415,10 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
                 msg_Warn( p_demux, "cannot set title/chapter" );
                 return VLC_EGENERIC;
             }
-            p_sys->updates |= INPUT_UPDATE_TITLE | INPUT_UPDATE_SEEKPOINT;
-            p_sys->cur_title = i;
-            p_sys->cur_chapter = 0;
+            p_demux->info.i_update |=
+                INPUT_UPDATE_TITLE | INPUT_UPDATE_SEEKPOINT;
+            p_demux->info.i_title = i;
+            p_demux->info.i_seekpoint = 0;
             return VLC_SUCCESS;
 
         case DEMUX_SET_SEEKPOINT:
@@ -429,24 +428,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
                 msg_Warn( p_demux, "cannot set title/chapter" );
                 return VLC_EGENERIC;
             }
-            p_sys->updates |= INPUT_UPDATE_SEEKPOINT;
-            p_sys->cur_chapter = i;
-            return VLC_SUCCESS;
-
-        case DEMUX_TEST_AND_CLEAR_FLAGS:
-        {
-            unsigned *restrict flags = va_arg(args, unsigned *);
-            *flags &= p_sys->updates;
-            p_sys->updates &= ~*flags;
-            return VLC_SUCCESS;
-        }
-
-        case DEMUX_GET_TITLE:
-            *va_arg( args, int * ) = p_sys->cur_title;
-            return VLC_SUCCESS;
-
-        case DEMUX_GET_SEEKPOINT:
-            *va_arg( args, int * ) = p_sys->cur_chapter;
+            p_demux->info.i_update |= INPUT_UPDATE_SEEKPOINT;
+            p_demux->info.i_seekpoint = i;
             return VLC_SUCCESS;
 
         case DEMUX_GET_PTS_DELAY:
@@ -876,11 +859,12 @@ static int DvdReadSetArea( demux_t *p_demux, int i_title, int i_chapter,
             tk->b_configured = false;
         }
 
-        if( p_sys->cur_title != i_title )
+        if( p_demux->info.i_title != i_title )
         {
-            p_sys->updates |= INPUT_UPDATE_TITLE | INPUT_UPDATE_SEEKPOINT;
-            p_sys->cur_title = i_title;
-            p_sys->cur_chapter = 0;
+            p_demux->info.i_update |=
+                INPUT_UPDATE_TITLE | INPUT_UPDATE_SEEKPOINT;
+            p_demux->info.i_title = i_title;
+            p_demux->info.i_seekpoint = 0;
         }
 
         /* TODO: re-add angles */
@@ -1054,10 +1038,10 @@ static int DvdReadSetArea( demux_t *p_demux, int i_title, int i_chapter,
         p_sys->i_next_vobu = p_sys->i_cur_block =
             p_pgc->cell_playback[p_sys->i_cur_cell].first_sector;
 
-        if( p_sys->cur_chapter != i_chapter )
+        if( p_demux->info.i_seekpoint != i_chapter )
         {
-            p_sys->updates |= INPUT_UPDATE_SEEKPOINT;
-            p_sys->cur_chapter = i_chapter;
+            p_demux->info.i_update |= INPUT_UPDATE_SEEKPOINT;
+            p_demux->info.i_seekpoint = i_chapter;
         }
     }
     else if( i_chapter != -1 )
@@ -1126,10 +1110,10 @@ static void DvdReadSeek( demux_t *p_demux, int i_block_offset )
     }
 
     if( i_chapter < p_sys->i_chapters &&
-        p_sys->cur_chapter != i_chapter )
+        p_demux->info.i_seekpoint != i_chapter )
     {
-        p_sys->updates |= INPUT_UPDATE_SEEKPOINT;
-        p_sys->cur_chapter = i_chapter;
+        p_demux->info.i_update |= INPUT_UPDATE_SEEKPOINT;
+        p_demux->info.i_seekpoint = i_chapter;
     }
 
     /* Find vobu */
@@ -1328,10 +1312,10 @@ static void DvdReadFindCell( demux_t *p_demux )
         p_sys->i_chapter++;
 
         if( p_sys->i_chapter < p_sys->i_chapters &&
-            p_sys->cur_chapter != p_sys->i_chapter )
+            p_demux->info.i_seekpoint != p_sys->i_chapter )
         {
-            p_sys->updates |= INPUT_UPDATE_SEEKPOINT;
-            p_sys->cur_chapter = p_sys->i_chapter;
+            p_demux->info.i_update |= INPUT_UPDATE_SEEKPOINT;
+            p_demux->info.i_seekpoint = p_sys->i_chapter;
         }
     }
 }

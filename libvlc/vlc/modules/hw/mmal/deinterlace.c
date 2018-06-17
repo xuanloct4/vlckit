@@ -26,12 +26,11 @@
 #include "config.h"
 #endif
 
-#include <stdatomic.h>
-
-#include <vlc_common.h>
 #include <vlc_picture_pool.h>
+#include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_filter.h>
+#include <vlc_atomic.h>
 
 #include "mmal_picture.h"
 
@@ -61,8 +60,7 @@ vlc_module_begin()
                     MMAL_DEINTERLACE_QPU_LONGTEXT, true);
 vlc_module_end()
 
-typedef struct
-{
+struct filter_sys_t {
     MMAL_COMPONENT_T *component;
     MMAL_PORT_T *input;
     MMAL_PORT_T *output;
@@ -75,7 +73,7 @@ typedef struct
     /* statistics */
     int output_in_transit;
     int input_in_transit;
-} filter_sys_t;
+};
 
 static void control_port_cb(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer);
 static void input_port_cb(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer);
@@ -88,7 +86,7 @@ static void flush(filter_t *filter);
 static int Open(filter_t *filter)
 {
     int32_t frame_duration = filter->fmt_in.video.i_frame_rate != 0 ?
-            CLOCK_FREQ * filter->fmt_in.video.i_frame_rate_base /
+            (int64_t)1000000 * filter->fmt_in.video.i_frame_rate_base /
             filter->fmt_in.video.i_frame_rate : 0;
     bool use_qpu = var_InheritBool(filter, MMAL_DEINTERLACE_QPU);
 

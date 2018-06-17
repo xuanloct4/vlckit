@@ -34,32 +34,18 @@
 
 #include "stream.h"
 
-struct vlc_stream_filter_private
-{
-    module_t *module;
-};
-
-static void StreamDelete(stream_t *s)
-{
-    struct vlc_stream_filter_private *priv = vlc_stream_Private(s);
-
-    module_unneed(s, priv->module);
-    vlc_stream_Delete(s->s);
-    free(s->psz_filepath);
-}
+static void StreamDelete( stream_t * );
 
 stream_t *vlc_stream_FilterNew( stream_t *p_source,
                                 const char *psz_stream_filter )
 {
-    assert(p_source != NULL);
+    stream_t *s;
+    assert( p_source != NULL );
 
-    struct vlc_stream_filter_private *priv;
-    stream_t *s = vlc_stream_CustomNew(p_source->obj.parent, StreamDelete,
-                                       sizeof (*priv), "stream filter");
+    s = vlc_stream_CommonNew( p_source->obj.parent, StreamDelete );
     if( s == NULL )
         return NULL;
 
-    priv = vlc_stream_Private(s);
     s->p_input = p_source->p_input;
 
     if( p_source->psz_url != NULL )
@@ -67,20 +53,16 @@ stream_t *vlc_stream_FilterNew( stream_t *p_source,
         s->psz_url = strdup( p_source->psz_url );
         if( unlikely(s->psz_url == NULL) )
             goto error;
-
-        if( p_source->psz_filepath != NULL )
-            s->psz_filepath = strdup( p_source->psz_filepath );
     }
-    s->s = p_source;
+    s->p_source = p_source;
 
     /* */
-    priv->module = module_need(s, "stream_filter", psz_stream_filter, true);
-    if (priv->module == NULL)
+    s->p_module = module_need( s, "stream_filter", psz_stream_filter, true );
+    if( s->p_module == NULL )
         goto error;
 
     return s;
 error:
-    free(s->psz_filepath);
     stream_CommonDelete( s );
     return NULL;
 }
@@ -123,4 +105,18 @@ stream_t *stream_FilterChainNew( stream_t *p_source, const char *psz_chain )
     free( chain );
 
     return p_source;
+}
+
+static void StreamDelete( stream_t *s )
+{
+    module_unneed( s, s->p_module );
+
+    if( s->p_source )
+        vlc_stream_Delete( s->p_source );
+}
+
+int vlc_stream_FilterDefaultReadDir( stream_t *s, input_item_node_t *p_node )
+{
+    assert( s->p_source != NULL );
+    return vlc_stream_ReadDir( s->p_source, p_node );
 }

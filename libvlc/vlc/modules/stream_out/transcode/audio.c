@@ -57,8 +57,7 @@ static const int pi_channels_maps[9] =
 
 static int audio_update_format( decoder_t *p_dec )
 {
-    struct decoder_owner *p_owner = dec_get_owner( p_dec );
-    sout_stream_id_sys_t *id = p_owner->id;
+    sout_stream_id_sys_t *id     = p_dec->p_queue_ctx;
 
     p_dec->fmt_out.audio.i_format = p_dec->fmt_out.i_codec;
     aout_FormatPrepare( &p_dec->fmt_out.audio );
@@ -126,7 +125,7 @@ static int transcode_audio_initialize_encoder( sout_stream_id_sys_t *id, sout_st
         id->p_encoder->fmt_out.audio.i_physical_channels;
     aout_FormatPrepare( &id->p_encoder->fmt_in.audio );
 
-    id->p_encoder->p_cfg = p_sys->p_audio_cfg;
+    id->p_encoder->p_cfg = p_stream->p_sys->p_audio_cfg;
     id->p_encoder->p_module =
         module_need( id->p_encoder, "encoder", p_sys->psz_aenc, true );
     /* p_sys->i_acodec = 0 if there isn't acodec defined */
@@ -157,15 +156,15 @@ static int transcode_audio_initialize_encoder( sout_stream_id_sys_t *id, sout_st
     return VLC_SUCCESS;
 }
 
-static void decoder_queue_audio( decoder_t *p_dec, block_t *p_audio )
+static int decoder_queue_audio( decoder_t *p_dec, block_t *p_audio )
 {
-    struct decoder_owner *p_owner = dec_get_owner( p_dec );
-    sout_stream_id_sys_t *id = p_owner->id;
+    sout_stream_id_sys_t *id = p_dec->p_queue_ctx;
 
     vlc_mutex_lock(&id->fifo.lock);
     *id->fifo.audio.last = p_audio;
     id->fifo.audio.last = &p_audio->p_next;
     vlc_mutex_unlock(&id->fifo.lock);
+    return 0;
 }
 
 static block_t *transcode_dequeue_all_audios( sout_stream_id_sys_t *id )
@@ -187,21 +186,15 @@ static int transcode_audio_new( sout_stream_t *p_stream,
     /*
      * Open decoder
      */
-    dec_get_owner( id->p_decoder )->id = id;
 
-    static const struct decoder_owner_callbacks dec_cbs =
-    {
-        .audio = {
-            audio_update_format,
-            decoder_queue_audio,
-        },
-    };
-    id->p_decoder->cbs = &dec_cbs;
-
+    /* Initialization of decoder structures */
     id->p_decoder->pf_decode = NULL;
+    id->p_decoder->pf_queue_audio = decoder_queue_audio;
+    id->p_decoder->p_queue_ctx = id;
+    id->p_decoder->pf_aout_format_update = audio_update_format;
     /* id->p_decoder->p_cfg = p_sys->p_audio_cfg; */
     id->p_decoder->p_module =
-        module_need_var( id->p_decoder, "audio decoder", "codec" );
+        module_need( id->p_decoder, "audio decoder", "$codec", false );
     if( !id->p_decoder->p_module )
     {
         msg_Err( p_stream, "cannot find audio decoder" );
@@ -362,8 +355,9 @@ int transcode_audio_process( sout_stream_t *p_stream,
                     "audio drift is too high (%"PRId64"), resetting master sync",
                     i_drift );
                 date_Set( &id->next_input_pts, p_audio_buf->i_pts );
+                i_pts = date_Get( &id->next_input_pts );
                 if( likely(p_audio_buf->i_pts != VLC_TS_INVALID ) )
-                    i_drift = 0;
+                    i_drift = p_audio_buf->i_pts - i_pts;
             }
             p_sys->i_master_drift = i_drift;
             date_Increment( &id->next_input_pts, p_audio_buf->i_nb_samples );
@@ -372,7 +366,8 @@ int transcode_audio_process( sout_stream_t *p_stream,
         p_audio_buf->i_dts = p_audio_buf->i_pts;
 
         /* Run filter chain */
-        p_audio_buf = aout_FiltersPlay( id->p_af_chain, p_audio_buf, 1.f );
+        p_audio_buf = aout_FiltersPlay( id->p_af_chain, p_audio_buf,
+                                        INPUT_RATE_DEFAULT );
         if( !p_audio_buf )
             goto error;
 

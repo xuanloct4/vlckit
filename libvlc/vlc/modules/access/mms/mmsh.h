@@ -40,7 +40,7 @@ typedef struct
 } chunk_t;
 
 #define BUFFER_SIZE 65536
-typedef struct
+struct access_sys_t
 {
     int             i_proto;
 
@@ -69,6 +69,6 @@ typedef struct
 
     asf_header_t    asfh;
     guid_t          guid;
-} access_sys_t;
+};
 
 #endif

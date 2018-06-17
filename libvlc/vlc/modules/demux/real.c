@@ -117,7 +117,7 @@ typedef struct
     uint32_t i_frame_index;
 } real_index_t;
 
-typedef struct
+struct demux_sys_t
 {
     int64_t  i_data_offset;
     int64_t  i_data_size;
@@ -145,7 +145,7 @@ typedef struct
     int64_t     i_index_offset;
     bool        b_seek;
     real_index_t *p_index;
-} demux_sys_t;
+};
 
 static const unsigned char i_subpacket_size_sipr[4] = { 29, 19, 37, 20 };
 
@@ -283,10 +283,10 @@ static int Demux( demux_t *p_demux )
         p_sys->i_data_packets_count )
     {
         if( vlc_stream_Read( p_demux->s, header, 18 ) < 18 )
-            return VLC_DEMUXER_EOF;
+            return 0;
 
         if( memcmp( header, "DATA", 4 ) )
-            return VLC_DEMUXER_EOF;
+            return 0;
 
         p_sys->i_data_offset = vlc_stream_Tell( p_demux->s ) - 18;
         p_sys->i_data_size   = GetDWBE( &header[4] );
@@ -301,7 +301,7 @@ static int Demux( demux_t *p_demux )
 
     /* Read Packet Header */
     if( vlc_stream_Read( p_demux->s, header, 12 ) < 12 )
-        return VLC_DEMUXER_EOF;
+        return 0;
     //const int i_version = GetWBE( &header[0] );
     const size_t  i_size = GetWBE( &header[2] ) - 12;
     const int     i_id   = GetWBE( &header[4] );
@@ -312,12 +312,12 @@ static int Demux( demux_t *p_demux )
     if( i_size > sizeof(p_sys->buffer) )
     {
         msg_Err( p_demux, "Got a NUKK size to read. (Invalid format?)" );
-        return VLC_DEMUXER_SUCCESS;
+        return 1;
     }
 
     p_sys->i_buffer = vlc_stream_Read( p_demux->s, p_sys->buffer, i_size );
     if( p_sys->i_buffer < i_size )
-        return VLC_DEMUXER_EOF;
+        return 0;
 
     real_track_t *tk = NULL;
     for( int i = 0; i < p_sys->i_track; i++ )
@@ -329,7 +329,7 @@ static int Demux( demux_t *p_demux )
     if( !tk )
     {
         msg_Warn( p_demux, "unknown track id(0x%x)", i_id );
-        return VLC_DEMUXER_SUCCESS;
+        return 1;
     }
 
     if( tk->fmt.i_cat == VIDEO_ES )
@@ -348,15 +348,15 @@ static int Demux( demux_t *p_demux )
     {
         tk = p_sys->track[i];
 
-        if( i_pcr == VLC_TS_INVALID || ( tk->i_last_dts != VLC_TS_INVALID && tk->i_last_dts < i_pcr ) )
+        if( i_pcr <= VLC_TS_INVALID || ( tk->i_last_dts > VLC_TS_INVALID && tk->i_last_dts < i_pcr ) )
             i_pcr = tk->i_last_dts;
     }
-    if( i_pcr != VLC_TS_INVALID && i_pcr != p_sys->i_pcr )
+    if( i_pcr > VLC_TS_INVALID && i_pcr != p_sys->i_pcr )
     {
         p_sys->i_pcr = i_pcr;
         es_out_SetPCR( p_demux->out, p_sys->i_pcr );
     }
-    return VLC_DEMUXER_SUCCESS;
+    return 1;
 }
 
 /*****************************************************************************
@@ -390,11 +390,11 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
         case DEMUX_GET_POSITION:
             pf = va_arg( args, double * );
 
-            /* read stream size maybe failed in rtsp streaming,
+            /* read stream size maybe failed in rtsp streaming, 
                so use duration to determin the position at first  */
             if( p_sys->i_our_duration > 0 )
             {
-                if( p_sys->i_pcr != VLC_TS_INVALID )
+                if( p_sys->i_pcr > VLC_TS_INVALID )
                     *pf = (double)p_sys->i_pcr / 1000.0 / p_sys->i_our_duration;
                 else
                     *pf = 0.0;
@@ -413,7 +413,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
             if( p_sys->i_our_duration > 0 )
             {
-                *pi64 = p_sys->i_pcr != VLC_TS_INVALID ? p_sys->i_pcr : 0;
+                *pi64 = p_sys->i_pcr > VLC_TS_INVALID ? p_sys->i_pcr : 0;
                 return VLC_SUCCESS;
             }
 
@@ -457,7 +457,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
         case DEMUX_GET_LENGTH:
             pi64 = va_arg( args, int64_t * );
-
+ 
             if( p_sys->i_our_duration <= 0 )
             {
                 *pi64 = 0;
@@ -485,13 +485,6 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             return VLC_SUCCESS;
         }
 
-        case DEMUX_CAN_PAUSE:
-        case DEMUX_SET_PAUSE_STATE:
-        case DEMUX_CAN_CONTROL_PACE:
-        case DEMUX_GET_PTS_DELAY:
-            return demux_vaControlHelper( p_demux->s, p_sys->i_data_offset,
-                                          p_sys->i_data_size, 0, 1, i_query, args );
-
         case DEMUX_GET_FPS:
         default:
             return VLC_EGENERIC;
@@ -506,10 +499,10 @@ static void CheckPcr( demux_t *p_demux, real_track_t *tk, mtime_t i_dts )
 {
     demux_sys_t *p_sys = p_demux->p_sys;
 
-    if( i_dts != VLC_TS_INVALID )
+    if( i_dts > VLC_TS_INVALID )
         tk->i_last_dts = i_dts;
 
-    if( p_sys->i_pcr != VLC_TS_INVALID || i_dts == VLC_TS_INVALID )
+    if( p_sys->i_pcr > VLC_TS_INVALID || i_dts <= VLC_TS_INVALID )
         return;
 
     p_sys->i_pcr = i_dts;
@@ -1259,7 +1252,7 @@ static void HeaderINDX( demux_t *p_demux )
         }
 
         real_index_t *p_idx = &p_sys->p_index[i];
-
+        
         p_idx->i_time_offset = GetDWBE( &p_entry[2] );
         p_idx->i_file_offset = GetDWBE( &p_entry[6] );
         p_idx->i_frame_index = GetDWBE( &p_entry[10] );

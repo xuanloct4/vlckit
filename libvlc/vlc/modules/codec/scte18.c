@@ -46,10 +46,10 @@ vlc_module_begin ()
     set_callbacks(Open, Close)
 vlc_module_end ()
 
-typedef struct
+struct decoder_sys_t
 {
     atsc_a65_handle_t *p_handle;
-} decoder_sys_t;
+};
 
 //#define GPS_UTC_EPOCH_OFFSET 315964800
 //#define GPS_CUR_UTC_LEAP_OFFSET  16 /* 1 Jul 2015 */
@@ -178,15 +178,13 @@ static int Decode( decoder_t *p_dec, block_t *p_block )
     if (p_block->i_flags & (BLOCK_FLAG_CORRUPTED))
         goto exit;
 
-    decoder_sys_t *p_sys = p_dec->p_sys;
-
-    scte18_cea_t *p_cea = scte18_cea_Decode( p_sys->p_handle, p_block );
+    scte18_cea_t *p_cea = scte18_cea_Decode( p_dec->p_sys->p_handle, p_block );
     if( p_cea )
     {
         p_spu = decoder_NewSubpictureText( p_dec );
         if( p_spu )
         {
-            subtext_updater_sys_t *p_spu_sys = p_spu->updater.p_sys;
+            subpicture_updater_sys_t *p_spu_sys = p_spu->updater.p_sys;
 
             p_spu->i_start = p_block->i_pts;
             if( p_cea->alert_message_time_remaining )

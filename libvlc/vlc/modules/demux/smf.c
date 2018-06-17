@@ -91,7 +91,7 @@ static int ReadDeltaTime (stream_t *s, mtrk_t *track)
     return 0;
 }
 
-typedef struct
+struct demux_sys_t
 {
     es_out_id_t *es;
     date_t       pts; /*< Play timestamp */
@@ -104,7 +104,7 @@ typedef struct
 
     unsigned     trackc; /*< Number of tracks */
     mtrk_t       trackv[]; /*< Track states */
-} demux_sys_t;
+};
 
 /**
  * Non-MIDI Meta events handler
@@ -258,7 +258,6 @@ static
 int HandleMessage (demux_t *p_demux, mtrk_t *tr, es_out_t *out)
 {
     stream_t *s = p_demux->s;
-    demux_sys_t *sys = p_demux->p_sys;
     block_t *block;
     uint8_t first, event;
     unsigned datalen;
@@ -349,9 +348,9 @@ int HandleMessage (demux_t *p_demux, mtrk_t *tr, es_out_t *out)
     }
 
 send:
-    block->i_dts = block->i_pts = date_Get(&sys->pts);
+    block->i_dts = block->i_pts = date_Get (&p_demux->p_sys->pts);
     if (out != NULL)
-        es_out_Send(out, sys->es, block);
+        es_out_Send (out, p_demux->p_sys->es, block);
     else
         block_Release (block);
 
@@ -456,20 +455,20 @@ static int Demux (demux_t *demux)
         es_out_SetPCR (demux->out, sys->tick);
 
         sys->tick += TICK;
-        return VLC_DEMUXER_SUCCESS;
+        return 1;
     }
 
     /* MIDI events in chronological order across all tracks */
     uint64_t pulse = sys->pulse;
 
     if (ReadEvents (demux, &pulse, demux->out))
-        return VLC_DEMUXER_EGENERIC;
+        return VLC_EGENERIC;
 
     if (pulse == UINT64_MAX)
-        return VLC_DEMUXER_EOF; /* all tracks are done */
+        return 0; /* all tracks are done */
 
     sys->pulse = pulse;
-    return VLC_DEMUXER_SUCCESS;
+    return 1;
 }
 
 static int Seek (demux_t *demux, mtime_t pts)
@@ -524,13 +523,6 @@ static int Control (demux_t *demux, int i_query, va_list args)
             break;
         case DEMUX_SET_TIME:
             return Seek (demux, va_arg (args, int64_t));
-
-        case DEMUX_CAN_PAUSE:
-        case DEMUX_SET_PAUSE_STATE:
-        case DEMUX_CAN_CONTROL_PACE:
-        case DEMUX_GET_PTS_DELAY:
-            return demux_vaControlHelper( demux->s, 0, -1, 0, 1, i_query, args );
-
         default:
             return VLC_EGENERIC;
     }

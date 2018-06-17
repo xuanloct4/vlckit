@@ -28,7 +28,6 @@
 #import "VLCCoreInteraction.h"
 #import "CompatibilityFixes.h"
 #import "VLCMain.h"
-#import <vlc_aout.h>
 
 @interface VLCFSPanelController () {
     BOOL _isCounting;
@@ -81,15 +80,26 @@ static NSString *kAssociatedFullscreenRect = @"VLCFullscreenAssociatedWindowRect
     /* Set autosave name after we changed window mask to resizable */
     [self.window setFrameAutosaveName:@"VLCFullscreenControls"];
 
+#ifdef MAC_OS_X_VERSION_10_10
     /* Inject correct background view depending on OS support */
-    [self injectVisualEffectView];
+    if (OSX_YOSEMITE_AND_HIGHER) {
+        [self injectVisualEffectView];
+    } else {
+        [self injectBackgroundView];
+    }
+#else
+    /* Compiled with old SDK, always use legacy style */
+    [self injectBackgroundView];
+#endif
 
     [self setupControls];
 }
 
-#define setupButton(target, title, desc)            \
-    target.accessibilityTitle = title;              \
-    target.accessibilityLabel = desc;               \
+#define setupButton(target, title, desc)                                              \
+    [target accessibilitySetOverrideValue:title                                       \
+                             forAttribute:NSAccessibilityTitleAttribute];             \
+    [target accessibilitySetOverrideValue:desc                                        \
+                             forAttribute:NSAccessibilityDescriptionAttribute];       \
     [target setToolTip:title];
 
 - (void)setupControls
@@ -268,15 +278,15 @@ static NSString *kAssociatedFullscreenRect = @"VLCFullscreenAssociatedWindowRect
             mtime_t remaining = 0;
             if (dur > t)
                 remaining = dur - t;
-            totalTime = [NSString stringWithFormat:@"-%s", secstotimestr(psz_time, (int)(remaining / CLOCK_FREQ))];
+            totalTime = [NSString stringWithFormat:@"-%s", secstotimestr(psz_time, (remaining / 1000000))];
         } else {
-            totalTime = toNSStr(secstotimestr(psz_time, (int)(dur / 1000000)));
+            totalTime = toNSStr(secstotimestr(psz_time, (dur / 1000000)));
         }
         [_remainingOrTotalTime setStringValue:totalTime];
     }
 
     /* Update current position (left field) */
-    NSString *playbackPosition = toNSStr(secstotimestr(psz_time, (int)(t / CLOCK_FREQ)));
+    NSString *playbackPosition = toNSStr(secstotimestr(psz_time, t / CLOCK_FREQ));
 
     [_elapsedTime setStringValue:playbackPosition];
     vlc_object_release(p_input);
@@ -399,7 +409,7 @@ static NSString *kAssociatedFullscreenRect = @"VLCFullscreenAssociatedWindowRect
         return;
 
     /* Get timeout and make sure it is not lower than 1 second */
-    long long _timeToKeepVisibleInSec = MAX(var_CreateGetInteger(getIntf(), "mouse-hide-timeout") / 1000, 1);
+    int _timeToKeepVisibleInSec = MAX(var_CreateGetInteger(getIntf(), "mouse-hide-timeout") / 1000, 1);
 
     _hideTimer = [NSTimer scheduledTimerWithTimeInterval:_timeToKeepVisibleInSec
                                                   target:self
@@ -426,6 +436,10 @@ static NSString *kAssociatedFullscreenRect = @"VLCFullscreenAssociatedWindowRect
 
 #pragma mark -
 #pragma mark Helpers
+
+#ifdef MAC_OS_X_VERSION_10_10
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wpartial-availability"
 
 /**
  Create an image mask for the NSVisualEffectView
@@ -460,6 +474,7 @@ static NSString *kAssociatedFullscreenRect = @"VLCFullscreenAssociatedWindowRect
  This is necessary as we can't use the NSVisualEffect view on
  all macOS Versions and therefore need to dynamically insert it.
 
+ \warning Never call both, \c injectVisualEffectView and \c injectBackgroundView
  */
 - (void)injectVisualEffectView
 {
@@ -475,6 +490,37 @@ static NSString *kAssociatedFullscreenRect = @"VLCFullscreenAssociatedWindowRect
     [self.window setContentView:view];
     [_controlsView setAppearance:[NSAppearance appearanceNamed:NSAppearanceNameVibrantDark]];
     [self.window.contentView addSubview:_controlsView];
+}
+#pragma clang diagnostic pop
+#endif
+
+/**
+ Injects the standard background view in the Windows view hierarchy
+
+ This is necessary on macOS versions that do not support the
+ NSVisualEffectView that usually is injected.
+
+ \warning Never call both, \c injectVisualEffectView and \c injectBackgroundView
+ */
+- (void)injectBackgroundView
+{
+    /* Setup the view */
+    CGColorRef color = CGColorCreateGenericGray(0.0, 0.8);
+    NSView *view = [[NSView alloc] initWithFrame:self.window.contentView.frame];
+    [view setWantsLayer:YES];
+    [view.layer setBackgroundColor:color];
+    [view.layer setCornerRadius:8.0];
+    [view setAutoresizesSubviews:YES];
+    CGColorRelease(color);
+
+    /* Inject view in view hierarchy */
+    [self.window setContentView:view];
+    [self.window.contentView addSubview:_controlsView];
+
+    /* Disable adjusting height to workaround autolayout problems */
+    [_heightMaxConstraint setConstant:42.0];
+    [self.window setMaxSize:NSMakeSize(4068, 80)];
+    [self.window setMinSize:NSMakeSize(480, 80)];
 }
 
 - (void)dealloc

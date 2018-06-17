@@ -42,8 +42,7 @@
 #include <d3d9.h>
 #include "../../video_chroma/d3d9_fmt.h"
 
-typedef struct
-{
+struct filter_sys_t {
     /* GPU to CPU */
     copy_cache_t      cache;
 
@@ -52,7 +51,7 @@ typedef struct
     d3d9_device_t     d3d_dev;
     filter_t          *filter;
     picture_t         *staging;
-} filter_sys_t;
+};
 
 static bool GetLock(filter_t *p_filter, LPDIRECT3DSURFACE9 d3d,
                     D3DLOCKED_RECT *p_lock, D3DSURFACE_DESC *p_desc)
@@ -69,6 +68,13 @@ static bool GetLock(filter_t *p_filter, LPDIRECT3DSURFACE9 d3d,
     return true;
 }
 
+static inline void plane_SwapUV(plane_t p[PICTURE_PLANE_MAX])
+{
+    uint8_t *buf = p[V_PLANE].p_pixels;
+    p[V_PLANE].p_pixels = p[U_PLANE].p_pixels;
+    p[U_PLANE].p_pixels = buf;
+}
+
 static void DXA9_YV12(filter_t *p_filter, picture_t *src, picture_t *dst)
 {
     copy_cache_t *p_copy_cache = (copy_cache_t*) p_filter->p_sys;
@@ -82,8 +88,11 @@ static void DXA9_YV12(filter_t *p_filter, picture_t *src, picture_t *dst)
     if (desc.Format == MAKEFOURCC('Y','V','1','2') ||
         desc.Format == MAKEFOURCC('I','M','C','3')) {
 
-        if (dst->format.i_chroma == VLC_CODEC_I420)
-            picture_SwapUV( dst );
+        if (dst->format.i_chroma == VLC_CODEC_I420) {
+            uint8_t *tmp = dst->p[1].p_pixels;
+            dst->p[1].p_pixels = dst->p[2].p_pixels;
+            dst->p[2].p_pixels = tmp;
+        }
 
         bool imc3 = desc.Format == MAKEFOURCC('I','M','C','3');
         size_t chroma_pitch = imc3 ? lock.Pitch : (lock.Pitch / 2);
@@ -108,8 +117,11 @@ static void DXA9_YV12(filter_t *p_filter, picture_t *src, picture_t *dst)
         }
         Copy420_P_to_P(dst, plane, pitch, src->format.i_height, p_copy_cache);
 
-        if (dst->format.i_chroma == VLC_CODEC_I420)
-            picture_SwapUV( dst );
+        if (dst->format.i_chroma == VLC_CODEC_I420) {
+            uint8_t *tmp = dst->p[1].p_pixels;
+            dst->p[1].p_pixels = dst->p[2].p_pixels;
+            dst->p[2].p_pixels = tmp;
+        }
     } else if (desc.Format == MAKEFOURCC('N','V','1','2')
             || desc.Format == MAKEFOURCC('P','0','1','0')) {
         const uint8_t *plane[2] = {
@@ -192,8 +204,7 @@ static void DeleteFilter( filter_t * p_filter )
 static picture_t *NewBuffer(filter_t *p_filter)
 {
     filter_t *p_parent = p_filter->owner.sys;
-    filter_sys_t *p_sys = p_parent->p_sys;
-    return p_sys->staging;
+    return p_parent->p_sys->staging;
 }
 
 static filter_t *CreateFilter( vlc_object_t *p_this, const es_format_t *p_fmt_in,
@@ -205,9 +216,8 @@ static filter_t *CreateFilter( vlc_object_t *p_this, const es_format_t *p_fmt_in
     if (unlikely(p_filter == NULL))
         return NULL;
 
-    static const struct filter_video_callbacks cbs = { NewBuffer };
     p_filter->b_allow_fmt_out_change = false;
-    p_filter->owner.video = &cbs;
+    p_filter->owner.video.buffer_new = NewBuffer;
     p_filter->owner.sys = p_this;
 
     es_format_InitFromVideo( &p_filter->fmt_in,  &p_fmt_in->video );
@@ -252,15 +262,14 @@ static struct picture_context_t *d3d9_pic_context_copy(struct picture_context_t 
 
 static void YV12_D3D9(filter_t *p_filter, picture_t *src, picture_t *dst)
 {
-    filter_sys_t *sys = p_filter->p_sys;
+    filter_sys_t *sys = (filter_sys_t*) p_filter->p_sys;
     picture_sys_t *p_sys = dst->p_sys;
-    picture_sys_t *p_staging_sys = sys->staging->p_sys;
 
     D3DSURFACE_DESC texDesc;
     IDirect3DSurface9_GetDesc( p_sys->surface, &texDesc);
 
     D3DLOCKED_RECT d3drect;
-    HRESULT hr = IDirect3DSurface9_LockRect(p_staging_sys->surface, &d3drect, NULL, 0);
+    HRESULT hr = IDirect3DSurface9_LockRect(sys->staging->p_sys->surface, &d3drect, NULL, 0);
     if (FAILED(hr))
         return;
 
@@ -270,14 +279,14 @@ static void YV12_D3D9(filter_t *p_filter, picture_t *src, picture_t *dst)
 
     sys->filter->pf_video_filter(sys->filter, src);
 
-    IDirect3DSurface9_UnlockRect(p_staging_sys->surface);
+    IDirect3DSurface9_UnlockRect(sys->staging->p_sys->surface);
 
     RECT visibleSource = {
         .right = dst->format.i_width, .bottom = dst->format.i_height,
     };
     IDirect3DDevice9_StretchRect( sys->d3d_dev.dev,
-                                  p_staging_sys->surface, &visibleSource,
-                                  p_sys->surface, &visibleSource,
+                                  sys->staging->p_sys->surface, &visibleSource,
+                                  dst->p_sys->surface, &visibleSource,
                                   D3DTEXF_NONE );
 
     if (dst->context == NULL)
@@ -287,7 +296,7 @@ static void YV12_D3D9(filter_t *p_filter, picture_t *src, picture_t *dst)
         {
             pic_ctx->s.destroy = d3d9_pic_context_destroy;
             pic_ctx->s.copy    = d3d9_pic_context_copy;
-            pic_ctx->picsys = *p_sys;
+            pic_ctx->picsys = *dst->p_sys;
             AcquirePictureSys(&pic_ctx->picsys);
             dst->context = &pic_ctx->s;
         }
@@ -413,12 +422,11 @@ int D3D9OpenCPUConverter( vlc_object_t *obj )
     {
         picture_resource_t res;
         res.pf_destroy = DestroyPicture;
-        picture_sys_t *res_sys = calloc(1, sizeof(picture_sys_t));
-        if (res_sys == NULL) {
+        res.p_sys = calloc(1, sizeof(picture_sys_t));
+        if (res.p_sys == NULL) {
             err = VLC_ENOMEM;
             goto done;
         }
-        res.p_sys = res_sys;
 
         video_format_Copy(&fmt_staging, &p_filter->fmt_out.video);
         fmt_staging.i_chroma = texDesc.Format;
@@ -443,7 +451,7 @@ int D3D9OpenCPUConverter( vlc_object_t *obj )
             msg_Err(p_filter, "Failed to create a %4.4s staging texture to extract surface pixels (hr=0x%0lx)", (char *)texDesc.Format, hr );
             goto done;
         }
-        res_sys->surface = texture;
+        res.p_sys->surface = texture;
         IDirect3DSurface9_AddRef(texture);
 
         p_cpu_filter = CreateFilter(VLC_OBJECT(p_filter), &p_filter->fmt_in, p_dst->format.i_chroma);
@@ -472,7 +480,7 @@ done:
 void D3D9CloseConverter( vlc_object_t *obj )
 {
     filter_t *p_filter = (filter_t *)obj;
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
     CopyCleanCache( &p_sys->cache );
     D3D9_Destroy( &p_sys->hd3d );
     free( p_sys );
@@ -482,7 +490,7 @@ void D3D9CloseConverter( vlc_object_t *obj )
 void D3D9CloseCPUConverter( vlc_object_t *obj )
 {
     filter_t *p_filter = (filter_t *)obj;
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
     DeleteFilter(p_sys->filter);
     picture_Release(p_sys->staging);
     D3D9_FilterReleaseInstance(&p_sys->d3d_dev);

@@ -60,12 +60,12 @@ static const char *const ppsz_filter_options[] = {
 
 /* We'll store pointer for previous picture we have received
    and copy that if needed on framerate increase (not preferred)*/
-typedef struct
+struct filter_sys_t
 {
     date_t          next_output_pts; /**< output calculated PTS */
     picture_t       *p_previous_pic;
     int             i_output_frame_interval;
-} filter_sys_t;
+};
 
 static picture_t *Filter( filter_t *p_filter, picture_t *p_picture)
 {
@@ -73,7 +73,7 @@ static picture_t *Filter( filter_t *p_filter, picture_t *p_picture)
     /* If input picture doesn't have actual valid timestamp,
         we don't really have currently a way to know what else
         to do with it other than drop it for now*/
-    if( unlikely( p_picture->date == VLC_TS_INVALID) )
+    if( unlikely( p_picture->date < VLC_TS_0) )
     {
         msg_Dbg( p_filter, "skipping non-dated picture");
         picture_Release( p_picture );
@@ -169,6 +169,7 @@ static int Open( vlc_object_t *p_this)
     date_Init( &p_sys->next_output_pts,
                p_filter->fmt_out.video.i_frame_rate, p_filter->fmt_out.video.i_frame_rate_base );
 
+    date_Set( &p_sys->next_output_pts, VLC_TS_INVALID );
     p_sys->p_previous_pic = NULL;
 
     p_filter->pf_video_filter = Filter;
@@ -178,8 +179,7 @@ static int Open( vlc_object_t *p_this)
 static void Close( vlc_object_t *p_this )
 {
     filter_t *p_filter = (filter_t*)p_this;
-    filter_sys_t *p_sys = p_filter->p_sys;
-    if( p_sys->p_previous_pic )
-        picture_Release( p_sys->p_previous_pic );
-    free( p_sys );
+    if( p_filter->p_sys->p_previous_pic )
+        picture_Release( p_filter->p_sys->p_previous_pic );
+    free( p_filter->p_sys );
 }

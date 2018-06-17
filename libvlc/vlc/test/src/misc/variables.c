@@ -284,18 +284,18 @@ static void test_limits( libvlc_int_t *p_libvlc )
     val.i_int = 0;
     var_Create( p_libvlc, "bla", VLC_VAR_INTEGER );
 
-    var_Change( p_libvlc, "bla", VLC_VAR_GETMIN, &val );
+    var_Change( p_libvlc, "bla", VLC_VAR_GETMIN, &val, NULL );
     assert( val.i_int == INT64_MIN );
-    var_Change( p_libvlc, "bla", VLC_VAR_GETMAX, &val );
+    var_Change( p_libvlc, "bla", VLC_VAR_GETMAX, &val, NULL );
     assert( val.i_int == INT64_MAX );
 
     var_Change( p_libvlc, "bla", VLC_VAR_SETMINMAX,
-                (vlc_value_t){ .i_int = -1234 },
-                (vlc_value_t){ .i_int = 12345 } );
+                &(vlc_value_t){ .i_int = -1234 },
+                &(vlc_value_t){ .i_int = 12345 } );
 
-    var_Change( p_libvlc, "bla", VLC_VAR_GETMIN, &val );
+    var_Change( p_libvlc, "bla", VLC_VAR_GETMIN, &val, NULL );
     assert( val.i_int == -1234 );
-    var_Change( p_libvlc, "bla", VLC_VAR_GETMAX, &val );
+    var_Change( p_libvlc, "bla", VLC_VAR_GETMAX, &val, NULL );
     assert( val.i_int == 12345 );
 
     var_SetInteger( p_libvlc, "bla", -123456 );
@@ -306,10 +306,10 @@ static void test_limits( libvlc_int_t *p_libvlc )
     assert( var_GetInteger( p_libvlc, "bla" ) == 12345 );
 
     val.i_int = 42;
-    var_Change( p_libvlc, "bla", VLC_VAR_SETSTEP, val );
+    var_Change( p_libvlc, "bla", VLC_VAR_SETSTEP, &val, NULL );
     var_SetInteger( p_libvlc, "bla", 20 );
     val.i_int = 0;
-    var_Change( p_libvlc, "bla", VLC_VAR_GETSTEP, &val );
+    var_Change( p_libvlc, "bla", VLC_VAR_GETSTEP, &val, NULL );
     assert( val.i_int == 42 );
 
     var_SetInteger( p_libvlc, "bla", 20 );
@@ -323,30 +323,28 @@ static void test_limits( libvlc_int_t *p_libvlc )
 
 static void test_choices( libvlc_int_t *p_libvlc )
 {
-    vlc_value_t val;
-    vlc_value_t *vals;
-    char **texts;
-    size_t count;
-
+    vlc_value_t val, val2;
     var_Create( p_libvlc, "bla", VLC_VAR_INTEGER | VLC_VAR_ISCOMMAND );
     val.i_int = 1;
-    var_Change( p_libvlc, "bla", VLC_VAR_ADDCHOICE, val, "one" );
+    val2.psz_string = (char*)"one";
+    var_Change( p_libvlc, "bla", VLC_VAR_ADDCHOICE, &val, &val2 );
 
     val.i_int = 2;
-    var_Change( p_libvlc, "bla", VLC_VAR_ADDCHOICE, val, "two" );
+    val2.psz_string = (char*)"two";
+    var_Change( p_libvlc, "bla", VLC_VAR_ADDCHOICE, &val, &val2 );
 
     assert( var_CountChoices( p_libvlc, "bla" ) == 2 );
 
-    var_Change( p_libvlc, "bla", VLC_VAR_DELCHOICE, val );
+    var_Change( p_libvlc, "bla", VLC_VAR_DELCHOICE, &val, &val2 );
     assert( var_CountChoices( p_libvlc, "bla" ) == 1 );
 
-    var_Change( p_libvlc, "bla", VLC_VAR_GETCHOICES, &count, &vals, &texts );
-    assert( count == 1 && vals[0].i_int == 1 && !strcmp( texts[0], "one" ) );
-    free(texts[0]);
-    free(texts);
-    free(vals);
+    var_Change( p_libvlc, "bla", VLC_VAR_GETCHOICES, &val, &val2 );
+    assert( val.p_list->i_count == 1 && val.p_list->p_values[0].i_int == 1 &&
+            val2.p_list->i_count == 1 &&
+            !strcmp( val2.p_list->p_values[0].psz_string, "one" ) );
+    var_FreeList( &val, &val2 );
 
-    var_Change( p_libvlc, "bla", VLC_VAR_CLEARCHOICES );
+    var_Change( p_libvlc, "bla", VLC_VAR_CLEARCHOICES, NULL, NULL );
     assert( var_CountChoices( p_libvlc, "bla" ) == 0 );
 
     var_Destroy( p_libvlc, "bla" );
@@ -361,8 +359,8 @@ static void test_change( libvlc_int_t *p_libvlc )
     step.i_int = 13;
 
     var_Create( p_libvlc, "bla", VLC_VAR_INTEGER );
-    var_Change( p_libvlc, "bla", VLC_VAR_SETMINMAX, min, max );
-    var_Change( p_libvlc, "bla", VLC_VAR_SETSTEP, step );
+    var_Change( p_libvlc, "bla", VLC_VAR_SETMINMAX, &min, &max );
+    var_Change( p_libvlc, "bla", VLC_VAR_SETSTEP, &step, NULL );
 
     var_SetInteger( p_libvlc, "bla", 13 );
     assert( var_GetInteger( p_libvlc, "bla" ) == 13 );
@@ -378,11 +376,11 @@ static void test_change( libvlc_int_t *p_libvlc )
     assert( var_GetInteger( p_libvlc, "bla" ) == -26 );
 
     /* Test everything is right */
-    var_Change( p_libvlc, "bla", VLC_VAR_GETMIN, &val );
+    var_Change( p_libvlc, "bla", VLC_VAR_GETMIN, &val, NULL );
     assert( val.i_int == min.i_int );
-    var_Change( p_libvlc, "bla", VLC_VAR_GETMAX, &val );
+    var_Change( p_libvlc, "bla", VLC_VAR_GETMAX, &val, NULL );
     assert( val.i_int == max.i_int );
-    var_Change( p_libvlc, "bla", VLC_VAR_GETSTEP, &val );
+    var_Change( p_libvlc, "bla", VLC_VAR_GETSTEP, &val, NULL );
     assert( val.i_int == step.i_int );
 
     var_Destroy( p_libvlc, "bla" );
@@ -402,21 +400,21 @@ static void test_creation_and_type( libvlc_int_t *p_libvlc )
     assert( var_Create( p_libvlc, "bla", VLC_VAR_INTEGER | VLC_VAR_ISCOMMAND ) == VLC_SUCCESS );
     assert( var_Type( p_libvlc, "bla" ) == (VLC_VAR_INTEGER | VLC_VAR_ISCOMMAND) );
 
-    assert( var_Change( p_libvlc, "bla", VLC_VAR_GETMIN, &val ) != 0
+    assert( var_Change( p_libvlc, "bla", VLC_VAR_GETMIN, &val, NULL ) != 0
          || val.i_int == INT64_MIN );
-    assert( var_Change( p_libvlc, "bla", VLC_VAR_GETMAX, &val ) != 0
+    assert( var_Change( p_libvlc, "bla", VLC_VAR_GETMAX, &val, NULL ) != 0
          || val.i_int == INT64_MAX );
     val.i_int = 4212;
-    var_Change( p_libvlc, "bla", VLC_VAR_SETMINMAX, val, val );
-    assert( var_Change( p_libvlc, "bla", VLC_VAR_GETMIN, &val ) == 0
+    var_Change( p_libvlc, "bla", VLC_VAR_SETMINMAX, &val, &val );
+    assert( var_Change( p_libvlc, "bla", VLC_VAR_GETMIN, &val, NULL ) == 0
          && val.i_int == 4212 );
-    assert( var_Change( p_libvlc, "bla", VLC_VAR_GETMAX, &val ) == 0
+    assert( var_Change( p_libvlc, "bla", VLC_VAR_GETMAX, &val, NULL ) == 0
          && val.i_int == 4212 );
 
-    assert( var_Change( p_libvlc, "bla" , VLC_VAR_GETSTEP, &val ) != 0 );
+    assert( var_Change( p_libvlc, "bla" , VLC_VAR_GETSTEP, &val, NULL ) != 0 );
     val.i_int = 4212;
-    var_Change( p_libvlc, "bla", VLC_VAR_SETSTEP, val );
-    assert( var_Change( p_libvlc, "bla" , VLC_VAR_GETSTEP, &val ) == 0
+    var_Change( p_libvlc, "bla", VLC_VAR_SETSTEP, &val, NULL );
+    assert( var_Change( p_libvlc, "bla" , VLC_VAR_GETSTEP, &val, NULL ) == 0
          && val.i_int == 4212 );
 
     var_Destroy( p_libvlc, "bla" );
@@ -424,8 +422,8 @@ static void test_creation_and_type( libvlc_int_t *p_libvlc )
     var_Destroy( p_libvlc, "bla" );
     assert( var_Get( p_libvlc, "bla", &val ) == VLC_ENOVAR );
 
-    var_Create( p_libvlc, "program", VLC_VAR_INTEGER | VLC_VAR_DOINHERIT );
-    assert( var_Type( p_libvlc, "program" ) == (VLC_VAR_INTEGER) );
+    var_Create( p_libvlc, "bla", VLC_VAR_INTEGER | VLC_VAR_DOINHERIT );
+    assert( var_Type( p_libvlc, "bla" ) == (VLC_VAR_INTEGER) );
 
     assert( var_Create( p_libvlc, "bla", VLC_VAR_INTEGER | VLC_VAR_ISCOMMAND ) == VLC_SUCCESS );
     assert( var_Type( p_libvlc, "bla" ) == (VLC_VAR_INTEGER | VLC_VAR_ISCOMMAND) );

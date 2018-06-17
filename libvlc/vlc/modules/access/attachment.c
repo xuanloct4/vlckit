@@ -58,11 +58,11 @@ static ssize_t Read(stream_t *, void *, size_t);
 static int     Seek(stream_t *, uint64_t);
 static int     Control(stream_t *, int, va_list);
 
-typedef struct
+struct access_sys_t
 {
     input_attachment_t *attachment;
     size_t offset;
-} access_sys_t;
+};
 
 /* */
 static int Open(vlc_object_t *object)

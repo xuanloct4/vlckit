@@ -60,8 +60,7 @@ vlc_module_begin()
 vlc_module_end()
 
 static picture_pool_t *Pool (vout_display_t *vd, unsigned requested_count);
-static void PictureRender   (vout_display_t *vd, picture_t *pic, subpicture_t *subpicture,
-                             mtime_t date);
+static void PictureRender   (vout_display_t *vd, picture_t *pic, subpicture_t *subpicture);
 static void PictureDisplay  (vout_display_t *vd, picture_t *pic, subpicture_t *subpicture);
 static int Control          (vout_display_t *vd, int query, va_list ap);
 
@@ -122,7 +121,9 @@ static int Open (vlc_object_t *p_this)
 
     @autoreleasepool {
         id container = var_CreateGetAddress(vd, "drawable-nsobject");
-        if (!container) {
+        if (container)
+            vout_display_DeleteWindow(vd, NULL);
+        else {
             sys->embed = vout_display_NewWindow(vd, VOUT_WINDOW_TYPE_NSOBJECT);
             if (sys->embed)
                 container = sys->embed->handle.nsobject;
@@ -247,6 +248,9 @@ static void Close (vlc_object_t *p_this)
     if (sys->container)
         [sys->container release];
 
+    if (sys->embed)
+        vout_display_DeleteWindow(vd, sys->embed);
+
     if (sys->vgl != NULL && !OpenglLock(sys->gl)) {
         vout_display_opengl_Delete(sys->vgl);
         OpenglUnlock(sys->gl);
@@ -277,10 +281,8 @@ static picture_pool_t *Pool (vout_display_t *vd, unsigned count)
     return sys->pool;
 }
 
-static void PictureRender (vout_display_t *vd, picture_t *pic, subpicture_t *subpicture,
-                           mtime_t date)
+static void PictureRender (vout_display_t *vd, picture_t *pic, subpicture_t *subpicture)
 {
-    VLC_UNUSED(date);
     vout_display_sys_t *sys = vd->sys;
 
     if (pic == NULL) {

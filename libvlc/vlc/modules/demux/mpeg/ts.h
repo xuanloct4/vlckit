@@ -49,9 +49,6 @@ struct demux_sys_t
     stream_t   *stream;
     bool        b_canseek;
     bool        b_canfastseek;
-    int         current_title;
-    int         current_seekpoint;
-    unsigned    updates;
     vlc_mutex_t     csa_lock;
 
     /* TS packet size (188, 192, 204) */
@@ -122,7 +119,7 @@ struct demux_sys_t
 
     struct
     {
-        stime_t i_first_dts;     /* first dts encountered for the stream */
+        mtime_t i_first_dts;     /* first dts encountered for the stream */
         int     i_timesourcepid; /* which pid we saved the dts from */
         enum { PAT_WAITING = 0, PAT_MISSING, PAT_FIXTRIED } status; /* set if we haven't seen PAT within MIN_PAT_INTERVAL */
     } patfix;

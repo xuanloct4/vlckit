@@ -23,10 +23,10 @@
 #endif
 
 #include <assert.h>
-#include <stdatomic.h>
 #include <stdlib.h>
 
 #include <vlc_common.h>
+#include <vlc_atomic.h>
 #include <vlc_opengl.h>
 #include "libvlc.h"
 #include <vlc_modules.h>
@@ -70,16 +70,13 @@ vlc_gl_t *vlc_gl_Create(struct vout_window_t *wnd, unsigned flags,
     if (unlikely(glpriv == NULL))
         return NULL;
 
-    vlc_gl_t *gl = &glpriv->gl;
-    gl->surface = wnd;
-    gl->module = module_need(gl, type, name, true);
-    if (gl->module == NULL)
+    glpriv->gl.surface = wnd;
+    glpriv->gl.module = module_need(&glpriv->gl, type, name, true);
+    if (glpriv->gl.module == NULL)
     {
-        vlc_object_release(gl);
+        vlc_object_release(&glpriv->gl);
         return NULL;
     }
-    assert(gl->makeCurrent && gl->releaseCurrent && gl->swap
-        && gl->getProcAddress);
     atomic_init(&glpriv->ref_count, 1);
 
     return &glpriv->gl;
@@ -134,17 +131,12 @@ vlc_gl_t *vlc_gl_surface_Create(vlc_object_t *obj,
     sys->height = cfg->height;
     vlc_mutex_init(&sys->lock);
 
-    static const struct vout_window_callbacks cbs = {
+    vout_window_owner_t owner = {
+        .sys = sys,
         .resized = vlc_gl_surface_ResizeNotify,
     };
-    vout_window_owner_t owner = {
-        .cbs = &cbs,
-        .sys = sys,
-    };
-    char *modlist = var_InheritString(obj, "window");
 
-    vout_window_t *surface = vout_window_New(obj, modlist, cfg, &owner);
-    free(modlist);
+    vout_window_t *surface = vout_window_New(obj, "$window", cfg, &owner);
     if (surface == NULL)
         goto error;
     if (wp != NULL)
@@ -154,7 +146,7 @@ vlc_gl_t *vlc_gl_surface_Create(vlc_object_t *obj,
     vlc_gl_t *gl = vlc_gl_Create(surface, VLC_OPENGL, NULL);
     if (gl == NULL) {
         vout_window_Delete(surface);
-        goto error;
+        return NULL;
     }
 
     vlc_gl_Resize(gl, cfg->width, cfg->height);

@@ -59,7 +59,7 @@ typedef struct
     bool      b_displayed;
 } picture_dpb_t;
 
-typedef struct
+struct decoder_sys_t
 {
     /*
      * libmpeg2 properties
@@ -103,7 +103,7 @@ typedef struct
 #endif
     uint8_t        *p_gop_user_data;
     uint32_t        i_gop_user_data;
-} decoder_sys_t;
+};
 
 /*****************************************************************************
  * Local prototypes

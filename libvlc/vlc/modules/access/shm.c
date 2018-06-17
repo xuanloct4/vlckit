@@ -84,7 +84,7 @@ vlc_module_begin ()
     set_description (N_("Shared memory framebuffer"))
     set_category (CAT_INPUT)
     set_subcategory (SUBCAT_INPUT_ACCESS)
-    set_capability ("access", 0)
+    set_capability ("access_demux", 0)
     set_callbacks (Open, Close)
 
     add_float ("shm-fps", 10.0, FPS_TEXT, FPS_LONGTEXT, true)
@@ -109,8 +109,6 @@ vlc_module_begin ()
 #endif
     add_shortcut ("shm")
 vlc_module_end ()
-
-typedef struct demux_sys_t demux_sys_t;
 
 static int Control (demux_t *, int, va_list);
 static void DemuxFile (void *);
@@ -140,9 +138,6 @@ struct demux_sys_t
 static int Open (vlc_object_t *obj)
 {
     demux_t *demux = (demux_t *)obj;
-    if (demux->out == NULL)
-        return VLC_EGENERIC;
-
     demux_sys_t *sys = vlc_obj_malloc(obj, sizeof (*sys));
     if (unlikely(sys == NULL))
         return VLC_ENOMEM;

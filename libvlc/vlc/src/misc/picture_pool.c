@@ -27,11 +27,11 @@
 #endif
 #include <assert.h>
 #include <limits.h>
-#include <stdatomic.h>
 #include <stdlib.h>
 
 #include <vlc_common.h>
 #include <vlc_picture_pool.h>
+#include <vlc_atomic.h>
 #include "picture.h"
 
 #define POOL_MAX (CHAR_BIT * sizeof (unsigned long long))
@@ -201,34 +201,39 @@ error:
     return NULL;
 }
 
+/** Find next (bit) set */
+static int fnsll(unsigned long long x, unsigned i)
+{
+    if (i >= CHAR_BIT * sizeof (x))
+        return 0;
+    return ffsll(x & ~((1ULL << i) - 1));
+}
+
 picture_t *picture_pool_Get(picture_pool_t *pool)
 {
-    unsigned long long available;
-
     vlc_mutex_lock(&pool->lock);
     assert(pool->refs > 0);
-    available = pool->available;
 
-    while (available != 0)
+    if (pool->canceled)
     {
-        int i = ctz(available);
-
-        if (unlikely(pool->canceled))
-            break;
-
-        pool->available &= ~(1ULL << i);
         vlc_mutex_unlock(&pool->lock);
-        available &= ~(1ULL << i);
+        return NULL;
+    }
 
-        picture_t *picture = pool->picture[i];
+    for (unsigned i = ffsll(pool->available); i; i = fnsll(pool->available, i))
+    {
+        pool->available &= ~(1ULL << (i - 1));
+        vlc_mutex_unlock(&pool->lock);
+
+        picture_t *picture = pool->picture[i - 1];
 
         if (pool->pic_lock != NULL && pool->pic_lock(picture) != VLC_SUCCESS) {
             vlc_mutex_lock(&pool->lock);
-            pool->available |= 1ULL << i;
+            pool->available |= 1ULL << (i - 1);
             continue;
         }
 
-        picture_t *clone = picture_pool_ClonePicture(pool, i);
+        picture_t *clone = picture_pool_ClonePicture(pool, i - 1);
         if (clone != NULL) {
             assert(clone->p_next == NULL);
             atomic_fetch_add(&pool->refs, 1);
@@ -242,6 +247,8 @@ picture_t *picture_pool_Get(picture_pool_t *pool)
 
 picture_t *picture_pool_Wait(picture_pool_t *pool)
 {
+    unsigned i;
+
     vlc_mutex_lock(&pool->lock);
     assert(pool->refs > 0);
 
@@ -255,21 +262,22 @@ picture_t *picture_pool_Wait(picture_pool_t *pool)
         vlc_cond_wait(&pool->wait, &pool->lock);
     }
 
-    int i = ctz(pool->available);
-    pool->available &= ~(1ULL << i);
+    i = ffsll(pool->available);
+    assert(i > 0);
+    pool->available &= ~(1ULL << (i - 1));
     vlc_mutex_unlock(&pool->lock);
 
-    picture_t *picture = pool->picture[i];
+    picture_t *picture = pool->picture[i - 1];
 
     if (pool->pic_lock != NULL && pool->pic_lock(picture) != VLC_SUCCESS) {
         vlc_mutex_lock(&pool->lock);
-        pool->available |= 1ULL << i;
+        pool->available |= 1ULL << (i - 1);
         vlc_cond_signal(&pool->wait);
         vlc_mutex_unlock(&pool->lock);
         return NULL;
     }
 
-    picture_t *clone = picture_pool_ClonePicture(pool, i);
+    picture_t *clone = picture_pool_ClonePicture(pool, i - 1);
     if (clone != NULL) {
         assert(clone->p_next == NULL);
         atomic_fetch_add(&pool->refs, 1);

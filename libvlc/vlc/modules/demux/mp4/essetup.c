@@ -52,7 +52,6 @@ static void SetupGlobalExtensions( mp4_track_t *p_track, MP4_Box_t *p_sample )
 static void SetupESDS( demux_t *p_demux, mp4_track_t *p_track, const MP4_descriptor_decoder_config_t *p_decconfig )
 {
     /* First update information based on i_objectTypeIndication */
-    /* See 14496-1 and http://www.mp4ra.org/object.html */
     switch( p_decconfig->i_objectProfileIndication )
     {
     case( 0x20 ): /* MPEG4 VIDEO */
@@ -1296,23 +1295,38 @@ int SetupSpuES( demux_t *p_demux, mp4_track_t *p_track, MP4_Box_t *p_sample )
             if(!p_text)
                 return 0;
 
-            if( p_sample->i_type == VLC_FOURCC( 't', 'e', 'x', 't' ) )
-                p_track->fmt.i_codec = VLC_CODEC_QTXT;
-            else
-                p_track->fmt.i_codec = VLC_CODEC_TX3G;
+            p_track->fmt.i_codec = VLC_CODEC_TX3G;
 
-            if( GetDWBE(p_text->p_data) & 0xC0000000 )
+            if( p_text->i_display_flags & 0xC0000000 )
             {
                 p_track->fmt.i_priority = ES_PRIORITY_SELECTABLE_MIN + 1;
                 p_track->b_forced_spu = true;
             }
 
-            p_track->fmt.p_extra = malloc( p_text->i_data );
-            if( p_track->fmt.p_extra )
+            text_style_t *p_style = text_style_Create( STYLE_NO_DEFAULTS );
+            if ( p_style )
             {
-                memcpy( p_track->fmt.p_extra, p_text->p_data, p_text->i_data );
-                p_track->fmt.i_extra = p_text->i_data;
+                if ( p_text->i_font_size ) /* !WARN: in % of 5% height */
+                {
+                    p_style->i_font_size = p_text->i_font_size;
+                }
+                if ( p_text->i_font_color )
+                {
+                    p_style->i_font_color = p_text->i_font_color >> 8;
+                    p_style->i_font_alpha = p_text->i_font_color & 0xFF;
+                    p_style->i_features |= (STYLE_HAS_FONT_ALPHA | STYLE_HAS_FONT_COLOR);
+                }
+                if ( p_text->i_background_color[3] >> 8 )
+                {
+                    p_style->i_background_color = p_text->i_background_color[0] >> 8;
+                    p_style->i_background_color |= p_text->i_background_color[1] >> 8;
+                    p_style->i_background_color |= p_text->i_background_color[2] >> 8;
+                    p_style->i_background_alpha = p_text->i_background_color[3] >> 8;
+                    p_style->i_features |= (STYLE_HAS_BACKGROUND_ALPHA | STYLE_HAS_BACKGROUND_COLOR);
+                }
             }
+            assert(p_track->fmt.i_cat == SPU_ES);
+            p_track->fmt.subs.p_style = p_style;
 
             /* FIXME UTF-8 doesn't work here ? */
             if( p_track->b_mac_encoding )

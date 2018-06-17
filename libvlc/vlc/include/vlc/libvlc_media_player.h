@@ -587,6 +587,19 @@ LIBVLC_API void libvlc_media_player_set_android_context( libvlc_media_player_t *
                                                          void *p_awindow_handler );
 
 /**
+ * Set the EFL Evas Object.
+ *
+ * \version LibVLC 3.0.0 and later.
+ *
+ * \param p_mi the media player
+ * \param p_evas_object a valid EFL Evas Object (Evas_Object)
+ * \return -1 if an error was detected, 0 otherwise.
+ */
+LIBVLC_API int libvlc_media_player_set_evas_object( libvlc_media_player_t *p_mi,
+                                                    void *p_evas_object );
+
+
+/**
  * Callback prototype for audio playback.
  *
  * The LibVLC media player decodes and post-processes the audio signal
@@ -1406,13 +1419,13 @@ int libvlc_video_take_snapshot( libvlc_media_player_t *p_mi, unsigned num,
  * Enable or disable deinterlace filter
  *
  * \param p_mi libvlc media player
- * \param deinterlace state -1: auto (default), 0: disabled, 1: enabled
+ * \param deinterlace deinterlace mode -1:auto (default), 0: disabled, 1: enabled
  * \param psz_mode type of deinterlace filter, NULL for current/default filter
  * \version LibVLC 4.0.0 and later
  */
 LIBVLC_API void libvlc_video_set_deinterlace( libvlc_media_player_t *p_mi,
-                                              int deinterlace,
-                                              const char *psz_mode );
+                                                  int deinterlace,
+                                                  const char *psz_mode );
 
 /**
  * Get an integer marquee option value
@@ -1556,6 +1569,32 @@ LIBVLC_API float libvlc_video_get_adjust_float( libvlc_media_player_t *p_mi,
  */
 LIBVLC_API void libvlc_video_set_adjust_float( libvlc_media_player_t *p_mi,
                                                    unsigned option, float value );
+
+enum libvlc_video_textrenderer_option_t {
+    libvlc_textrender_font = 0,
+    libvlc_textrender_fontsize,
+    libvlc_textrender_fontcolor,
+    libvlc_textrender_fontforcebold,
+};
+
+LIBVLC_API bool libvlc_video_get_textrenderer_bool( libvlc_media_player_t *p_mi,
+                                                    unsigned option );
+
+LIBVLC_API void libvlc_video_set_textrenderer_bool( libvlc_media_player_t *p_mi,
+                                                    unsigned option, bool value );
+
+LIBVLC_API int libvlc_video_get_textrenderer_int( libvlc_media_player_t *p_mi,
+                                                  unsigned option );
+
+LIBVLC_API void libvlc_video_set_textrenderer_int( libvlc_media_player_t *p_mi,
+                                                   unsigned option, int value );
+
+LIBVLC_API char *libvlc_video_get_textrenderer_string( libvlc_media_player_t *p_mi,
+                                                       unsigned option );
+
+LIBVLC_API void libvlc_video_set_textrenderer_string( libvlc_media_player_t *p_mi,
+                                                      unsigned option,
+                                                      const char *psz_text );
 
 /** @} video */
 

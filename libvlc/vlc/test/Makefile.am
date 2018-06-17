@@ -30,7 +30,6 @@ check_PROGRAMS = \
 	test_src_misc_bits \
 	test_src_misc_epg \
 	test_src_misc_keystore \
-	test_modules_packetizer_helpers \
 	test_modules_packetizer_hxxx \
 	test_modules_keystore
 if ENABLE_SOUT
@@ -124,8 +123,6 @@ test_src_misc_keystore_SOURCES = src/misc/keystore.c
 test_src_misc_keystore_LDADD = $(LIBVLCCORE) $(LIBVLC)
 test_src_interface_dialog_SOURCES = src/interface/dialog.c
 test_src_interface_dialog_LDADD = $(LIBVLCCORE) $(LIBVLC)
-test_modules_packetizer_helpers_SOURCES = modules/packetizer/helpers.c
-test_modules_packetizer_helpers_LDADD = $(LIBVLCCORE) $(LIBVLC)
 test_modules_packetizer_hxxx_SOURCES = modules/packetizer/hxxx.c
 test_modules_packetizer_hxxx_LDADD = $(LIBVLCCORE) $(LIBVLC)
 test_modules_keystore_SOURCES = modules/keystore/test.c
@@ -160,10 +157,12 @@ libvlc_demux_run_la_LIBADD += \
 	../modules/libau_plugin.la \
 	../modules/libavi_plugin.la \
 	../modules/libcaf_plugin.la \
+	../modules/libdiracsys_plugin.la \
 	../modules/libes_plugin.la \
 	../modules/libflacsys_plugin.la \
 	../modules/libh26x_plugin.la \
 	../modules/libmjpeg_plugin.la \
+	../modules/libmkv_plugin.la \
 	../modules/libmp4_plugin.la \
 	../modules/libnsc_plugin.la \
 	../modules/libnsv_plugin.la \
@@ -183,6 +182,7 @@ libvlc_demux_run_la_LIBADD += \
 	../modules/libpacketizer_a52_plugin.la \
 	../modules/libpacketizer_copy_plugin.la \
 	../modules/libpacketizer_dts_plugin.la \
+	../modules/libpacketizer_dirac_plugin.la \
 	../modules/libpacketizer_flac_plugin.la \
 	../modules/libpacketizer_h264_plugin.la \
 	../modules/libpacketizer_hevc_plugin.la \
@@ -196,15 +196,10 @@ libvlc_demux_run_la_LIBADD += \
 	../modules/librawvid_plugin.la \
 	../modules/libfilesystem_plugin.la \
 	../modules/libxml_plugin.la \
-	../modules/libogg_plugin.la \
 	-lstdc++
 if HAVE_DVBPSI
 libvlc_demux_run_la_CPPFLAGS += -DHAVE_DVBPSI
 libvlc_demux_run_la_LIBADD += ../modules/libts_plugin.la
-endif
-if HAVE_MATROSKA
-libvlc_demux_run_la_CPPFLAGS += -DHAVE_MATROSKA
-libvlc_demux_run_la_LIBADD += ../modules/libmkv_plugin.la
 endif
 endif
 EXTRA_LTLIBRARIES = libvlc_demux_run.la

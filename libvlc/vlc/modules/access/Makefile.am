@@ -157,7 +157,6 @@ endif
 
 libdshow_plugin_la_SOURCES = access/dshow/vlc_dshow.h access/dshow/dshow.cpp access/dshow/access.h \
 	access/dshow/filter.cpp access/dshow/filter.h access/dshow/crossbar.cpp ../src/win32/mta_holder.h
-libdshow_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) -DSTRSAFE_NO_DEPRECATE
 libdshow_plugin_la_LIBADD = $(LIBCOM) -loleaut32 -luuid -lstrmiids -lksuser
 if HAVE_WIN32_DESKTOP
 access_LTLIBRARIES += libdshow_plugin.la
@@ -172,21 +171,6 @@ libxcb_screen_plugin_la_CFLAGS = $(AM_CFLAGS) \
 libxcb_screen_plugin_la_LIBADD = $(XCB_LIBS) $(XCB_COMPOSITE_LIBS) $(XCB_SHM_LIBS)
 if HAVE_XCB
 access_LTLIBRARIES += libxcb_screen_plugin.la
-endif
-
-libwl_screenshooter_plugin_la_SOURCES = \
-	access/screen/wayland.c
-nodist_libwl_screenshooter_plugin_la_SOURCES = \
-	access/screen/screenshooter-protocol.c
-libwl_screenshooter_plugin_la_CPPFLAGS = $(AM_CPPFLAGS) -Iaccess/screen
-libwl_screenshooter_plugin_la_CFLAGS = $(WAYLAND_CLIENT_CFLAGS)
-libwl_screenshooter_plugin_la_LIBADD = $(WAYLAND_CLIENT_LIBS) \
-	$(LIBPTHREAD) $(LIBM)
-EXTRA_DIST += access/screen/screenshooter.xml
-CLEANFILES += $(nodist_libwl_screenshooter_plugin_la_SOURCES)
-if HAVE_WAYLAND
-BUILT_SOURCES += access/screen/screenshooter-client-protocol.h
-access_LTLIBRARIES += libwl_screenshooter_plugin.la
 endif
 
 libscreen_plugin_la_SOURCES = access/screen/screen.c access/screen/screen.h
@@ -341,12 +325,15 @@ libaccess_mms_plugin_la_CFLAGS = $(AM_CFLAGS)
 libaccess_mms_plugin_la_LIBADD = $(SOCKET_LIBS)
 access_LTLIBRARIES += libaccess_mms_plugin.la
 
-libsmbc_plugin_la_SOURCES = access/samba.c access/smb_common.h
-libsmbc_plugin_la_CFLAGS = $(AM_CFLAGS) $(SMBCLIENT_CFLAGS)
-libsmbc_plugin_la_LIBADD = $(SMBCLIENT_LIBS)
-libsmbc_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(accessdir)'
-access_LTLIBRARIES += $(LTLIBsmbc)
-EXTRA_LTLIBRARIES += libsmbc_plugin.la
+libsmb_plugin_la_SOURCES = access/smb.c access/smb_common.h
+libsmb_plugin_la_CFLAGS = $(AM_CFLAGS) $(SMBCLIENT_CFLAGS)
+libsmb_plugin_la_LIBADD = $(SMBCLIENT_LIBS)
+if HAVE_WIN32
+libsmb_plugin_la_LIBADD += -lmpr -lnetapi32
+endif
+libsmb_plugin_la_LDFLAGS = $(AM_LDFLAGS) -rpath '$(accessdir)'
+access_LTLIBRARIES += $(LTLIBsmb)
+EXTRA_LTLIBRARIES += libsmb_plugin.la
 
 libdsm_plugin_la_SOURCES = access/dsm/access.c access/dsm/sd.c access/smb_common.h
 libdsm_plugin_la_CFLAGS = $(AM_CFLAGS) $(DSM_CFLAGS)
@@ -362,14 +349,6 @@ access_LTLIBRARIES += libtcp_plugin.la
 libudp_plugin_la_SOURCES = access/udp.c
 libudp_plugin_la_LIBADD = $(SOCKET_LIBS) $(LIBPTHREAD)
 access_LTLIBRARIES += libudp_plugin.la
-
-libunc_plugin_la_SOURCES = access/unc.c access/smb_common.h
-libunc_plugin_la_LIBADD = -lmpr -lnetapi32
-if HAVE_WIN32
-if !HAVE_WINSTORE
-access_LTLIBRARIES += libunc_plugin.la
-endif
-endif
 
 libsftp_plugin_la_SOURCES = access/sftp.c
 libsftp_plugin_la_CFLAGS = $(AM_CFLAGS) $(SFTP_CFLAGS)

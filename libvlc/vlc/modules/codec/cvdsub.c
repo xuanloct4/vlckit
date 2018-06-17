@@ -72,7 +72,7 @@ static void RenderImage( decoder_t *, block_t *, subpicture_region_t * );
 #define SUBTITLE_BLOCK_PARTIAL 1
 #define SUBTITLE_BLOCK_COMPLETE 2
 
-typedef struct
+struct decoder_sys_t
 {
   int      b_packetizer;
 
@@ -100,7 +100,7 @@ typedef struct
 
   uint8_t p_palette[4][4];       /* Palette of colors used in subtitle */
   uint8_t p_palette_highlight[4][4];
-} decoder_sys_t;
+};
 
 /*****************************************************************************
  * DecoderOpen: open/initialize the cvdsub decoder.
@@ -139,10 +139,8 @@ static int PacketizerOpen( vlc_object_t *p_this )
 
     if( DecoderOpen( p_this ) != VLC_SUCCESS ) return VLC_EGENERIC;
 
-    decoder_sys_t *p_sys = p_dec->p_sys;
-
     p_dec->fmt_out.i_codec = VLC_CODEC_CVD;
-    p_sys->b_packetizer = true;
+    p_dec->p_sys->b_packetizer = true;
 
     return VLC_SUCCESS;
 }
@@ -238,7 +236,7 @@ static block_t *Reassemble( decoder_t *p_dec, block_t *p_block )
      * to detect the first packet in a subtitle.  The first packet
      * seems to have a valid PTS while later packets for the same
      * image don't. */
-    if( p_sys->i_state == SUBTITLE_BLOCK_EMPTY && p_block->i_pts == VLC_TS_INVALID )
+    if( p_sys->i_state == SUBTITLE_BLOCK_EMPTY && p_block->i_pts <= VLC_TS_INVALID )
     {
         msg_Warn( p_dec, "first packet expected but no PTS present");
         return NULL;

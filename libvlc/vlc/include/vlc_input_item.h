@@ -33,7 +33,6 @@
 #include <vlc_meta.h>
 #include <vlc_epg.h>
 #include <vlc_events.h>
-#include <vlc_list.h>
 
 #include <string.h>
 
@@ -44,15 +43,13 @@ struct info_t
 {
     char *psz_name;            /**< Name of this info */
     char *psz_value;           /**< Value of the info */
-    struct vlc_list node;
 };
-
-#define info_foreach(info, cat) vlc_list_foreach(info, cat, node)
 
 struct info_category_t
 {
     char   *psz_name;      /**< Name of this category */
-    struct vlc_list infos; /**< Infos in the category */
+    int    i_infos;        /**< Number of infos in the category */
+    struct info_t **pp_infos;     /**< Pointer to an array of infos */
 };
 
 /**
@@ -334,10 +331,10 @@ VLC_API input_item_t * input_item_NewExt( const char *psz_uri,
                                           enum input_item_net_type i_net ) VLC_USED;
 
 #define input_item_New( psz_uri, psz_name ) \
-    input_item_NewExt( psz_uri, psz_name, VLC_TS_INVALID, ITEM_TYPE_UNKNOWN, ITEM_NET_UNKNOWN )
+    input_item_NewExt( psz_uri, psz_name, -1, ITEM_TYPE_UNKNOWN, ITEM_NET_UNKNOWN )
 
 #define input_item_NewCard( psz_uri, psz_name ) \
-    input_item_NewExt( psz_uri, psz_name, VLC_TS_INVALID, ITEM_TYPE_CARD, ITEM_LOCAL )
+    input_item_NewExt( psz_uri, psz_name, -1, ITEM_TYPE_CARD, ITEM_LOCAL )
 
 #define input_item_NewDisc( psz_uri, psz_name, i_duration ) \
     input_item_NewExt( psz_uri, psz_name, i_duration, ITEM_TYPE_DISC, ITEM_LOCAL )
@@ -346,7 +343,7 @@ VLC_API input_item_t * input_item_NewExt( const char *psz_uri,
     input_item_NewExt( psz_uri, psz_name, i_duration, ITEM_TYPE_STREAM, ITEM_NET )
 
 #define input_item_NewDirectory( psz_uri, psz_name, i_net ) \
-    input_item_NewExt( psz_uri, psz_name, VLC_TS_INVALID, ITEM_TYPE_DIRECTORY, i_net )
+    input_item_NewExt( psz_uri, psz_name, -1, ITEM_TYPE_DIRECTORY, i_net )
 
 #define input_item_NewFile( psz_uri, psz_name, i_duration, i_net ) \
     input_item_NewExt( psz_uri, psz_name, i_duration, ITEM_TYPE_FILE, i_net )
@@ -392,15 +389,19 @@ VLC_API void libvlc_MetadataCancel( libvlc_int_t *, void * );
  ******************/
 struct input_stats_t
 {
+    vlc_mutex_t         lock;
+
     /* Input */
     int64_t i_read_packets;
     int64_t i_read_bytes;
     float f_input_bitrate;
+    float f_average_input_bitrate;
 
     /* Demux */
     int64_t i_demux_read_packets;
     int64_t i_demux_read_bytes;
     float f_demux_bitrate;
+    float f_average_demux_bitrate;
     int64_t i_demux_corrupted;
     int64_t i_demux_discontinuity;
 
@@ -411,6 +412,11 @@ struct input_stats_t
     /* Vout */
     int64_t i_displayed_pictures;
     int64_t i_lost_pictures;
+
+    /* Sout */
+    int64_t i_sent_packets;
+    int64_t i_sent_bytes;
+    float f_send_bitrate;
 
     /* Aout */
     int64_t i_played_abuffers;

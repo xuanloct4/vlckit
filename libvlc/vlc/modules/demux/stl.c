@@ -58,18 +58,17 @@ typedef struct {
     size_t  count;
 } stl_entry_t;
 
-typedef struct
-{
+struct demux_sys_t {
     size_t      count;
     stl_entry_t *index;
 
     es_out_id_t *es;
 
     size_t      current;
-    mtime_t     next_date;
+    int64_t     next_date;
     bool        b_slave;
     bool        b_first_time;
-} demux_sys_t;
+};
 
 static size_t ParseInteger(uint8_t *data, size_t size)
 {
@@ -82,10 +81,10 @@ static size_t ParseInteger(uint8_t *data, size_t size)
 }
 static int64_t ParseTimeCode(uint8_t *data, double fps)
 {
-    return CLOCK_FREQ * (data[0] * 3600 +
-                         data[1] *   60 +
-                         data[2] *    1 +
-                         data[3] /  fps);
+    return INT64_C(1000000) * (data[0] * 3600 +
+                               data[1] *   60 +
+                               data[2] *    1 +
+                               data[3] /  fps);
 }
 static int64_t ParseTextTimeCode(uint8_t *data, double fps)
 {
@@ -115,7 +114,7 @@ static int Control(demux_t *demux, int query, va_list args)
     }
     case DEMUX_SET_NEXT_DEMUX_TIME: {
         sys->b_slave = true;
-        sys->next_date = va_arg(args, mtime_t);
+        sys->next_date = va_arg(args, int64_t);
         return VLC_SUCCESS;
     }
     case DEMUX_SET_TIME: {
@@ -163,12 +162,6 @@ static int Control(demux_t *demux, int query, va_list args)
         }
         return VLC_SUCCESS;
     }
-    case DEMUX_CAN_PAUSE:
-    case DEMUX_SET_PAUSE_STATE:
-    case DEMUX_CAN_CONTROL_PACE:
-    case DEMUX_GET_PTS_DELAY: {
-        return demux_vaControlHelper( demux->s, 0, -1, 0, 1, query, args );
-    }
     default:
         break;
     }
@@ -179,7 +172,7 @@ static int Demux(demux_t *demux)
 {
     demux_sys_t *sys = demux->p_sys;
 
-    mtime_t i_barrier = sys->next_date - var_GetInteger(demux->obj.parent, "spu-delay");
+    int64_t i_barrier = sys->next_date - var_GetInteger(demux->obj.parent, "spu-delay");
     if(i_barrier < 0)
         i_barrier = sys->next_date;
 

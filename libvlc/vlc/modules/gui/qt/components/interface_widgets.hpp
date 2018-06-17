@@ -47,7 +47,6 @@
 
 class QMenu;
 class QSlider;
-class QTimer;
 class QWidgetAction;
 class SpeedControlWidget;
 struct vout_window_t;
@@ -85,20 +84,14 @@ private:
 
     QWidget *stable;
     QLayout *layout;
-    QTimer *cursorTimer;
-    int cursorTimeout;
 
     void reportSize();
-    void showCursor();
 
 signals:
     void sizeChanged( int, int );
 
 public slots:
     void setSize( unsigned int, unsigned int );
-
-private slots:
-    void hideCursor();
 };
 
 /******************** Background Widget ****************/

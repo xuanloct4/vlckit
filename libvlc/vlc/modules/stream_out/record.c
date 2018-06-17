@@ -75,11 +75,11 @@ static const char *const ppsz_sout_options[] = {
 };
 
 /* */
-static void *Add( sout_stream_t *, const es_format_t * );
-static void  Del( sout_stream_t *, void * );
-static int   Send( sout_stream_t *, void *, block_t * );
+static sout_stream_id_sys_t *Add( sout_stream_t *, const es_format_t * );
+static void              Del ( sout_stream_t *, sout_stream_id_sys_t * );
+static int               Send( sout_stream_t *, sout_stream_id_sys_t *, block_t* );
 
-typedef struct sout_stream_id_sys_t sout_stream_id_sys_t;
+/* */
 struct sout_stream_id_sys_t
 {
     es_format_t fmt;
@@ -93,7 +93,7 @@ struct sout_stream_id_sys_t
     bool b_wait_start;
 };
 
-typedef struct
+struct sout_stream_sys_t
 {
     char *psz_prefix;
 
@@ -110,7 +110,7 @@ typedef struct
     int              i_id;
     sout_stream_id_sys_t **id;
     mtime_t     i_dts_start;
-} sout_stream_sys_t;
+};
 
 static void OutputStart( sout_stream_t *p_stream );
 static void OutputSend( sout_stream_t *p_stream, sout_stream_id_sys_t *id, block_t * );
@@ -180,7 +180,7 @@ static void Close( vlc_object_t * p_this )
 /*****************************************************************************
  *
  *****************************************************************************/
-static void *Add( sout_stream_t *p_stream, const es_format_t *p_fmt )
+static sout_stream_id_sys_t *Add( sout_stream_t *p_stream, const es_format_t *p_fmt )
 {
     sout_stream_sys_t *p_sys = p_stream->p_sys;
     sout_stream_id_sys_t *id;
@@ -201,10 +201,9 @@ static void *Add( sout_stream_t *p_stream, const es_format_t *p_fmt )
     return id;
 }
 
-static void Del( sout_stream_t *p_stream, void *_id )
+static void Del( sout_stream_t *p_stream, sout_stream_id_sys_t *id )
 {
     sout_stream_sys_t *p_sys = p_stream->p_sys;
-    sout_stream_id_sys_t *id = (sout_stream_id_sys_t *)_id;
 
     if( !p_sys->p_out )
         OutputStart( p_stream );
@@ -229,7 +228,8 @@ static void Del( sout_stream_t *p_stream, void *_id )
     free( id );
 }
 
-static int Send( sout_stream_t *p_stream, void *id, block_t *p_buffer )
+static int Send( sout_stream_t *p_stream, sout_stream_id_sys_t *id,
+                 block_t *p_buffer )
 {
     sout_stream_sys_t *p_sys = p_stream->p_sys;
 
@@ -240,7 +240,7 @@ static int Send( sout_stream_t *p_stream, void *id, block_t *p_buffer )
           p_sys->i_size > p_sys->i_max_size ) )
     {
         msg_Dbg( p_stream, "Starting recording, waited %ds and %dbyte",
-                 (int)((mdate() - p_sys->i_date_start)/CLOCK_FREQ), (int)p_sys->i_size );
+                 (int)((mdate() - p_sys->i_date_start)/1000000), (int)p_sys->i_size );
         OutputStart( p_stream );
     }
 

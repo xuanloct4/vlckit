@@ -54,16 +54,23 @@ int vout_OpenWrapper(vout_thread_t *vout,
     msg_Dbg(vout, "Opening vout display wrapper");
 
     /* */
-    char *modlist = var_InheritString(vout, "vout");
+    sys->display.title = var_InheritString(vout, "video-title");
 
-    if (splitter_name)
-        sys->display.vd = vout_NewSplitter(vout, &vout->p->original, state, modlist, splitter_name);
-    else
-        sys->display.vd = vout_NewDisplay(vout, &vout->p->original, state, modlist);
-    free(modlist);
+    /* */
+    const mtime_t double_click_timeout = 300000;
+    const mtime_t hide_timeout = var_CreateGetInteger(vout, "mouse-hide-timeout") * 1000;
 
-    if (!sys->display.vd)
+    if (splitter_name) {
+        sys->display.vd = vout_NewSplitter(vout, &vout->p->original, state, "$vout", splitter_name,
+                                           double_click_timeout, hide_timeout);
+    } else {
+        sys->display.vd = vout_NewDisplay(vout, &vout->p->original, state, "$vout",
+                                          double_click_timeout, hide_timeout);
+    }
+    if (!sys->display.vd) {
+        free(sys->display.title);
         return VLC_EGENERIC;
+    }
 
     /* */
 #ifdef _WIN32
@@ -90,6 +97,7 @@ void vout_CloseWrapper(vout_thread_t *vout, vout_display_state_t *state)
     sys->decoder_pool = NULL; /* FIXME remove */
 
     vout_DeleteDisplay(sys->display.vd, state);
+    free(sys->display.title);
 }
 
 /*****************************************************************************

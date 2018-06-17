@@ -94,7 +94,7 @@ vlc_module_begin ()
         ANGLE_LONGTEXT, false )
     add_bool( "dvdnav-menu", true,
         MENU_TEXT, MENU_LONGTEXT, false )
-    set_capability( "access", 305 )
+    set_capability( "access_demux", 5 )
     add_shortcut( "dvd", "dvdnav", "file" )
     set_callbacks( AccessDemuxOpen, Close )
 #ifdef HAVE_DVDNAV_DEMUX
@@ -120,7 +120,7 @@ vlc_module_end ()
 /*****************************************************************************
  * Local prototypes
  *****************************************************************************/
-typedef struct
+struct demux_sys_t
 {
     dvdnav_t    *dvdnav;
 
@@ -159,13 +159,12 @@ typedef struct
     input_title_t **title;
     int           cur_title;
     int           cur_seekpoint;
-    unsigned      updates;
 
     /* length of program group chain */
     mtime_t     i_pgc_length;
     int         i_vobu_index;
     int         i_vobu_flush;
-} demux_sys_t;
+};
 
 static int Control( demux_t *, int, va_list );
 static int Demux( demux_t * );
@@ -349,13 +348,10 @@ static int AccessDemuxOpen ( vlc_object_t *p_this )
     int i_ret = VLC_EGENERIC;
     bool forced = false;
 
-    if (p_demux->out == NULL)
-        return VLC_EGENERIC;
-
-    if( !strncasecmp(p_demux->psz_url, "dvd", 3) )
+    if( !strncmp(p_demux->psz_access, "dvd", 3) )
         forced = true;
 
-    if( !p_demux->psz_filepath || !*p_demux->psz_filepath )
+    if( !p_demux->psz_file || !*p_demux->psz_file )
     {
         /* Only when selected */
         if( !forced )
@@ -364,7 +360,7 @@ static int AccessDemuxOpen ( vlc_object_t *p_this )
         psz_file = var_InheritString( p_this, "dvd" );
     }
     else
-        psz_file = strdup( p_demux->psz_filepath );
+        psz_file = strdup( p_demux->psz_file );
 
 #if defined( _WIN32 ) || defined( __OS2__ )
     if( psz_file != NULL )
@@ -463,7 +459,8 @@ static int DemuxOpen ( vlc_object_t *p_this )
     dvdnav_t *p_dvdnav = NULL;
     bool forced = false, b_seekable = false;
 
-    if( p_demux->psz_name != NULL && !strncmp(p_demux->psz_name, "dvd", 3) )
+    if( p_demux->psz_demux != NULL
+     && !strncmp(p_demux->psz_demux, "dvd", 3) )
         forced = true;
 
     /* StreamProbeDVD need FASTSEEK, but if dvd is forced, we don't probe thus
@@ -649,7 +646,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
                 }
             }
 
-            p_sys->updates |= INPUT_UPDATE_TITLE | INPUT_UPDATE_SEEKPOINT;
+            p_demux->info.i_update |=
+                INPUT_UPDATE_TITLE | INPUT_UPDATE_SEEKPOINT;
             p_sys->cur_title = i;
             p_sys->cur_seekpoint = 0;
             return VLC_SUCCESS;
@@ -678,17 +676,9 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
                 msg_Warn( p_demux, "cannot set title/chapter" );
                 return VLC_EGENERIC;
             }
-            p_sys->updates |= INPUT_UPDATE_SEEKPOINT;
+            p_demux->info.i_update |= INPUT_UPDATE_SEEKPOINT;
             p_sys->cur_seekpoint = i;
             return VLC_SUCCESS;
-
-        case DEMUX_TEST_AND_CLEAR_FLAGS:
-        {
-            unsigned *restrict flags = va_arg(args, unsigned *);
-            *flags &= p_sys->updates;
-            p_sys->updates &= ~*flags;
-            break;
-        }
 
         case DEMUX_GET_TITLE:
             *va_arg( args, int * ) = p_sys->cur_title;
@@ -776,7 +766,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
                     return VLC_EGENERIC;
                 }
             }
-            p_sys->updates |= INPUT_UPDATE_TITLE | INPUT_UPDATE_SEEKPOINT;
+            p_demux->info.i_update |=
+                INPUT_UPDATE_TITLE | INPUT_UPDATE_SEEKPOINT;
             p_sys->cur_title = 0;
             p_sys->cur_seekpoint = 2;
             break;
@@ -993,7 +984,7 @@ static int Demux( demux_t *p_demux )
             if( i_title >= 0 && i_title < p_sys->i_title &&
                 p_sys->cur_title != i_title )
             {
-                p_sys->updates |= INPUT_UPDATE_TITLE;
+                p_demux->info.i_update |= INPUT_UPDATE_TITLE;
                 p_sys->cur_title = i_title;
             }
         }
@@ -1030,12 +1021,12 @@ static int Demux( demux_t *p_demux )
         {
             if( i_title >= 0 && i_title < p_sys->i_title )
             {
-                p_sys->updates |= INPUT_UPDATE_TITLE;
+                p_demux->info.i_update |= INPUT_UPDATE_TITLE;
                 p_sys->cur_title = i_title;
 
                 if( i_part >= 1 && i_part <= p_sys->title[i_title]->i_seekpoint )
                 {
-                    p_sys->updates |= INPUT_UPDATE_SEEKPOINT;
+                    p_demux->info.i_update |= INPUT_UPDATE_SEEKPOINT;
                     p_sys->cur_seekpoint = i_part - 1;
                 }
             }
@@ -1423,7 +1414,7 @@ static int DemuxBlock( demux_t *p_demux, const uint8_t *p, int len )
                     tk->i_next_block_flags = 0;
                     if( i_next_block_flags & BLOCK_FLAG_CELL_DISCONTINUITY )
                     {
-                        if( p_pkt->i_dts != VLC_TS_INVALID )
+                        if( p_pkt->i_dts >= VLC_TS_INVALID )
                         {
                             i_next_block_flags &= ~BLOCK_FLAG_CELL_DISCONTINUITY;
                             i_next_block_flags |= BLOCK_FLAG_DISCONTINUITY;

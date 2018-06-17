@@ -234,9 +234,13 @@ QString OpenDialog::getMRL( bool b_all )
                  : itemsMRL[0];
 }
 
-QStringList OpenDialog::getMRLs()
+QStringList OpenDialog::getMRLs( bool b_with_options )
 {
-    return itemsMRL;
+    if ( !b_with_options ) return itemsMRL;
+    QStringList postfixedMRLs;
+    foreach( const QString &mrl, itemsMRL )
+        postfixedMRLs << QString( mrl ).append( getOptions() );
+    return postfixedMRLs;
 }
 
 QString OpenDialog::getOptions()
@@ -399,7 +403,7 @@ void OpenDialog::stream( bool b_transcode_only )
     for( int i = 0; i < OPEN_TAB_MAX; i++ )
         qobject_cast<OpenPanel*>( ui.Tab->widget( i ) )->onAccept();
 
-    QStringList soutMRLS = getMRLs();
+    QStringList soutMRLS = getMRLs(false);
     if(soutMRLS.empty())
     {
         return;

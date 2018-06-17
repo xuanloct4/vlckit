@@ -38,10 +38,10 @@
 /*****************************************************************************
  * decoder_sys_t : sdl decoder descriptor
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     const char *psz_sdl_type;
-} decoder_sys_t;
+};
 
 /*****************************************************************************
  * Local prototypes
@@ -256,7 +256,7 @@ static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
         }
     }
 
-    p_pic->date = (p_block->i_pts != VLC_TS_INVALID) ?
+    p_pic->date = (p_block->i_pts > VLC_TS_INVALID) ?
         p_block->i_pts : p_block->i_dts;
 
     decoder_QueueVideo( p_dec, p_pic );

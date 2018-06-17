@@ -76,12 +76,12 @@ vlc_module_begin ()
     set_callbacks( Open, Close )
 vlc_module_end ()
 
-typedef struct
+struct access_sys_t
 {
     int fd;
     int timeout;
     size_t mtu;
-} access_sys_t;
+};
 
 /*****************************************************************************
  * Local prototypes

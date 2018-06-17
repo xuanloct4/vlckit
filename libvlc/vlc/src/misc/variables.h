@@ -24,8 +24,7 @@
 # define LIBVLC_VARIABLES_H 1
 
 # include <stdalign.h>
-# include <stdatomic.h>
-# include <vlc_list.h>
+# include <vlc_atomic.h>
 
 struct vlc_res;
 
@@ -49,8 +48,9 @@ struct vlc_object_internals
     vlc_destructor_t pf_destructor;
 
     /* Objects tree structure */
-    struct vlc_list siblings;  /**< Siblings list node */
-    struct vlc_list children; /**< Children list */
+    vlc_object_internals_t *next;  /* next sibling */
+    vlc_object_internals_t *prev;  /* previous sibling */
+    vlc_object_internals_t *first; /* first child */
     vlc_mutex_t tree_lock;
 
     /* Object resources */

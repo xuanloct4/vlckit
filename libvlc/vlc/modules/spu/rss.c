@@ -96,7 +96,7 @@ typedef struct rss_feed_t
     rss_item_t *p_items;
 } rss_feed_t;
 
-typedef struct
+struct filter_sys_t
 {
     vlc_mutex_t lock;
     vlc_timer_t timer;  /* Timer to refresh the rss feeds */
@@ -122,7 +122,7 @@ typedef struct
     int i_cur_feed;
     int i_cur_item;
     int i_cur_char;
-} filter_sys_t;
+};
 
 #define MSG_TEXT N_("Feed URLs")
 #define MSG_LONGTEXT N_("RSS/Atom feed '|' (pipe) separated URLs.")
@@ -205,7 +205,8 @@ vlc_module_begin ()
     /* 5 sets the default to top [1] left [4] */
     add_integer_with_range( CFG_PREFIX "opacity", 255, 0, 255,
         OPACITY_TEXT, OPACITY_LONGTEXT, false )
-    add_rgb(CFG_PREFIX "color", 0xFFFFFF, COLOR_TEXT, COLOR_LONGTEXT)
+    add_rgb( CFG_PREFIX "color", 0xFFFFFF, COLOR_TEXT, COLOR_LONGTEXT,
+                  false )
         change_integer_list( pi_color_values, ppsz_color_descriptions )
     add_integer( CFG_PREFIX "size", 0, SIZE_TEXT, SIZE_LONGTEXT, false )
         change_integer_range( 0, 4096)
@@ -314,7 +315,7 @@ static int CreateFilter( vlc_object_t *p_this )
         goto error;
     }
     vlc_timer_schedule( p_sys->timer, false, 1,
-                        (mtime_t)(i_ttl)*CLOCK_FREQ );
+                        (mtime_t)(i_ttl)*1000000 );
 
     free( psz_urls );
     return VLC_SUCCESS;

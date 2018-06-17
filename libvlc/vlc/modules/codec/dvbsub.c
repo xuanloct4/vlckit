@@ -249,7 +249,7 @@ typedef struct
 
 } dvbsub_page_t;
 
-typedef struct
+struct decoder_sys_t
 {
     bs_t               bs;
 
@@ -270,7 +270,7 @@ typedef struct
     /* this is very small, so keep forever */
     dvbsub_display_t   display;
     dvbsub_clut_t      default_clut;
-} decoder_sys_t;
+};
 
 
 /* List of different SEGMENT TYPES */
@@ -426,7 +426,7 @@ static int Decode( decoder_t *p_dec, block_t *p_block )
         default_dds_init( p_dec );
 
     p_sys->i_pts = p_block->i_pts;
-    if( p_sys->i_pts == VLC_TS_INVALID )
+    if( p_sys->i_pts <= VLC_TS_INVALID )
     {
 #ifdef DEBUG_DVBSUB
         /* Some DVB channels send stuffing segments in non-dated packets so
@@ -1682,7 +1682,7 @@ typedef struct encoder_region_t
 
 } encoder_region_t;
 
-typedef struct
+struct encoder_sys_t
 {
     unsigned int i_page_ver;
     unsigned int i_region_ver;
@@ -1696,7 +1696,7 @@ typedef struct
     /* subpicture positioning */
     int i_offset_x;
     int i_offset_y;
-} encoder_sys_t;
+};
 
 #ifdef ENABLE_SOUT
 static void encode_page_composition( encoder_t *, bs_t *, subpicture_t * );
@@ -2124,7 +2124,7 @@ static void encode_page_composition( encoder_t *p_enc, bs_t *s,
     if( p_subpic && !p_subpic->b_ephemer &&
         ( p_subpic->i_stop > p_subpic->i_start ) )
     {
-        i_timeout = (p_subpic->i_stop - p_subpic->i_start) / CLOCK_FREQ;
+        i_timeout = (p_subpic->i_stop - p_subpic->i_start) / 1000000;
     }
 
     bs_write( s, 8, i_timeout ); /* Timeout */

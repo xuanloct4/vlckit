@@ -23,7 +23,7 @@
 
 /* #define DEBUG_SPUDEC 1 */
 
-typedef struct
+struct decoder_sys_t
 {
     bool b_packetizer;
     bool b_disabletrans;
@@ -37,7 +37,7 @@ typedef struct
 
     /* We will never overflow */
     uint8_t buffer[65536];
-} decoder_sys_t;
+};
 
 /*****************************************************************************
  * Amount of bytes we GetChunk() in one go

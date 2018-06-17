@@ -73,7 +73,8 @@ vlc_module_begin ()
     set_category (CAT_INPUT)
     set_subcategory (SUBCAT_INPUT_ACODEC)
     set_callbacks (Open, Close)
-    add_loadfile("soundfont", "", SOUNDFONT_TEXT, SOUNDFONT_LONGTEXT)
+    add_loadfile ("soundfont", "",
+                  SOUNDFONT_TEXT, SOUNDFONT_LONGTEXT, false)
     add_bool ("synth-chorus", true, CHORUS_TEXT, CHORUS_TEXT, false)
     add_float ("synth-gain", .5, GAIN_TEXT, GAIN_LONGTEXT, false)
         change_float_range (0., 10.)
@@ -87,13 +88,13 @@ vlc_module_begin ()
 vlc_module_end ()
 
 
-typedef struct
+struct decoder_sys_t
 {
     fluid_settings_t *settings;
     fluid_synth_t    *synth;
     int               soundfont;
     date_t            end_date;
-} decoder_sys_t;
+};
 
 
 static int  DecodeBlock (decoder_t *p_dec, block_t *p_block);
@@ -174,6 +175,7 @@ static int Open (vlc_object_t *p_this)
     p_dec->fmt_out.i_codec = VLC_CODEC_FL32;
     p_dec->fmt_out.audio.i_bitspersample = 32;
     date_Init (&p_sys->end_date, p_dec->fmt_out.audio.i_rate, 1);
+    date_Set (&p_sys->end_date, 0);
 
     p_dec->p_sys = p_sys;
     p_dec->pf_decode = DecodeBlock;
@@ -222,8 +224,7 @@ static int DecodeBlock (decoder_t *p_dec, block_t *p_block)
         }
     }
 
-    if (p_block->i_pts != VLC_TS_INVALID
-     && date_Get(&p_sys->end_date) == VLC_TS_INVALID)
+    if (p_block->i_pts > VLC_TS_INVALID && !date_Get (&p_sys->end_date))
         date_Set (&p_sys->end_date, p_block->i_pts);
     else
     if (p_block->i_pts < date_Get (&p_sys->end_date))

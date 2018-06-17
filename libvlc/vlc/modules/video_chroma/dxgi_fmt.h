@@ -36,7 +36,7 @@
 #define GPU_MANUFACTURER_S3            0x5333
 #define GPU_MANUFACTURER_QUALCOMM  0x4D4F4351
 
-#define D3D11_MAX_SHADER_VIEW  4
+#define D3D11_MAX_SHADER_VIEW  3
 
 typedef struct
 {
@@ -53,7 +53,6 @@ const char *DxgiFormatToStr(DXGI_FORMAT format);
 vlc_fourcc_t DxgiFormatFourcc(DXGI_FORMAT format);
 const d3d_format_t *GetRenderFormatList(void);
 void DxgiFormatMask(DXGI_FORMAT format, video_format_t *);
-DXGI_FORMAT DxgiFourccFormat(vlc_fourcc_t fcc);
 const char *DxgiVendorStr(int gpu_vendor);
 UINT DxgiResourceCount(const d3d_format_t *);
 

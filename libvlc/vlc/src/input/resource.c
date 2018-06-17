@@ -28,10 +28,10 @@
 # include "config.h"
 #endif
 
-#include <stdatomic.h>
 #include <assert.h>
 
 #include <vlc_common.h>
+#include <vlc_atomic.h>
 #include <vlc_vout.h>
 #include <vlc_spu.h>
 #include <vlc_aout.h>
@@ -39,7 +39,7 @@
 #include "../libvlc.h"
 #include "../stream_output/stream_output.h"
 #include "../audio_output/aout_internal.h"
-#include "../video_output/vout_internal.h"
+#include "../video_output/vout_control.h"
 #include "input_interface.h"
 #include "resource.h"
 

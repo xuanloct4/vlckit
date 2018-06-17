@@ -41,7 +41,7 @@ static void Close(vlc_object_t *);
 vlc_module_begin ()
     set_shortname (N_("PulseAudio"))
     set_description (N_("PulseAudio input"))
-    set_capability ("access", 0)
+    set_capability ("access_demux", 0)
     set_category (CAT_INPUT)
     set_subcategory (SUBCAT_INPUT_ACCESS)
     set_help (HELP_TEXT)
@@ -50,7 +50,7 @@ vlc_module_begin ()
     set_callbacks (Open, Close)
 vlc_module_end ()
 
-typedef struct
+struct demux_sys_t
 {
     pa_stream *stream; /**< PulseAudio playback stream object */
     pa_context *context; /**< PulseAudio connection context */
@@ -60,7 +60,7 @@ typedef struct
     bool discontinuity; /**< The next block will not follow the last one */
     unsigned framesize; /**< Byte size of a sample */
     mtime_t caching; /**< Caching value */
-} demux_sys_t;
+};
 
 /* Stream helpers */
 static void stream_state_cb(pa_stream *s, void *userdata)
@@ -254,9 +254,6 @@ static const vlc_fourcc_t fourccs[] = {
 static int Open(vlc_object_t *obj)
 {
     demux_t *demux = (demux_t *)obj;
-
-    if (demux->out == NULL)
-        return VLC_EGENERIC;
 
     demux_sys_t *sys = vlc_obj_malloc(obj, sizeof (*sys));
     if (unlikely(sys == NULL))

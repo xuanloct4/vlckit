@@ -66,4 +66,15 @@ class EbmlParser
     bool         mb_dummy;
 };
 
+/* This class works around a bug in KaxBlockVirtual implementation */
+class KaxBlockVirtualWorkaround : public KaxBlockVirtual
+{
+public:
+    void Fix()
+    {
+        if( GetBuffer() == DataBlock )
+            SetBuffer( NULL, 0 );
+    }
+};
+
 #endif

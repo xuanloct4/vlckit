@@ -26,6 +26,7 @@
 
 #include <vlc_common.h>
 #include <vlc_fourcc.h>
+#include <vlc_text_style.h>
 #include <vlc_viewpoint.h>
 
 /**
@@ -153,20 +154,6 @@ struct audio_format_t
 #define AOUT_CHAN_MAX               9
 /* Maximum number of unmapped channels */
 #define INPUT_CHAN_MAX              64
-
-static const uint16_t vlc_chan_maps[] =
-{
-    0,
-    AOUT_CHAN_CENTER,
-    AOUT_CHANS_2_0,
-    AOUT_CHANS_3_0,
-    AOUT_CHANS_4_0,
-    AOUT_CHANS_5_0,
-    AOUT_CHANS_5_1,
-    AOUT_CHANS_7_0,
-    AOUT_CHANS_7_1,
-    AOUT_CHANS_8_1,
-};
 
 /* Values available for i_chan_mode only */
 #define AOUT_CHANMODE_DUALMONO    0x1
@@ -367,8 +354,6 @@ struct video_format_t
     video_chroma_location_t chroma_location;      /**< YCbCr chroma location */
 
     video_multiview_mode_t multiview_mode;        /** Multiview mode, 2D, 3D */
-    bool b_multiview_right_eye_first;   /** Multiview left or right eye first*/
-    bool b_multiview_left_eye;
 
     video_projection_mode_t projection_mode;            /**< projection mode */
     vlc_viewpoint_t pose;
@@ -559,6 +544,8 @@ struct subs_format_t
         /* Reorder depth of transport video, -1 for no reordering */
         int i_reorder_depth;
     } cc;
+
+    text_style_t *p_style; /* Default styles to use */
 };
 
 #define SPU_PALETTE_DEFINED  0xbeefbeef

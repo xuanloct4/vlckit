@@ -252,7 +252,8 @@ vlc_module_begin ()
                  RTSP_TIMEOUT_LONGTEXT, true )
     add_string( "sout-rtsp-user", "",
                 RTSP_USER_TEXT, RTSP_USER_LONGTEXT, true )
-    add_password("sout-rtsp-pwd", "", RTSP_PASS_TEXT, RTSP_PASS_LONGTEXT)
+    add_password( "sout-rtsp-pwd", "",
+                  RTSP_PASS_TEXT, RTSP_PASS_LONGTEXT, true )
 
 vlc_module_end ()
 
@@ -269,13 +270,14 @@ static const char *const ppsz_sout_options[] = {
     "mp4a-latm", NULL
 };
 
-static void *Add( sout_stream_t *, const es_format_t * );
-static void  Del( sout_stream_t *, void * );
-static int   Send( sout_stream_t *, void *, block_t * );
-
-static void *MuxAdd( sout_stream_t *, const es_format_t * );
-static void  MuxDel( sout_stream_t *, void * );
-static int   MuxSend( sout_stream_t *, void *, block_t * );
+static sout_stream_id_sys_t *Add( sout_stream_t *, const es_format_t * );
+static void              Del ( sout_stream_t *, sout_stream_id_sys_t * );
+static int               Send( sout_stream_t *, sout_stream_id_sys_t *,
+                               block_t* );
+static sout_stream_id_sys_t *MuxAdd( sout_stream_t *, const es_format_t * );
+static void              MuxDel ( sout_stream_t *, sout_stream_id_sys_t * );
+static int               MuxSend( sout_stream_t *, sout_stream_id_sys_t *,
+                                  block_t* );
 
 static sout_access_out_t *GrabberCreate( sout_stream_t *p_sout );
 static void* ThreadSend( void * );
@@ -290,7 +292,7 @@ static int HttpSetup( sout_stream_t *p_stream, const vlc_url_t * );
 static int64_t rtp_init_ts( const vod_media_t *p_media,
                             const char *psz_vod_session );
 
-typedef struct
+struct sout_stream_sys_t
 {
     /* SDP */
     char    *psz_sdp;
@@ -338,7 +340,7 @@ typedef struct
     vlc_mutex_t      lock_es;
     int              i_es;
     sout_stream_id_sys_t **es;
-} sout_stream_sys_t;
+};
 
 typedef struct rtp_sink_t
 {
@@ -949,7 +951,8 @@ uint32_t rtp_compute_ts( unsigned i_clock_rate, int64_t i_pts )
 }
 
 /** Add an ES as a new RTP stream */
-static void *Add( sout_stream_t *p_stream, const es_format_t *p_fmt )
+static sout_stream_id_sys_t *Add( sout_stream_t *p_stream,
+                                  const es_format_t *p_fmt )
 {
     /* NOTE: As a special case, if we use a non-RTP
      * mux (TS/PS), then p_fmt is NULL. */
@@ -1214,10 +1217,9 @@ error:
     return NULL;
 }
 
-static void Del( sout_stream_t *p_stream, void *_id )
+static void Del( sout_stream_t *p_stream, sout_stream_id_sys_t *id )
 {
     sout_stream_sys_t *p_sys = p_stream->p_sys;
-    sout_stream_id_sys_t *id = (sout_stream_id_sys_t *)_id;
 
     vlc_mutex_lock( &p_sys->lock_es );
     TAB_REMOVE( p_sys->i_es, p_sys->es, id );
@@ -1260,10 +1262,11 @@ static void Del( sout_stream_t *p_stream, void *_id )
     free( id );
 }
 
-static int Send( sout_stream_t *p_stream, void *_id, block_t *p_buffer )
+static int Send( sout_stream_t *p_stream, sout_stream_id_sys_t *id,
+                 block_t *p_buffer )
 {
-    sout_stream_id_sys_t *id = (sout_stream_id_sys_t *)_id;
-    assert( ((sout_stream_sys_t *)p_stream->p_sys)->p_mux == NULL );
+    assert( p_stream->p_sys->p_mux == NULL );
+    (void)p_stream;
 
     while( p_buffer != NULL )
     {
@@ -1673,11 +1676,11 @@ size_t rtp_mtu (const sout_stream_id_sys_t *id)
  *****************************************************************************/
 
 /** Add an ES to a non-RTP muxed stream */
-static void *MuxAdd( sout_stream_t *p_stream, const es_format_t *p_fmt )
+static sout_stream_id_sys_t *MuxAdd( sout_stream_t *p_stream,
+                                     const es_format_t *p_fmt )
 {
     sout_input_t      *p_input;
-    sout_stream_sys_t *p_sys = p_stream->p_sys;
-    sout_mux_t *p_mux = p_sys->p_mux;
+    sout_mux_t *p_mux = p_stream->p_sys->p_mux;
     assert( p_mux != NULL );
 
     p_input = sout_MuxAddStream( p_mux, p_fmt );
@@ -1691,10 +1694,10 @@ static void *MuxAdd( sout_stream_t *p_stream, const es_format_t *p_fmt )
 }
 
 
-static int MuxSend( sout_stream_t *p_stream, void *id, block_t *p_buffer )
+static int MuxSend( sout_stream_t *p_stream, sout_stream_id_sys_t *id,
+                    block_t *p_buffer )
 {
-    sout_stream_sys_t *p_sys = p_stream->p_sys;
-    sout_mux_t *p_mux = p_sys->p_mux;
+    sout_mux_t *p_mux = p_stream->p_sys->p_mux;
     assert( p_mux != NULL );
 
     return sout_MuxSendBuffer( p_mux, (sout_input_t *)id, p_buffer );
@@ -1702,10 +1705,9 @@ static int MuxSend( sout_stream_t *p_stream, void *id, block_t *p_buffer )
 
 
 /** Remove an ES from a non-RTP muxed stream */
-static void MuxDel( sout_stream_t *p_stream, void *id )
+static void MuxDel( sout_stream_t *p_stream, sout_stream_id_sys_t *id )
 {
-    sout_stream_sys_t *p_sys = p_stream->p_sys;
-    sout_mux_t *p_mux = p_sys->p_mux;
+    sout_mux_t *p_mux = p_stream->p_sys->p_mux;
     assert( p_mux != NULL );
 
     sout_MuxDeleteStream( p_mux, (sout_input_t *)id );
@@ -1799,7 +1801,7 @@ static sout_access_out_t *GrabberCreate( sout_stream_t *p_stream )
     p_grab->psz_access  = strdup( "grab" );
     p_grab->p_cfg       = NULL;
     p_grab->psz_path    = strdup( "" );
-    p_grab->p_sys       = p_stream;
+    p_grab->p_sys       = (sout_access_out_sys_t *)p_stream;
     p_grab->pf_seek     = NULL;
     p_grab->pf_write    = AccessOutGrabberWrite;
     return p_grab;

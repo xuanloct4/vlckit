@@ -39,7 +39,7 @@ typedef struct vlc_gl_t vlc_gl_t;
 
 struct vlc_gl_t
 {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
 
     struct vout_window_t *surface;
     module_t *module;
@@ -109,7 +109,7 @@ static inline void vlc_gl_Swap(vlc_gl_t *gl)
 
 static inline void *vlc_gl_GetProcAddress(vlc_gl_t *gl, const char *name)
 {
-    return gl->getProcAddress(gl, name);
+    return (gl->getProcAddress != NULL) ? gl->getProcAddress(gl, name) : NULL;
 }
 
 VLC_API vlc_gl_t *vlc_gl_surface_Create(vlc_object_t *,
@@ -117,18 +117,5 @@ VLC_API vlc_gl_t *vlc_gl_surface_Create(vlc_object_t *,
                                         struct vout_window_t **) VLC_USED;
 VLC_API bool vlc_gl_surface_CheckSize(vlc_gl_t *, unsigned *w, unsigned *h);
 VLC_API void vlc_gl_surface_Destroy(vlc_gl_t *);
-
-static inline bool vlc_gl_StrHasToken(const char *apis, const char *api)
-{
-    size_t apilen = strlen(api);
-    while (apis) {
-        while (*apis == ' ')
-            apis++;
-        if (!strncmp(apis, api, apilen) && memchr(" ", apis[apilen], 2))
-            return true;
-        apis = strchr(apis, ' ');
-    }
-    return false;
-}
 
 #endif /* VLC_GL_H */

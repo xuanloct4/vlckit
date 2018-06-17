@@ -57,6 +57,8 @@ struct vout_display_sys_t
     int x;
     int y;
     bool use_buffer_transform;
+
+    video_format_t curr_aspect;
 };
 
 static void PictureDestroy(picture_t *pic)
@@ -176,7 +178,7 @@ static picture_pool_t *Pool(vout_display_t *vd, unsigned req)
         if (buf == NULL)
             break;
 
-        res.p_sys = buf;
+        res.p_sys = (picture_sys_t *)buf;
         res.p[0].p_pixels = base;
         base = ((char *)base) + picsize;
         offset += picsize;
@@ -210,17 +212,15 @@ static picture_pool_t *Pool(vout_display_t *vd, unsigned req)
     return sys->pool;
 }
 
-static void Prepare(vout_display_t *vd, picture_t *pic, subpicture_t *subpic,
-                    mtime_t date)
+static void Prepare(vout_display_t *vd, picture_t *pic, subpicture_t *subpic)
 {
-    VLC_UNUSED(date);
     vout_display_sys_t *sys = vd->sys;
     struct wl_display *display = sys->embed->display.wl;
     struct wl_surface *surface = sys->embed->handle.wl;
     struct wl_buffer *buf = (struct wl_buffer *)pic->p_sys;
 
     wl_buffer_set_user_data(buf, pic);
-    wl_surface_attach(surface, buf, 0, 0);
+    wl_surface_attach(surface, buf, sys->x, sys->y);
     wl_surface_damage(surface, 0, 0,
                       vd->cfg->display.width, vd->cfg->display.height);
     wl_display_flush(display);
@@ -281,8 +281,8 @@ static int Control(vout_display_t *vd, int query, va_list ap)
                                                 / src.i_visible_width;
             vd->fmt.i_y_offset = src.i_y_offset * place.height
                                                 / src.i_visible_height;
-
             ResetPictures(vd);
+            sys->curr_aspect = vd->source;
             break;
         }
 
@@ -304,24 +304,32 @@ static int Control(vout_display_t *vd, int query, va_list ap)
                 cfg = va_arg(ap, const vout_display_cfg_t *);
             }
 
+            vout_display_place_t place;
+
+            vout_display_PlacePicture(&place, &sys->curr_aspect, vd->cfg, false);
+            sys->x += place.width / 2;
+            sys->y += place.height / 2;
+
+            vout_display_PlacePicture(&place, &vd->source, cfg, false);
+            sys->x -= place.width / 2;
+            sys->y -= place.height / 2;
+
             if (sys->viewport != NULL)
             {
                 video_format_t fmt;
-                vout_display_place_t place;
 
                 video_format_ApplyRotation(&fmt, &vd->source);
-                vout_display_PlacePicture(&place, &vd->source, cfg, false);
-
                 wp_viewport_set_source(sys->viewport,
                                 wl_fixed_from_int(fmt.i_x_offset),
                                 wl_fixed_from_int(fmt.i_y_offset),
                                 wl_fixed_from_int(fmt.i_visible_width),
                                 wl_fixed_from_int(fmt.i_visible_height));
                 wp_viewport_set_destination(sys->viewport,
-                                            place.width, place.height);
+                                place.width, place.height);
             }
             else
                 vout_display_SendEventPicturesInvalid(vd);
+            sys->curr_aspect = vd->source;
             break;
         }
         default:
@@ -456,6 +464,8 @@ static int Open(vlc_object_t *obj)
         video_format_ApplyRotation(&vd->fmt, &fmt);
     }
 
+    sys->curr_aspect = vd->source;
+
     vd->fmt.i_chroma = VLC_CODEC_RGB32;
 
     vd->info.has_pictures_invalid = sys->viewport == NULL;
@@ -470,6 +480,8 @@ static int Open(vlc_object_t *obj)
 error:
     if (sys->eventq != NULL)
         wl_event_queue_destroy(sys->eventq);
+    if (sys->embed != NULL)
+        vout_display_DeleteWindow(vd, sys->embed);
     free(sys);
     return VLC_EGENERIC;
 }
@@ -488,6 +500,7 @@ static void Close(vlc_object_t *obj)
     wl_shm_destroy(sys->shm);
     wl_display_flush(sys->embed->display.wl);
     wl_event_queue_destroy(sys->eventq);
+    vout_display_DeleteWindow(vd, sys->embed);
     free(sys);
 }
 

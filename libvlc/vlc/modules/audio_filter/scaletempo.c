@@ -31,9 +31,9 @@
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_aout.h>
-#include <vlc_atomic.h>
 #include <vlc_filter.h>
 #include <vlc_modules.h>
+#include <vlc_atomic.h>
 
 #include <string.h> /* for memset */
 #include <limits.h> /* form INT_MIN */
@@ -95,7 +95,7 @@ vlc_module_end ()
  * frame: a single set of samples, one for each channel
  * VLC uses these terms differently
  */
-typedef struct
+struct filter_sys_t
 {
     /* Filter static config */
     double    scale;
@@ -135,7 +135,7 @@ typedef struct
     filter_t * resampler;
     vlc_atomic_float rate_shift;
 #endif
-} filter_sys_t;
+};
 
 /*****************************************************************************
  * best_overlap_offset: calculate best offset for overlap
@@ -484,13 +484,12 @@ static filter_t *ResamplerCreate(filter_t *p_filter)
     if( unlikely( p_resampler == NULL ) )
         return NULL;
 
-    filter_sys_t *p_sys = p_filter->p_sys;
     p_resampler->owner.sys = NULL;
     p_resampler->p_cfg = NULL;
     p_resampler->fmt_in = p_filter->fmt_in;
     p_resampler->fmt_out = p_filter->fmt_in;
     p_resampler->fmt_out.audio.i_rate =
-        vlc_atomic_load_float( &p_sys->rate_shift );
+        vlc_atomic_load_float( &p_filter->p_sys->rate_shift );
     aout_FormatPrepare( &p_resampler->fmt_out.audio );
     p_resampler->p_module = module_need( p_resampler, "audio resampler", NULL,
                                          false );

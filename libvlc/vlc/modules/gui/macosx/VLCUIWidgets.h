@@ -35,9 +35,6 @@
 @property (readwrite) extension_widget_t *widget;
 @end
 
-@interface VLCDialogLabel : NSTextField
-@end
-
 @interface VLCDialogTextField : NSTextField
 @property (readwrite) extension_widget_t *widget;
 @end

@@ -214,7 +214,7 @@ static int vlclua_stream_readdir( lua_State *L )
 
     if( !pp_stream || !*pp_stream )
         return vlclua_error( L );
-    if( (*pp_stream)->pf_readdir == NULL )
+    if ( vlc_stream_Control( *pp_stream, STREAM_IS_DIRECTORY ) != VLC_SUCCESS )
         return vlclua_error( L );
 
     input_item_t *p_input = input_item_New( (*pp_stream)->psz_url, NULL );

@@ -40,9 +40,7 @@
 #include <time.h>
 
 #include <sys/types.h>
-#ifdef HAVE_SYS_SOCKET_H
 #include <sys/socket.h>
-#endif
 
 #include <sys/time.h>
 #include <sys/select.h>
@@ -155,6 +153,7 @@ unsigned long _System _DLL_InitTerm(unsigned long hmod, unsigned long flag)
             vlc_cond_init (&super_variable);
             vlc_threadvar_create (&thread_key, NULL);
             vlc_rwlock_init (&config_lock);
+            vlc_CPU_init ();
 
             return 1;
 
@@ -427,34 +426,6 @@ int vlc_cond_timedwait_daytime (vlc_cond_t *p_condvar, vlc_mutex_t *p_mutex,
     ulTimeout = ( total > 0x7fffffff ) ? 0x7fffffff : total;
 
     return vlc_cond_wait_common (p_condvar, p_mutex, ulTimeout);
-}
-
-void vlc_once(vlc_once_t *once, void (*cb)(void))
-{
-    unsigned done;
-
-    /* load once->done */
-    __atomic_xchg( &done, once->done );
-
-    /* not initialized ? */
-    if( done == 0 )
-    {
-        vlc_mutex_lock( &once->mutex );
-
-        /* load once->done */
-        __atomic_xchg( &done, once->done );
-
-        /* still not initialized ? */
-        if( done == 0 )
-        {
-            cb();
-
-            /* set once->done to 1 */
-            __atomic_xchg( &once->done, 1 );
-        }
-
-        vlc_mutex_unlock( &once->mutex );
-    }
 }
 
 /*** Thread-specific variables (TLS) ***/
@@ -910,7 +881,7 @@ mtime_t mdate (void)
     /* We need to split the division to avoid 63-bits overflow */
     lldiv_t d = lldiv (Q2LL(counter), freq);
 
-    return (d.quot * CLOCK_FREQ) + ((d.rem * CLOCK_FREQ) / freq);
+    return (d.quot * 1000000) + ((d.rem * 1000000) / freq);
 }
 
 #undef mwait

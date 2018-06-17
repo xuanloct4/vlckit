@@ -170,7 +170,7 @@ typedef struct
 
 } extended_header_t;
 
-typedef struct
+struct demux_sys_t
 {
     header_t          hdr;
     extended_header_t exh;
@@ -192,7 +192,7 @@ typedef struct
     int64_t i_total_length;
     /* first frame position (used for calculating size without seektable) */
     int i_first_frame_offset;
-} demux_sys_t;
+};
 
 static int HeaderLoad( demux_t *, header_t *h );
 static int FrameHeaderLoad( demux_t *, frame_header_t *h );
@@ -545,14 +545,6 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             return VLC_SUCCESS;
 
         case DEMUX_GET_META:
-            return VLC_EGENERIC;
-
-        case DEMUX_CAN_PAUSE:
-        case DEMUX_SET_PAUSE_STATE:
-        case DEMUX_CAN_CONTROL_PACE:
-        case DEMUX_GET_PTS_DELAY:
-            return demux_vaControlHelper( p_demux->s, 0, -1, 0, 1, i_query, args );
-
         default:
             return VLC_EGENERIC;
 
@@ -667,8 +659,7 @@ static int HeaderLoad( demux_t *p_demux, header_t *h )
  */
 static int FrameHeaderLoad( demux_t *p_demux, frame_header_t *h )
 {
-    demux_sys_t *p_sys = p_demux->p_sys;
-    uint8_t* buffer = p_sys->fh_buffer;
+    uint8_t* buffer = p_demux->p_sys->fh_buffer;
 
     if( vlc_stream_Read( p_demux->s, buffer, 12 ) != 12 )
         return VLC_EGENERIC;
@@ -868,7 +859,7 @@ static int SeekTableLoad( demux_t *p_demux, demux_sys_t *p_sys )
 
     p_sys->b_index = true;
 
-    p_sys->i_total_length = p_sys->i_total_frames * CLOCK_FREQ / p_sys->hdr.d_fps;
+    p_sys->i_total_length = p_sys->i_total_frames * 1000000 / p_sys->hdr.d_fps;
 
     msg_Dbg( p_demux, "index table loaded (%d elements)", i_seek_elements );
 

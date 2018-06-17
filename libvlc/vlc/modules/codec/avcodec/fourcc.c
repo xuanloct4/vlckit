@@ -182,9 +182,6 @@ static const struct vlc_avcodec_fourcc video_codecs[] =
     /* AV_CODEC_ID_V210X */
     { VLC_CODEC_TMV, AV_CODEC_ID_TMV },
     { VLC_CODEC_V210, AV_CODEC_ID_V210 },
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT( 54, 50, 100 ) && LIBAVCODEC_VERSION_MICRO >= 100
-    { VLC_CODEC_VUYA, AV_CODEC_ID_AYUV },
-#endif
     /* AV_CODEC_ID_DPX */
     { VLC_CODEC_MAD, AV_CODEC_ID_MAD },
     { VLC_CODEC_FRWU, AV_CODEC_ID_FRWU },
@@ -266,6 +263,7 @@ static const struct vlc_avcodec_fourcc video_codecs[] =
     /* ffmpeg only: AV_CODEC_ID_AVRP */
     /* ffmpeg only: AV_CODEC_ID_012V */
     /* ffmpeg only: AV_CODEC_ID_AVUI */
+    /* ffmpeg only: AV_CODEC_ID_AYUV */
     /* ffmpeg only: AV_CODEC_ID_TARGA_Y216 */
     /* ffmpeg only: AV_CODEC_ID_V308 */
     /* ffmpeg only: AV_CODEC_ID_V408 */
@@ -280,10 +278,6 @@ static const struct vlc_avcodec_fourcc video_codecs[] =
     /* ffmpeg only: AV_CODEC_ID_MVC2 */
     /* ffmpeg only: AV_CODEC_ID_SNOW */
     /* ffmpeg only: AV_CODEC_ID_SMVJPEG */
-
-#if LIBAVCODEC_VERSION_CHECK( 58, 0, 0, 1, 100 )
-    { VLC_CODEC_MAGICYUV, AV_CODEC_ID_MAGICYUV },
-#endif
 
 #if LIBAVCODEC_VERSION_CHECK( 57, 999, 999, 24, 102 )
     { VLC_CODEC_CINEFORM, AV_CODEC_ID_CFHD },
@@ -480,7 +474,7 @@ static const struct vlc_avcodec_fourcc spu_codecs[] =
     { VLC_CODEC_SUBT, AV_CODEC_ID_TEXT },
     { VLC_CODEC_XSUB, AV_CODEC_ID_XSUB },
     { VLC_CODEC_SSA, AV_CODEC_ID_SSA },
-    { VLC_CODEC_TX3G, AV_CODEC_ID_MOV_TEXT },
+    /* AV_CODEC_ID_MOV_TEXT */
     { VLC_CODEC_BD_PG, AV_CODEC_ID_HDMV_PGS_SUBTITLE },
 #if LIBAVCODEC_VERSION_CHECK( 57, 999, 999, 71, 100 )
     { VLC_CODEC_BD_TEXT, AV_CODEC_ID_HDMV_TEXT_SUBTITLE },

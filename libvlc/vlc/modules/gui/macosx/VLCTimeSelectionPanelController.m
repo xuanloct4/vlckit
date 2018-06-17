@@ -80,7 +80,7 @@
         timeInSec = [string intValue];
 
     if (_completionHandler)
-        _completionHandler(sender == _okButton ? NSModalResponseOK : NSModalResponseCancel, timeInSec);
+        _completionHandler(sender == _okButton ? NSOKButton : NSCancelButton, timeInSec);
 }
 
 - (void)runModalForWindow:(NSWindow *)window completionHandler:(TimeSelectionCompletionHandler)handler
@@ -89,8 +89,10 @@
     [_stepper setMaxValue:self.maxValue];
 
     _completionHandler = [handler copy];
-
-    [window beginSheet:self.window completionHandler:nil];
+    [NSApp beginSheet:self.window
+       modalForWindow:window modalDelegate:self
+       didEndSelector:nil
+          contextInfo:nil];
 }
 
 @end

@@ -206,12 +206,12 @@ typedef struct
 
 static void         Eia608Init( eia608_t * );
 static eia608_status_t Eia608Parse( eia608_t *h, int i_channel_selected, const uint8_t data[2] );
-static void         Eia608FillUpdaterRegions( subtext_updater_sys_t *p_updater, eia608_t *h );
+static void         Eia608FillUpdaterRegions( subpicture_updater_sys_t *p_updater, eia608_t *h );
 
 /* It will be enough up to 63 B frames, which is far too high for
  * broadcast environment */
 #define CC_MAX_REORDER_SIZE (64)
-typedef struct
+struct decoder_sys_t
 {
     int      i_queue;
     block_t *p_queue;
@@ -226,7 +226,7 @@ typedef struct
     cea708_t *p_cea708;
     eia608_t *p_eia608;
     bool b_opaque;
-} decoder_sys_t;
+};
 
 static int Decode( decoder_t *, block_t * );
 static void Flush( decoder_t * );
@@ -488,7 +488,7 @@ static subpicture_t *Subtitle( decoder_t *p_dec, eia608_t *h, mtime_t i_pts )
     subpicture_t *p_spu = NULL;
 
     /* We cannot display a subpicture with no date */
-    if( i_pts == VLC_TS_INVALID )
+    if( i_pts <= VLC_TS_INVALID )
         return NULL;
 
     /* Create the subpicture unit */
@@ -501,8 +501,7 @@ static subpicture_t *Subtitle( decoder_t *p_dec, eia608_t *h, mtime_t i_pts )
     p_spu->b_ephemer  = true;
     p_spu->b_absolute = false;
 
-    subtext_updater_sys_t *p_spu_sys = p_spu->updater.p_sys;
-    decoder_sys_t *p_dec_sys = p_dec->p_sys;
+    subpicture_updater_sys_t *p_spu_sys = p_spu->updater.p_sys;
 
     /* Set first region defaults */
     /* The "leavetext" alignment is a special mode where the subpicture
@@ -513,7 +512,7 @@ static subpicture_t *Subtitle( decoder_t *p_dec, eia608_t *h, mtime_t i_pts )
 
     /* Set style defaults (will be added to segments if none set) */
     p_spu_sys->p_default_style->i_style_flags |= STYLE_MONOSPACED;
-    if( p_dec_sys->b_opaque )
+    if( p_dec->p_sys->b_opaque )
     {
         p_spu_sys->p_default_style->i_background_alpha = STYLE_ALPHA_OPAQUE >> 1;
         p_spu_sys->p_default_style->i_features |= STYLE_HAS_BACKGROUND_ALPHA;
@@ -1204,10 +1203,10 @@ static text_segment_t * Eia608TextLine( struct eia608_screen *screen, int i_row 
     return p_segments_head;
 }
 
-static void Eia608FillUpdaterRegions( subtext_updater_sys_t *p_updater, eia608_t *h )
+static void Eia608FillUpdaterRegions( subpicture_updater_sys_t *p_updater, eia608_t *h )
 {
     struct eia608_screen *screen = &h->screen[h->i_screen];
-    substext_updater_region_t *p_region = &p_updater->region;
+    subpicture_updater_sys_region_t *p_region = &p_updater->region;
     text_segment_t **pp_last = &p_region->p_segments;
     bool b_newregion = false;
 
@@ -1221,7 +1220,7 @@ static void Eia608FillUpdaterRegions( subtext_updater_sys_t *p_updater, eia608_t
         {
             if( b_newregion )
             {
-                substext_updater_region_t *p_newregion;
+                subpicture_updater_sys_region_t *p_newregion;
                 p_newregion = SubpictureUpdaterSysRegionNew();
                 if( !p_newregion )
                 {

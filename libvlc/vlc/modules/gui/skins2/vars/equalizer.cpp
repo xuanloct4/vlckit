@@ -105,7 +105,7 @@ void EqualizerBands::onUpdate( Subject<VarPercent> &rBand, void *arg )
 
         std::string bands = ss.str();
 
-        config_PutPsz( "equalizer-bands", bands.c_str() );
+        config_PutPsz( getIntf(), "equalizer-bands", bands.c_str() );
         if( pAout )
         {
             // Update the audio output
@@ -136,7 +136,7 @@ void EqualizerPreamp::set( float percentage, bool updateVLC )
     {
         float val = 40 * percentage - 20;
 
-        config_PutFloat( "equalizer-preamp", val );
+        config_PutFloat( getIntf(), "equalizer-preamp", val );
         if( pAout )
         {
             // Update the audio output

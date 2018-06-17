@@ -27,11 +27,6 @@ int  webvtt_OpenDemux     ( vlc_object_t * );
 int  webvtt_OpenDemuxStream (vlc_object_t *);
 void webvtt_CloseDemux    ( vlc_object_t * );
 
-#ifdef ENABLE_SOUT
-int  webvtt_OpenEncoder   ( vlc_object_t * );
-void webvtt_CloseEncoder  ( vlc_object_t * );
-#endif
-
 typedef struct webvtt_text_parser_t webvtt_text_parser_t;
 
 enum webvtt_header_line_e

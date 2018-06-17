@@ -200,13 +200,13 @@ vlc_module_end ()
  *****************************************************************************/
 #define NO_BREAKING_SPACE  "&#160;"
 
-typedef struct
+struct decoder_sys_t
 {
     int                 i_align;          /* Subtitles alignment on the vout */
 
     vlc_iconv_t         iconv_handle;            /* handle to iconv instance */
     bool                b_autodetect_utf8;
-} decoder_sys_t;
+};
 
 
 static int             DecodeBlock   ( decoder_t *, block_t * );
@@ -366,7 +366,7 @@ static subpicture_t *ParseText( decoder_t *p_dec, block_t *p_block )
         return NULL;
 
     /* We cannot display a subpicture with no date */
-    if( p_block->i_pts == VLC_TS_INVALID )
+    if( p_block->i_pts <= VLC_TS_INVALID )
     {
         msg_Warn( p_dec, "subtitle without a date" );
         return NULL;
@@ -459,7 +459,7 @@ static subpicture_t *ParseText( decoder_t *p_dec, block_t *p_block )
     p_spu->b_ephemer  = (p_block->i_length == 0);
     p_spu->b_absolute = false;
 
-    subtext_updater_sys_t *p_spu_sys = p_spu->updater.p_sys;
+    subpicture_updater_sys_t *p_spu_sys = p_spu->updater.p_sys;
 
     p_spu_sys->region.align = SUBPICTURE_ALIGN_BOTTOM | p_sys->i_align;
     p_spu_sys->region.inner_align = SUBPICTURE_ALIGN_BOTTOM;

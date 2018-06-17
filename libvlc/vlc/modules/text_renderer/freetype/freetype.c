@@ -83,6 +83,11 @@ static void Destroy( vlc_object_t * );
 #define FAMILY_LONGTEXT N_("Font family for the font you want to use")
 #define FONT_LONGTEXT N_("Font file for the font you want to use")
 
+#define FONTSIZE_TEXT N_("Font size in pixels")
+#define FONTSIZE_LONGTEXT N_("This is the default size of the fonts " \
+    "that will be rendered on the video. " \
+    "If set to something different than 0 this option will override the " \
+    "relative font size." )
 #define OPACITY_TEXT N_("Text opacity")
 #define OPACITY_LONGTEXT N_("The opacity (inverse of transparency) of the " \
     "text that will be rendered on the video. 0 = transparent, " \
@@ -92,7 +97,10 @@ static void Destroy( vlc_object_t * );
     "the video. This must be an hexadecimal (like HTML colors). The first two "\
     "chars are for red, then green, then blue. #000000 = black, #FF0000 = red,"\
     " #00FF00 = green, #FFFF00 = yellow (red + green), #FFFFFF = white" )
-
+#define FONTSIZER_TEXT N_("Relative font size")
+#define FONTSIZER_LONGTEXT N_("This is the relative default size of the " \
+    "fonts that will be rendered on the video. If absolute font size is set, "\
+    "relative size will be overridden." )
 #define BOLD_TEXT N_("Force bold")
 
 #define BG_OPACITY_TEXT N_("Background opacity")
@@ -111,6 +119,9 @@ static void Destroy( vlc_object_t * );
 #define TEXT_DIRECTION_LONGTEXT N_("Paragraph base direction for the Unicode bi-directional algorithm.")
 
 
+static const int pi_sizes[] = { 20, 18, 16, 12, 6 };
+static const char *const ppsz_sizes_text[] = {
+    N_("Smaller"), N_("Small"), N_("Normal"), N_("Large"), N_("Larger") };
 #define YUVP_TEXT N_("Use YUVP renderer")
 #define YUVP_LONGTEXT N_("This renders the font using \"paletized YUV\". " \
   "This option is only needed if you want to encode into DVB subtitles" )
@@ -148,14 +159,22 @@ vlc_module_begin ()
     set_subcategory( SUBCAT_VIDEO_SUBPIC )
 
 #ifdef HAVE_GET_FONT_BY_FAMILY_NAME
-    add_font("freetype-font", DEFAULT_FAMILY, FONT_TEXT, FAMILY_LONGTEXT)
-    add_font("freetype-monofont", DEFAULT_MONOSPACE_FAMILY,
-             MONOSPACE_FONT_TEXT, FAMILY_LONGTEXT)
+    add_font( "freetype-font", DEFAULT_FAMILY, FONT_TEXT, FAMILY_LONGTEXT, false )
+    add_font( "freetype-monofont", DEFAULT_MONOSPACE_FAMILY, MONOSPACE_FONT_TEXT, FAMILY_LONGTEXT, false )
 #else
-    add_loadfile("freetype-font", DEFAULT_FONT_FILE, FONT_TEXT, FONT_LONGTEXT)
-    add_loadfile("freetype-monofont", DEFAULT_MONOSPACE_FONT_FILE,
-                 MONOSPACE_FONT_TEXT, FONT_LONGTEXT)
+    add_loadfile( "freetype-font", DEFAULT_FONT_FILE, FONT_TEXT, FONT_LONGTEXT, false )
+    add_loadfile( "freetype-monofont", DEFAULT_MONOSPACE_FONT_FILE, MONOSPACE_FONT_TEXT, FONT_LONGTEXT, false )
 #endif
+
+    add_integer( "freetype-fontsize", 0, FONTSIZE_TEXT,
+                 FONTSIZE_LONGTEXT, true )
+        change_integer_range( 0, 4096)
+        change_safe()
+
+    add_integer( "freetype-rel-fontsize", 16, FONTSIZER_TEXT,
+                 FONTSIZER_LONGTEXT, false )
+        change_integer_list( pi_sizes, ppsz_sizes_text )
+        change_safe()
 
     /* opacity valid on 0..255, with default 255 = fully opaque */
     add_integer_with_range( "freetype-opacity", 255, 0, 255,
@@ -163,7 +182,8 @@ vlc_module_begin ()
         change_safe()
 
     /* hook to the color values list, with default 0x00ffffff = white */
-    add_rgb("freetype-color", 0x00FFFFFF, COLOR_TEXT, COLOR_LONGTEXT)
+    add_rgb( "freetype-color", 0x00FFFFFF, COLOR_TEXT,
+                 COLOR_LONGTEXT, false )
         change_integer_list( pi_color_values, ppsz_color_descriptions )
         change_integer_range( 0x000000, 0xFFFFFF )
         change_safe()
@@ -174,7 +194,8 @@ vlc_module_begin ()
     add_integer_with_range( "freetype-background-opacity", 0, 0, 255,
                             BG_OPACITY_TEXT, NULL, false )
         change_safe()
-    add_rgb("freetype-background-color", 0x00000000, BG_COLOR_TEXT, NULL)
+    add_rgb( "freetype-background-color", 0x00000000, BG_COLOR_TEXT,
+             NULL, false )
         change_integer_list( pi_color_values, ppsz_color_descriptions )
         change_integer_range( 0x000000, 0xFFFFFF )
         change_safe()
@@ -182,7 +203,8 @@ vlc_module_begin ()
     add_integer_with_range( "freetype-outline-opacity", 255, 0, 255,
                             OUTLINE_OPACITY_TEXT, NULL, false )
         change_safe()
-    add_rgb("freetype-outline-color", 0x00000000, OUTLINE_COLOR_TEXT, NULL)
+    add_rgb( "freetype-outline-color", 0x00000000, OUTLINE_COLOR_TEXT,
+             NULL, false )
         change_integer_list( pi_color_values, ppsz_color_descriptions )
         change_integer_range( 0x000000, 0xFFFFFF )
         change_safe()
@@ -194,7 +216,8 @@ vlc_module_begin ()
     add_integer_with_range( "freetype-shadow-opacity", 128, 0, 255,
                             SHADOW_OPACITY_TEXT, NULL, false )
         change_safe()
-    add_rgb("freetype-shadow-color", 0x00000000, SHADOW_COLOR_TEXT, NULL)
+    add_rgb( "freetype-shadow-color", 0x00000000, SHADOW_COLOR_TEXT,
+             NULL, false )
         change_integer_list( pi_color_values, ppsz_color_descriptions )
         change_integer_range( 0x000000, 0xFFFFFF )
         change_safe()
@@ -205,8 +228,6 @@ vlc_module_begin ()
                           SHADOW_DISTANCE_TEXT, NULL, false )
         change_safe()
 
-    add_obsolete_integer( "freetype-fontsize" );
-    add_obsolete_integer( "freetype-rel-fontsize" );
     add_obsolete_integer( "freetype-effect" );
 
     add_bool( "freetype-yuvp", false, YUVP_TEXT,
@@ -716,6 +737,8 @@ static inline void RenderBackground( subpicture_region_t *p_region,
                                      void (*ExtractComponents)( uint32_t, uint8_t *, uint8_t *, uint8_t * ),
                                      void (*BlendPixel)(picture_t *, int, int, int, int, int, int, int) )
 {
+    FT_BBox prevbox;
+
     for( const line_desc_t *p_line = p_line_head; p_line != NULL; p_line = p_line->p_next )
     {
         FT_Vector offset = GetAlignedOffset( p_line, p_textbbox, p_region->i_text_align );
@@ -808,82 +831,6 @@ static inline void RenderBackground( subpicture_region_t *p_region,
     }
 }
 
-static void RenderCharAXYZ( filter_t *p_filter,
-                           picture_t *p_picture,
-                           const line_desc_t *p_line,
-                           int i_offset_x,
-                           int i_offset_y,
-                           int g,
-                           void (*ExtractComponents)( uint32_t, uint8_t *, uint8_t *, uint8_t * ),
-                           void (*BlendPixel)(picture_t *, int, int, int, int, int, int, int) )
-{
-    VLC_UNUSED(p_filter);
-    /* Render all glyphs and underline/strikethrough */
-    for( int i = p_line->i_first_visible_char_index; i <= p_line->i_last_visible_char_index; i++ )
-    {
-        const line_character_t *ch = &p_line->p_character[i];
-        const FT_BitmapGlyph p_glyph = g == 0 ? ch->p_shadow : g == 1 ? ch->p_outline : ch->p_glyph;
-        if( !p_glyph )
-            continue;
-
-        uint8_t i_a = ch->p_style->i_font_alpha;
-
-        uint32_t i_color;
-        switch (g) {/* Apply font alpha ratio to shadow/outline alpha */
-        case 0:
-            i_a     = i_a * ch->p_style->i_shadow_alpha / 255;
-            i_color = ch->p_style->i_shadow_color;
-            break;
-        case 1:
-            i_a     = i_a * ch->p_style->i_outline_alpha / 255;
-            i_color = ch->p_style->i_outline_color;
-            break;
-        default:
-            i_color = ch->p_style->i_font_color;
-            break;
-        }
-
-        if(ch->p_ruby && ch->p_ruby->p_laid)
-        {
-            RenderCharAXYZ( p_filter,
-                            p_picture,
-                            ch->p_ruby->p_laid,
-                            i_offset_x, i_offset_y,
-                            2,
-                            ExtractComponents,
-                            BlendPixel );
-        }
-
-        /* Don't render if invisible or not wanted */
-        if( i_a == STYLE_ALPHA_TRANSPARENT ||
-           (g == 0 && 0 == (ch->p_style->i_style_flags & STYLE_SHADOW) ) ||
-           (g == 1 && 0 == (ch->p_style->i_style_flags & STYLE_OUTLINE) )
-          )
-            continue;
-
-        uint8_t i_x, i_y, i_z;
-        ExtractComponents( i_color, &i_x, &i_y, &i_z );
-
-        int i_glyph_y = i_offset_y - p_glyph->top;
-        int i_glyph_x = i_offset_x + p_glyph->left;
-
-        BlendAXYZGlyph( p_picture,
-                        i_glyph_x, i_glyph_y,
-                        i_a, i_x, i_y, i_z,
-                        p_glyph,
-                        BlendPixel );
-
-        /* underline/strikethrough are only rendered for the normal glyph */
-        if( g == 2 && ch->i_line_thickness > 0 )
-            BlendAXYZLine( p_picture,
-                           i_glyph_x, i_glyph_y + p_glyph->top,
-                           i_a, i_x, i_y, i_z,
-                           &ch[0],
-                           i + 1 < p_line->i_character_count ? &ch[1] : NULL,
-                           BlendPixel );
-    }
-}
-
 static inline int RenderAXYZ( filter_t *p_filter,
                               subpicture_region_t *p_region,
                               line_desc_t *p_line_head,
@@ -896,8 +843,6 @@ static inline int RenderAXYZ( filter_t *p_filter,
                               void (*FillPicture)( picture_t *p_picture, int, int, int, int ),
                               void (*BlendPixel)(picture_t *, int, int, int, int, int, int, int) )
 {
-    filter_sys_t *p_sys = p_filter->p_sys;
-
     /* Create a new subpicture region */
     video_format_t fmt;
     video_format_Init( &fmt, i_chroma );
@@ -922,7 +867,7 @@ static inline int RenderAXYZ( filter_t *p_filter,
     p_region->fmt.i_sar_den = regionden;
 
     /* Initialize the picture background */
-    const text_style_t *p_style = p_sys->p_default_style;
+    const text_style_t *p_style = p_filter->p_sys->p_default_style;
     uint8_t i_x, i_y, i_z;
 
     if (p_region->b_noregionbg) {
@@ -947,12 +892,58 @@ static inline int RenderAXYZ( filter_t *p_filter,
         {
             FT_Vector offset = GetAlignedOffset( p_line, p_textbbox, p_region->i_text_align );
 
-            int i_glyph_offset_y = offset.y + p_regionbbox->yMax + p_line->i_base_line;
-            int i_glyph_offset_x = offset.x - p_regionbbox->xMin;
+            /* Render all glyphs and underline/strikethrough */
+            for( int i = p_line->i_first_visible_char_index; i <= p_line->i_last_visible_char_index; i++ )
+            {
+                const line_character_t *ch = &p_line->p_character[i];
+                const FT_BitmapGlyph p_glyph = g == 0 ? ch->p_shadow : g == 1 ? ch->p_outline : ch->p_glyph;
+                if( !p_glyph )
+                    continue;
 
-            RenderCharAXYZ( p_filter, p_picture, p_line,
-                            i_glyph_offset_x, i_glyph_offset_y, g,
-                            ExtractComponents, BlendPixel );
+                uint8_t i_a = ch->p_style->i_font_alpha;
+
+                uint32_t i_color;
+                switch (g) {/* Apply font alpha ratio to shadow/outline alpha */
+                case 0:
+                    i_a     = i_a * ch->p_style->i_shadow_alpha / 255;
+                    i_color = ch->p_style->i_shadow_color;
+                    break;
+                case 1:
+                    i_a     = i_a * ch->p_style->i_outline_alpha / 255;
+                    i_color = ch->p_style->i_outline_color;
+                    break;
+                default:
+                    i_color = ch->p_style->i_font_color;
+                    break;
+                }
+
+                /* Don't render if invisible or not wanted */
+                if( i_a == STYLE_ALPHA_TRANSPARENT ||
+                   (g == 0 && 0 == (ch->p_style->i_style_flags & STYLE_SHADOW) ) ||
+                   (g == 1 && 0 == (ch->p_style->i_style_flags & STYLE_OUTLINE) )
+                  )
+                    continue;
+
+                ExtractComponents( i_color, &i_x, &i_y, &i_z );
+
+                int i_glyph_y = offset.y + p_regionbbox->yMax - p_glyph->top + p_line->i_base_line;
+                int i_glyph_x = offset.x + p_glyph->left - p_regionbbox->xMin;
+
+                BlendAXYZGlyph( p_picture,
+                                i_glyph_x, i_glyph_y,
+                                i_a, i_x, i_y, i_z,
+                                p_glyph,
+                                BlendPixel );
+
+                /* underline/strikethrough are only rendered for the normal glyph */
+                if( g == 2 && ch->i_line_thickness > 0 )
+                    BlendAXYZLine( p_picture,
+                                   i_glyph_x, i_glyph_y + p_glyph->top,
+                                   i_a, i_x, i_y, i_z,
+                                   &ch[0],
+                                   i + 1 < p_line->i_character_count ? &ch[1] : NULL,
+                                   BlendPixel );
+            }
         }
     }
 
@@ -962,12 +953,25 @@ static inline int RenderAXYZ( filter_t *p_filter,
 static void UpdateDefaultLiveStyles( filter_t *p_filter )
 {
     filter_sys_t *p_sys = p_filter->p_sys;
-    text_style_t *p_style = p_sys->p_default_style;
 
-    p_style->i_font_color = var_InheritInteger( p_filter, "freetype-color" );
+    p_sys->p_default_style->i_background_alpha = var_InheritInteger( p_filter, "freetype-background-opacity" );
+    p_sys->p_default_style->i_background_color = var_InheritInteger( p_filter, "freetype-background-color" );
 
-    p_style->i_background_alpha = var_InheritInteger( p_filter, "freetype-background-opacity" );
-    p_style->i_background_color = var_InheritInteger( p_filter, "freetype-background-color" );
+    FREENULL( p_sys->p_default_style->psz_fontname );
+    p_sys->p_default_style->psz_fontname = strdup( var_InheritString( p_filter, "freetype-font" ) );
+
+    p_sys->p_forced_style->f_font_relsize = 1.0 / var_InheritInteger( p_filter, "freetype-rel-fontsize" );;
+
+    p_sys->p_default_style->i_font_color = var_InheritInteger( p_filter, "freetype-color" );
+
+    if (var_InheritBool( p_filter, "freetype-bold" )) {
+        p_sys->p_forced_style->i_style_flags |= STYLE_BOLD;
+        p_sys->p_forced_style->i_features |= STYLE_HAS_FLAGS;
+    } else {
+        p_sys->p_forced_style->i_style_flags &= ~STYLE_BOLD;
+        p_sys->p_forced_style->i_features &= ~STYLE_HAS_FLAGS;
+    }
+    text_style_Merge( p_sys->p_default_style, p_sys->p_forced_style, true );
 }
 
 static void FillDefaultStyles( filter_t *p_filter )
@@ -1012,6 +1016,11 @@ static void FillDefaultStyles( filter_t *p_filter )
     p_sys->p_default_style->i_style_flags |= STYLE_SHADOW;
     p_sys->p_default_style->i_features |= STYLE_HAS_FLAGS;
 
+    p_sys->p_forced_style->i_font_size = var_InheritInteger( p_filter, "freetype-fontsize" );
+    p_sys->p_forced_style->f_font_relsize = var_InheritInteger( p_filter, "freetype-rel-fontsize" );
+    if( p_sys->p_forced_style->f_font_relsize )
+        p_sys->p_forced_style->f_font_relsize = 100.0 / p_sys->p_forced_style->f_font_relsize;
+
     if( var_InheritBool( p_filter, "freetype-bold" ) )
     {
         p_sys->p_forced_style->i_style_flags |= STYLE_BOLD;
@@ -1020,27 +1029,6 @@ static void FillDefaultStyles( filter_t *p_filter )
 
     /* Apply forced styles to defaults, if any */
     text_style_Merge( p_sys->p_default_style, p_sys->p_forced_style, true );
-}
-
-static void FreeRubyBlockArray( ruby_block_t **pp_array, size_t i_array )
-{
-    ruby_block_t *p_lyt = NULL;
-    for( size_t i = 0; i< i_array; i++ )
-    {
-        if( p_lyt != pp_array[i] )
-        {
-            p_lyt = pp_array[i];
-            if( p_lyt )
-            {
-                free( p_lyt->p_uchars );
-                text_style_Delete( p_lyt->p_style );
-                if( p_lyt->p_laid )
-                    FreeLines( p_lyt->p_laid );
-                free( p_lyt );
-            }
-        }
-    }
-    free( pp_array );
 }
 
 static void FreeStylesArray( text_style_t **pp_styles, size_t i_styles )
@@ -1057,128 +1045,75 @@ static void FreeStylesArray( text_style_t **pp_styles, size_t i_styles )
     free( pp_styles );
 }
 
-static size_t AddTextAndStyles( filter_sys_t *p_sys,
-                                const char *psz_text, const char *psz_rt,
-                                const text_style_t *p_style,
-                                layout_text_block_t *p_text_block )
+static uni_char_t* SegmentsToTextAndStyles( filter_t *p_filter, const text_segment_t *p_segment, size_t *pi_string_length,
+                                            text_style_t ***ppp_styles, size_t *pi_styles )
 {
-    /* Convert chars to unicode */
-    size_t i_bytes;
-    uni_char_t *p_ucs4 = ToCharset( FREETYPE_TO_UCS, psz_text, &i_bytes );
-    if( !p_ucs4 )
-        return 0;
-
-    const size_t i_newchars = i_bytes / 4;
-    if( SIZE_MAX / 4 < p_text_block->i_count + i_newchars )
-    {
-        free( p_ucs4 );
-        return 0;
-    }
-    size_t i_realloc = (p_text_block->i_count + i_newchars) * 4;
-    void *p_realloc = realloc( p_text_block->p_uchars, i_realloc );
-    if( unlikely(!p_realloc) )
-        return 0;
-    p_text_block->p_uchars = p_realloc;
-
-    /* We want one per segment shared text_style_t* per unicode character */
-    if( SIZE_MAX / sizeof(text_style_t *) < p_text_block->i_count + i_newchars )
-        return 0;
-    i_realloc = (p_text_block->i_count + i_newchars) * sizeof(text_style_t *);
-    p_realloc = realloc( p_text_block->pp_styles, i_realloc );
-    if ( unlikely(!p_realloc) )
-        return 0;
-    p_text_block->pp_styles = p_realloc;
-
-    /* Same for ruby text */
-    if( SIZE_MAX / sizeof(text_segment_ruby_t *) < p_text_block->i_count + i_newchars )
-        return 0;
-    i_realloc = (p_text_block->i_count + i_newchars) * sizeof(text_segment_ruby_t *);
-    p_realloc = realloc( p_text_block->pp_ruby, i_realloc );
-    if ( unlikely(!p_realloc) )
-        return 0;
-    p_text_block->pp_ruby = p_realloc;
-
-    /* Copy data */
-    memcpy( &p_text_block->p_uchars[p_text_block->i_count], p_ucs4, i_newchars * 4 );
-    free( p_ucs4 );
-
-    text_style_t *p_mgstyle = text_style_Duplicate( p_sys->p_default_style );
-    if ( p_mgstyle == NULL )
-        return 0;
-
-    if( p_style )
-        /* Replace defaults with segment values */
-        text_style_Merge( p_mgstyle, p_style, true );
-
-    /* Overwrite any default or value with forced ones */
-    text_style_Merge( p_mgstyle, p_sys->p_forced_style, true );
-
-    /* map it to each char of that segment */
-    for ( size_t i = 0; i < i_newchars; ++i )
-        p_text_block->pp_styles[p_text_block->i_count + i] = p_mgstyle;
-
-    ruby_block_t *p_rubyblock = NULL;
-    if( psz_rt )
-    {
-        p_ucs4 = ToCharset( FREETYPE_TO_UCS, psz_rt, &i_bytes );
-        if( !p_ucs4 )
-            return 0;
-        p_rubyblock = malloc(sizeof(ruby_block_t));
-        if( p_rubyblock )
-        {
-            p_rubyblock->p_style = text_style_Duplicate( p_mgstyle );
-            if( !p_rubyblock->p_style )
-            {
-                free( p_ucs4 );
-                free( p_rubyblock );
-                return 0;
-            }
-            p_rubyblock->p_style->i_font_size *= 0.4;
-            p_rubyblock->p_style->f_font_relsize *= 0.4;
-            p_rubyblock->p_uchars = p_ucs4;
-            p_rubyblock->i_count = i_bytes / 4;
-            p_rubyblock->p_laid = NULL;
-        }
-        else free( p_ucs4 );
-    }
-    for ( size_t i = 0; i < i_newchars; ++i )
-        p_text_block->pp_ruby[p_text_block->i_count + i] = p_rubyblock;
-
-    /* now safe to update total nb */
-    p_text_block->i_count += i_newchars;
-
-    return i_newchars;
-}
-
-static size_t SegmentsToTextAndStyles( filter_t *p_filter, const text_segment_t *p_segment,
-                                       layout_text_block_t *p_text_block )
-{
+    text_style_t **pp_styles = NULL;
+    uni_char_t *psz_uni = NULL;
+    size_t i_size = 0;
     size_t i_nb_char = 0;
-
+    *pi_styles = 0;
     for( const text_segment_t *s = p_segment; s != NULL; s = s->p_next )
     {
         if( !s->psz_text || !s->psz_text[0] )
             continue;
+        size_t i_string_bytes = 0;
+        uni_char_t *psz_tmp = ToCharset( FREETYPE_TO_UCS, s->psz_text, &i_string_bytes );
+        if( !psz_tmp )
+        {
+            free( psz_uni );
+            FreeStylesArray( pp_styles, *pi_styles );
+            return NULL;
+        }
+        uni_char_t *psz_realloc = realloc(psz_uni, i_size + i_string_bytes);
+        if( unlikely( !psz_realloc ) )
+        {
+            FreeStylesArray( pp_styles, *pi_styles );
+            free( psz_uni );
+            free( psz_tmp );
+            return NULL;
+        }
+        psz_uni = psz_realloc;
+        memcpy( psz_uni + i_nb_char, psz_tmp, i_string_bytes );
+        free( psz_tmp );
 
-        if( s->p_ruby )
+        // We want one text_style_t* per character. The amount of characters is the number of bytes divided by
+        // the size of one glyph, in byte
+        const size_t i_newsize = (i_size + i_string_bytes) / sizeof( *psz_uni );
+        text_style_t **pp_styles_realloc = realloc( pp_styles, i_newsize * sizeof( *pp_styles ));
+        if ( unlikely( !pp_styles_realloc ) )
         {
-            for( const text_segment_ruby_t *p_ruby = s->p_ruby;
-                                            p_ruby; p_ruby = p_ruby->p_next )
-            {
-                i_nb_char += AddTextAndStyles( p_filter->p_sys,
-                                               p_ruby->psz_base, p_ruby->psz_rt,
-                                               s->style, p_text_block );
-            }
+            FreeStylesArray( pp_styles, *pi_styles );
+            free( psz_uni );
+            return NULL;
         }
-        else
+        pp_styles = pp_styles_realloc;
+        *pi_styles = i_newsize;
+
+        text_style_t *p_style = text_style_Duplicate( p_filter->p_sys->p_default_style );
+        if ( p_style == NULL )
         {
-            i_nb_char += AddTextAndStyles( p_filter->p_sys,
-                                           s->psz_text, NULL,
-                                           s->style, p_text_block );
+            FreeStylesArray( pp_styles, *pi_styles );
+            free( psz_uni );
+            return NULL;
         }
+
+        if( s->style )
+            /* Replace defaults with segment values */
+            text_style_Merge( p_style, s->style, true );
+
+        /* Overwrite any default or value with forced ones */
+        text_style_Merge( p_style, p_filter->p_sys->p_forced_style, true );
+
+        // i_string_bytes is a number of bytes, while here we're going to assign pointer by pointer
+        for ( size_t i = 0; i < i_string_bytes / sizeof( *psz_uni ); ++i )
+            pp_styles[i_nb_char + i] = p_style;
+        i_size += i_string_bytes;
+        i_nb_char = i_size / sizeof( *psz_uni );
     }
-
-    return i_nb_char;
+    *pi_string_length = i_nb_char;
+    *ppp_styles = pp_styles;
+    return psz_uni;
 }
 
 /**
@@ -1210,15 +1145,13 @@ static int Render( filter_t *p_filter, subpicture_region_t *p_region_out,
         return VLC_EGENERIC;
     }
 
-    layout_text_block_t text_block = { 0 };
-    text_block.b_balanced = p_region_in->b_balanced_text;
-    text_block.b_grid = p_region_in->b_gridmode;
-    text_block.i_count = SegmentsToTextAndStyles( p_filter, p_region_in->p_text,
-                                                  &text_block );
-    if( text_block.i_count == 0 )
+    text_style_t **pp_styles = NULL;
+    size_t i_text_length = 0;
+    size_t i_styles = 0;
+    uni_char_t *psz_text = SegmentsToTextAndStyles( p_filter, p_region_in->p_text, &i_text_length,
+                                                    &pp_styles, &i_styles );
+    if( !psz_text || !pp_styles )
     {
-        free( text_block.pp_styles );
-        free( text_block.p_uchars );
         return VLC_EGENERIC;
     }
 
@@ -1226,7 +1159,9 @@ static int Render( filter_t *p_filter, subpicture_region_t *p_region_out,
     int rv = VLC_SUCCESS;
     FT_BBox bbox;
     int i_max_face_height;
+    line_desc_t *p_lines = NULL;
 
+    uint32_t *pi_k_durations   = NULL;
     unsigned i_max_width = p_filter->fmt_out.video.i_visible_width;
     if( p_region_in->i_max_width > 0 && (unsigned) p_region_in->i_max_width < i_max_width )
         i_max_width = p_region_in->i_max_width;
@@ -1239,23 +1174,24 @@ static int Render( filter_t *p_filter, subpicture_region_t *p_region_out,
     else if( p_region_in->i_y > 0 && (unsigned)p_region_in->i_y < i_max_height )
         i_max_height -= p_region_in->i_y;
 
-    text_block.i_max_width = i_max_width;
-    text_block.i_max_height = i_max_height;
-    rv = LayoutTextBlock( p_filter, &text_block, &text_block.p_laid, &bbox, &i_max_face_height );
+    uint8_t i_background_opacity = var_InheritInteger( p_filter, "freetype-background-opacity" );
+    i_background_opacity = VLC_CLIP( i_background_opacity, 0, 255 );
+    int i_margin = (i_background_opacity > 0 && !p_region_in->b_gridmode) ? i_max_face_height / 4 : 0;
+
+    if( (unsigned)i_margin * 2 >= i_max_width || (unsigned)i_margin * 2 >= i_max_height )
+        i_margin = 0;
+
+    rv = LayoutText( p_filter,
+                     psz_text, pp_styles, pi_k_durations, i_text_length,
+                     p_region_in->b_gridmode, p_region_in->b_balanced_text,
+                     i_max_width, i_max_height, &p_lines, &bbox, &i_max_face_height );
 
     /* Don't attempt to render text that couldn't be layed out
      * properly. */
-    if( !rv && text_block.i_count > 0 && bbox.xMin < bbox.xMax && bbox.yMin < bbox.yMax )
+    if( !rv && i_text_length > 0 && bbox.xMin < bbox.xMax && bbox.yMin < bbox.yMax )
     {
         const vlc_fourcc_t p_chroma_list_yuvp[] = { VLC_CODEC_YUVP, 0 };
         const vlc_fourcc_t p_chroma_list_rgba[] = { VLC_CODEC_RGBA, 0 };
-
-        uint8_t i_background_opacity = var_InheritInteger( p_filter, "freetype-background-opacity" );
-        i_background_opacity = VLC_CLIP( i_background_opacity, 0, 255 );
-        int i_margin = (i_background_opacity > 0 && !p_region_in->b_gridmode) ? i_max_face_height / 4 : 0;
-
-        if( (unsigned)i_margin * 2 >= i_max_width || (unsigned)i_margin * 2 >= i_max_height )
-            i_margin = 0;
 
         if( var_InheritBool( p_filter, "freetype-yuvp" ) )
             p_chroma_list = p_chroma_list_yuvp;
@@ -1337,10 +1273,10 @@ static int Render( filter_t *p_filter, subpicture_region_t *p_region_out,
         {
             rv = VLC_EGENERIC;
             if( *p_chroma == VLC_CODEC_YUVP )
-                rv = RenderYUVP( p_filter, p_region_out, text_block.p_laid,
+                rv = RenderYUVP( p_filter, p_region_out, p_lines,
                                  &regionbbox, &paddedbbox, &bbox );
             else if( *p_chroma == VLC_CODEC_YUVA )
-                rv = RenderAXYZ( p_filter, p_region_out, text_block.p_laid,
+                rv = RenderAXYZ( p_filter, p_region_out, p_lines,
                                  &regionbbox, &paddedbbox, &bbox,
                                  VLC_CODEC_YUVA,
                                  &p_region_out->fmt,
@@ -1348,7 +1284,7 @@ static int Render( filter_t *p_filter, subpicture_region_t *p_region_out,
                                  FillYUVAPicture,
                                  BlendYUVAPixel );
             else if( *p_chroma == VLC_CODEC_RGBA )
-                rv = RenderAXYZ( p_filter, p_region_out, text_block.p_laid,
+                rv = RenderAXYZ( p_filter, p_region_out, p_lines,
                                  &regionbbox, &paddedbbox, &bbox,
                                  VLC_CODEC_RGBA,
                                  &p_region_out->fmt,
@@ -1356,7 +1292,7 @@ static int Render( filter_t *p_filter, subpicture_region_t *p_region_out,
                                  FillRGBAPicture,
                                  BlendRGBAPixel );
             else if( *p_chroma == VLC_CODEC_ARGB )
-                rv = RenderAXYZ( p_filter, p_region_out, text_block.p_laid,
+                rv = RenderAXYZ( p_filter, p_region_out, p_lines,
                                  &regionbbox, &paddedbbox, &bbox,
                                  VLC_CODEC_ARGB,
                                  &p_region_out->fmt,
@@ -1371,17 +1307,15 @@ static int Render( filter_t *p_filter, subpicture_region_t *p_region_out,
         /* With karaoke, we're going to have to render the text a number
          * of times to show the progress marker on the text.
          */
-        if( text_block.pi_k_durations )
+        if( pi_k_durations )
             var_SetBool( p_filter, "text-rerender", true );
     }
 
-    FreeLines( text_block.p_laid );
+    FreeLines( p_lines );
 
-    free( text_block.p_uchars );
-    FreeStylesArray( text_block.pp_styles, text_block.i_count );
-    if( text_block.pp_ruby )
-        FreeRubyBlockArray( text_block.pp_ruby, text_block.i_count );
-    free( text_block.pi_k_durations );
+    free( psz_text );
+    FreeStylesArray( pp_styles, i_styles );
+    free( pi_k_durations );
 
     return rv;
 }

@@ -95,7 +95,7 @@ vlc_module_begin ()
 
     add_submodule ()
         set_section( N_("Lua HTTP"), 0 )
-            add_password("http-password", NULL, PASS_TEXT, PASS_LONGTEXT)
+            add_password ( "http-password", NULL, PASS_TEXT, PASS_LONGTEXT, false )
             add_string ( "http-src",  NULL, SRC_TEXT,  SRC_LONGTEXT,  true )
             add_bool   ( "http-index", false, INDEX_TEXT, INDEX_LONGTEXT, true )
         set_capability( "interface", 0 )
@@ -123,8 +123,9 @@ vlc_module_begin ()
             add_integer( "telnet-port", TELNETPORT_DEFAULT, TELNETPORT_TEXT,
                          TELNETPORT_LONGTEXT, true )
                 change_integer_range( 1, 65535 )
-            add_password("telnet-password", NULL, TELNETPWD_TEXT,
-                         TELNETPWD_LONGTEXT)
+            add_password( "telnet-password", NULL, TELNETPWD_TEXT,
+
+                          TELNETPWD_LONGTEXT, true )
         set_capability( "interface", 0 )
         set_callbacks( Open_LuaTelnet, Close_LuaIntf )
         set_description( N_("Lua Telnet") )
@@ -146,7 +147,7 @@ vlc_module_begin ()
         add_shortcut( "luaplaylist" )
         set_shortname( N_("Lua Playlist") )
         set_description( N_("Lua Playlist Parser Interface") )
-        set_capability( "stream_filter", 302 )
+        set_capability( "stream_filter", 2 )
         set_callbacks( Import_LuaPlaylist, Close_LuaPlaylist )
 
     add_submodule ()
@@ -219,11 +220,11 @@ int vlclua_dir_list(const char *luadirname, char ***restrict listp)
     *listp = list;
 
     /* Lua scripts in user-specific data directory */
-    list = vlclua_dir_list_append(list, config_GetUserDir(VLC_USERDATA_DIR),
+    list = vlclua_dir_list_append(list, config_GetUserDir(VLC_DATA_DIR),
                                   luadirname);
 
-    char *libdir = config_GetSysPath(VLC_PKG_LIBEXEC_DIR, NULL);
-    char *datadir = config_GetSysPath(VLC_PKG_DATA_DIR, NULL);
+    char *libdir = config_GetLibDir();
+    char *datadir = config_GetDataDir();
     bool both = libdir != NULL && datadir != NULL && strcmp(libdir, datadir);
 
     /* Tokenized Lua scripts in architecture-specific data directory */

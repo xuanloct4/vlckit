@@ -40,10 +40,10 @@
 static int  Open (vlc_object_t *);
 static void Close(vlc_object_t *);
 
-typedef struct
+struct decoder_sys_t
 {
     uint32_t palette[256];
-} decoder_sys_t;
+};
 
 vlc_module_begin()
     set_description(N_("HDMV TextST subtitles decoder"))
@@ -62,9 +62,9 @@ vlc_module_end()
 #define BD_TEXTST_DATA_RESET_STYLE 0x0b
 
 static size_t textst_FillRegion(decoder_t *p_dec, const uint8_t *p_data, size_t i_data,
-                                substext_updater_region_t *p_region)
+                                subpicture_updater_sys_region_t *p_region)
 {
-    decoder_sys_t *p_sys = p_dec->p_sys;
+    VLC_UNUSED(p_dec);
     text_segment_t **pp_last = &p_region->p_segments;
     text_style_t *p_style = NULL;
 
@@ -122,8 +122,8 @@ static size_t textst_FillRegion(decoder_t *p_dec, const uint8_t *p_data, size_t 
                         p_style->i_style_flags |= STYLE_ITALIC;
                     if(p_data[0] & 0x04)
                         p_style->i_style_flags |= STYLE_OUTLINE;
-                    p_style->i_outline_color = p_sys->palette[p_data[1]] & 0x00FFFFFF;
-                    p_style->i_outline_alpha = p_sys->palette[p_data[1]] >> 24;
+                    p_style->i_outline_color = p_dec->p_sys->palette[p_data[1]] & 0x00FFFFFF;
+                    p_style->i_outline_alpha = p_dec->p_sys->palette[p_data[1]] >> 24;
                     p_style->i_features |= STYLE_HAS_FLAGS | STYLE_HAS_OUTLINE_ALPHA | STYLE_HAS_OUTLINE_COLOR;
                     //p_data[2] outline__thickness
                  }
@@ -136,8 +136,8 @@ static size_t textst_FillRegion(decoder_t *p_dec, const uint8_t *p_data, size_t 
              case BD_TEXTST_DATA_FONT_COLOR:
                  if(i_data > 1 && (p_style || (p_style = text_style_Create( STYLE_NO_DEFAULTS ))))
                  {
-                    p_style->i_font_color = p_sys->palette[p_data[1]] & 0x00FFFFFF;
-                    p_style->i_font_alpha = p_sys->palette[p_data[1]] >> 24;
+                    p_style->i_font_color = p_dec->p_sys->palette[p_data[1]] & 0x00FFFFFF;
+                    p_style->i_font_alpha = p_dec->p_sys->palette[p_data[1]] >> 24;
                     p_style->i_features |= STYLE_HAS_FONT_ALPHA | STYLE_HAS_FONT_COLOR;
                  }
                  break;
@@ -171,16 +171,13 @@ static size_t textst_Decode_palette(decoder_t *p_dec, const uint8_t *p_data, siz
 {
     if(i_data < 2)
         return i_data;
-
-    decoder_sys_t *p_sys = p_dec->p_sys;
-
     uint16_t i_size = GetWBE(&p_data[0]);
     p_data += 2; i_data -= 2;
 
     i_size = i_data = __MIN(i_data, i_size);
     while (i_data > 4)
     {
-        p_sys->palette[p_data[0]] = /* YCrCbT to ARGB */
+        p_dec->p_sys->palette[p_data[0]] = /* YCrCbT to ARGB */
                 ( (uint32_t)((float)p_data[1] +1.402f * (p_data[2]-128)) << 16 ) |
                 ( (uint32_t)((float)p_data[1] -0.34414 * (p_data[3]-128) -0.71414 * (p_data[2]-128)) << 8 ) |
                 ( (uint32_t)((float)p_data[1] +1.722 * (p_data[3]-128)) ) |
@@ -192,9 +189,9 @@ static size_t textst_Decode_palette(decoder_t *p_dec, const uint8_t *p_data, siz
 }
 
 static void textst_FillRegions(decoder_t *p_dec, const uint8_t *p_data, size_t i_data,
-                               substext_updater_region_t *p_region)
+                               subpicture_updater_sys_region_t *p_region)
 {
-    substext_updater_region_t **pp_last = &p_region;
+    subpicture_updater_sys_region_t **pp_last = &p_region;
     bool palette_update_flag = p_data[0] >> 7;
     p_data++; i_data--;
 
@@ -245,9 +242,8 @@ static int Decode(decoder_t *p_dec, block_t *p_block)
             p_sub->i_start = p_block->i_dts;
         }
 
-        subtext_updater_sys_t *p_spusys = p_sub->updater.p_sys;
         textst_FillRegions(p_dec, &p_block->p_buffer[13], p_block->i_buffer - 13,
-                           &p_spusys->region);
+                           &p_sub->updater.p_sys->region);
 
         p_sub->b_absolute = false;
         decoder_QueueSub(p_dec, p_sub);

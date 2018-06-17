@@ -438,14 +438,15 @@ void InputManager::UpdatePosition()
 void InputManager::UpdateNavigation()
 {
     /* Update navigation status */
-    size_t ntitles, nchapters;
+    vlc_value_t val; val.i_int = 0;
+    vlc_value_t val2; val2.i_int = 0;
 
-    var_Change( p_input, "title", VLC_VAR_CHOICESCOUNT, &ntitles );
+    var_Change( p_input, "title", VLC_VAR_CHOICESCOUNT, &val, NULL );
 
-    if( ntitles > 0 )
+    if( val.i_int > 0 )
     {
         bool b_menu = false;
-        if( ntitles > 1 )
+        if( val.i_int > 1 )
         {
             input_title_t **pp_title = NULL;
             int i_title = 0;
@@ -462,10 +463,10 @@ void InputManager::UpdateNavigation()
         }
 
         /* p_input != NULL since val.i_int != 0 */
-        var_Change( p_input, "chapter", VLC_VAR_CHOICESCOUNT, &nchapters );
+        var_Change( p_input, "chapter", VLC_VAR_CHOICESCOUNT, &val2, NULL );
 
         emit titleChanged( b_menu );
-        emit chapterChanged( nchapters > 1 );
+        emit chapterChanged( val2.i_int > 1 );
     }
     else
         emit chapterChanged( false );
@@ -551,9 +552,9 @@ bool InputManager::hasAudio()
 {
     if( hasInput() )
     {
-        size_t val;
-        var_Change( p_input, "audio-es", VLC_VAR_CHOICESCOUNT, &val );
-        return val > 0;
+        vlc_value_t val;
+        var_Change( p_input, "audio-es", VLC_VAR_CHOICESCOUNT, &val, NULL );
+        return val.i_int > 0;
     }
     return false;
 }
@@ -859,26 +860,26 @@ void InputManager::telexSetTransparency( bool b_transparentTelextext )
 
 void InputManager::activateTeletext( bool b_enable )
 {
-    vlc_value_t *list;
-    char **text;
-    size_t count;
-
-    if( hasInput() && !var_Change( p_input, "teletext-es", VLC_VAR_GETCHOICES,
-                                   &count, &list, &text ) )
+    vlc_value_t list;
+    vlc_value_t text;
+    if( hasInput() && !var_Change( p_input, "teletext-es", VLC_VAR_GETCHOICES, &list, &text ) )
     {
-        if( count > 0 )
-        {   /* Prefer the page 100 if it is present */
-            int id = list[0].i_int;
-            for( size_t i = 0; i < count; i++ )
-            {   /* The description is the page number as a string */
-                if( text[i] != NULL && !strcmp( text[i], "100" ) )
-                    id = list[i].i_int;
-                free(text[i]);
+        if( list.p_list->i_count > 0 )
+        {
+            /* Prefer the page 100 if it is present */
+            int i;
+            for( i = 0; i < text.p_list->i_count; i++ )
+            {
+                /* The description is the page number as a string */
+                const char *psz_page = text.p_list->p_values[i].psz_string;
+                if( psz_page && !strcmp( psz_page, "100" ) )
+                    break;
             }
-            var_SetInteger( p_input, "spu-es", b_enable ? id : -1 );
+            if( i >= list.p_list->i_count )
+                i = 0;
+            var_SetInteger( p_input, "spu-es", b_enable ? list.p_list->p_values[i].i_int : -1 );
         }
-        free(text);
-        free(list);
+        var_FreeList( &list, &text );
     }
 }
 
@@ -1140,7 +1141,7 @@ void MainInputManager::pause()
 
 void MainInputManager::toggleRandom()
 {
-    config_PutInt( "random", var_ToggleBool( THEPL, "random" ) );
+    config_PutInt( p_intf, "random", var_ToggleBool( THEPL, "random" ) );
 }
 
 void MainInputManager::notifyRandom(bool value)
@@ -1182,14 +1183,14 @@ void MainInputManager::loopRepeatLoopStatus()
 
     var_SetBool( THEPL, "loop", loop );
     var_SetBool( THEPL, "repeat", repeat );
-    config_PutInt( "loop", loop );
-    config_PutInt( "repeat", repeat );
+    config_PutInt( p_intf, "loop", loop );
+    config_PutInt( p_intf, "repeat", repeat );
 }
 
 void MainInputManager::activatePlayQuit( bool b_exit )
 {
     var_SetBool( THEPL, "play-and-exit", b_exit );
-    config_PutInt( "play-and-exit", b_exit );
+    config_PutInt( p_intf, "play-and-exit", b_exit );
 }
 
 bool MainInputManager::getPlayExitState()

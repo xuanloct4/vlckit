@@ -32,12 +32,65 @@
 # include "config.h"
 #endif
 #include <assert.h>
-#include <limits.h>
 
 #include <vlc_common.h>
 #include "picture.h"
 #include <vlc_image.h>
 #include <vlc_block.h>
+
+#define PICTURE_SW_SIZE_MAX (1<<28) /* 256MB: 8K * 8K * 4*/
+
+/**
+ * Allocate a new picture in the heap.
+ *
+ * This function allocates a fake direct buffer in memory, which can be
+ * used exactly like a video buffer. The video output thread then manages
+ * how it gets displayed.
+ */
+static int AllocatePicture( picture_t *p_pic )
+{
+    /* Calculate how big the new image should be */
+    size_t i_bytes = 0;
+    for( int i = 0; i < p_pic->i_planes; i++ )
+    {
+        const plane_t *p = &p_pic->p[i];
+
+        if( p->i_pitch < 0 || p->i_lines <= 0 ||
+            (size_t)p->i_pitch > (SIZE_MAX - i_bytes)/p->i_lines )
+        {
+            p_pic->i_planes = 0;
+            return VLC_ENOMEM;
+        }
+        i_bytes += p->i_pitch * p->i_lines;
+    }
+
+    if( i_bytes >= PICTURE_SW_SIZE_MAX )
+    {
+        p_pic->i_planes = 0;
+        return VLC_ENOMEM;
+    }
+
+    uint8_t *p_data = aligned_alloc( 16, i_bytes );
+    if( i_bytes > 0 && p_data == NULL )
+    {
+        p_pic->i_planes = 0;
+        return VLC_EGENERIC;
+    }
+
+    /* Fill the p_pixels field for each plane */
+    p_pic->p[0].p_pixels = p_data;
+    for( int i = 1; i < p_pic->i_planes; i++ )
+    {
+        p_pic->p[i].p_pixels = &p_pic->p[i-1].p_pixels[ p_pic->p[i-1].i_lines *
+                                                        p_pic->p[i-1].i_pitch ];
+    }
+
+    return VLC_SUCCESS;
+}
+
+/*****************************************************************************
+ *
+ *****************************************************************************/
 
 static void PictureDestroyContext( picture_t *p_picture )
 {
@@ -60,7 +113,8 @@ static void picture_DestroyFromResource( picture_t *p_picture )
 }
 
 /**
- * Destroys a picture allocated with picture_NewFromFormat().
+ * Destroys a picture allocated with picture_NewFromFormat()
+ * (and thus AllocatePicture()).
  */
 static void picture_Destroy( picture_t *p_picture )
 {
@@ -118,10 +172,9 @@ int picture_Setup( picture_t *p_picture, const video_format_t *restrict fmt )
        Which is respected if you have
        V % lcm( p_dsc->p[0..planes].w.i_den * 16) == 0
     */
-    unsigned i_modulo_w = 1;
-    unsigned i_modulo_h = 1;
-    unsigned i_ratio_h  = 1;
-
+    int i_modulo_w = 1;
+    int i_modulo_h = 1;
+    unsigned int i_ratio_h  = 1;
     for( unsigned i = 0; i < p_dsc->plane_count; i++ )
     {
         i_modulo_w = LCM( i_modulo_w, 16 * p_dsc->p[i].w.den );
@@ -131,40 +184,22 @@ int picture_Setup( picture_t *p_picture, const video_format_t *restrict fmt )
     }
     i_modulo_h = LCM( i_modulo_h, 32 );
 
-    unsigned width, height;
-
-    if (unlikely(add_overflow(fmt->i_width, i_modulo_w - 1, &width))
-     || unlikely(add_overflow(fmt->i_height, i_modulo_h - 1, &height)))
-        return VLC_EGENERIC;
-
-    width = width / i_modulo_w * i_modulo_w;
-    height = height / i_modulo_h * i_modulo_h;
-
-    /* plane_t uses 'int'. */
-    if (unlikely(width > INT_MAX) || unlikely(height > INT_MAX))
-        return VLC_EGENERIC;
-
+    const int i_width_aligned  = ( fmt->i_width  + i_modulo_w - 1 ) / i_modulo_w * i_modulo_w;
+    const int i_height_aligned = ( fmt->i_height + i_modulo_h - 1 ) / i_modulo_h * i_modulo_h;
+    const int i_height_extra   = 2 * i_ratio_h; /* This one is a hack for some ASM functions */
     for( unsigned i = 0; i < p_dsc->plane_count; i++ )
     {
         plane_t *p = &p_picture->p[i];
-        const vlc_rational_t *h = &p_dsc->p[i].h;
-        const vlc_rational_t *w = &p_dsc->p[i].w;
 
-        /* A plane cannot be over-sampled. This could lead to overflow. */
-        assert(h->den >= h->num);
-        assert(w->den >= w->num);
-
-        p->i_lines = height * h->num / h->den;
-        p->i_visible_lines = (fmt->i_visible_height + (h->den - 1)) / h->den * h->num;
-
-        p->i_pitch = width * w->num / w->den * p_dsc->pixel_size;
-        p->i_visible_pitch = (fmt->i_visible_width + (w->den - 1)) / w->den * w->num
-                             * p_dsc->pixel_size;
-        p->i_pixel_pitch = p_dsc->pixel_size;
+        p->i_lines         = (i_height_aligned + i_height_extra ) * p_dsc->p[i].h.num / p_dsc->p[i].h.den;
+        p->i_visible_lines = (fmt->i_visible_height + (p_dsc->p[i].h.den - 1)) / p_dsc->p[i].h.den * p_dsc->p[i].h.num;
+        p->i_pitch         = i_width_aligned * p_dsc->p[i].w.num / p_dsc->p[i].w.den * p_dsc->pixel_size;
+        p->i_visible_pitch = (fmt->i_visible_width + (p_dsc->p[i].w.den - 1)) / p_dsc->p[i].w.den * p_dsc->p[i].w.num * p_dsc->pixel_size;
+        p->i_pixel_pitch   = p_dsc->pixel_size;
 
         assert( (p->i_pitch % 16) == 0 );
     }
-    p_picture->i_planes = p_dsc->plane_count;
+    p_picture->i_planes  = p_dsc->plane_count;
 
     return VLC_SUCCESS;
 }
@@ -172,8 +207,7 @@ int picture_Setup( picture_t *p_picture, const video_format_t *restrict fmt )
 /*****************************************************************************
  *
  *****************************************************************************/
-
-static picture_priv_t *picture_NewPrivate(const video_format_t *restrict p_fmt)
+picture_t *picture_NewFromResource( const video_format_t *p_fmt, const picture_resource_t *p_resource )
 {
     video_format_t fmt = *p_fmt;
 
@@ -208,81 +242,38 @@ static picture_priv_t *picture_NewPrivate(const video_format_t *restrict p_fmt)
     atomic_init( &priv->gc.refs, 1 );
     priv->gc.opaque = NULL;
 
-    return priv;
-}
-
-picture_t *picture_NewFromResource( const video_format_t *p_fmt, const picture_resource_t *p_resource )
-{
-    assert(p_resource != NULL);
-
-    picture_priv_t *priv = picture_NewPrivate(p_fmt);
-    if (unlikely(priv == NULL))
-        return NULL;
-
-    picture_t *p_picture = &priv->picture;
-
-    p_picture->p_sys = p_resource->p_sys;
-
-    if( p_resource->pf_destroy != NULL )
-        priv->gc.destroy = p_resource->pf_destroy;
-    else
-        priv->gc.destroy = picture_DestroyFromResource;
-
-    for( int i = 0; i < p_picture->i_planes; i++ )
+    if( p_resource )
     {
-        p_picture->p[i].p_pixels = p_resource->p[i].p_pixels;
-        p_picture->p[i].i_lines  = p_resource->p[i].i_lines;
-        p_picture->p[i].i_pitch  = p_resource->p[i].i_pitch;
+        p_picture->p_sys = p_resource->p_sys;
+
+        if( p_resource->pf_destroy != NULL )
+            priv->gc.destroy = p_resource->pf_destroy;
+        else
+            priv->gc.destroy = picture_DestroyFromResource;
+
+        for( int i = 0; i < p_picture->i_planes; i++ )
+        {
+            p_picture->p[i].p_pixels = p_resource->p[i].p_pixels;
+            p_picture->p[i].i_lines  = p_resource->p[i].i_lines;
+            p_picture->p[i].i_pitch  = p_resource->p[i].i_pitch;
+        }
+    }
+    else
+    {
+        if( AllocatePicture( p_picture ) )
+        {
+            free( p_picture );
+            return NULL;
+        }
+        priv->gc.destroy = picture_Destroy;
     }
 
     return p_picture;
 }
 
-#define PICTURE_SW_SIZE_MAX (UINT32_C(1) << 28) /* 256MB: 8K * 8K * 4*/
-
-picture_t *picture_NewFromFormat(const video_format_t *restrict fmt)
+picture_t *picture_NewFromFormat( const video_format_t *p_fmt )
 {
-    picture_priv_t *priv = picture_NewPrivate(fmt);
-    if (unlikely(priv == NULL))
-        return NULL;
-
-    priv->gc.destroy = picture_Destroy;
-
-    picture_t *pic = &priv->picture;
-    if (pic->i_planes == 0)
-        return pic;
-
-    /* Calculate how big the new image should be */
-    size_t plane_sizes[PICTURE_PLANE_MAX];
-    size_t pic_size = 0;
-
-    for (int i = 0; i < pic->i_planes; i++)
-    {
-        const plane_t *p = &pic->p[i];
-
-        if (unlikely(mul_overflow(p->i_pitch, p->i_lines, &plane_sizes[i]))
-         || unlikely(add_overflow(pic_size, plane_sizes[i], &pic_size)))
-            goto error;
-    }
-
-    if (unlikely(pic_size >= PICTURE_SW_SIZE_MAX))
-        goto error;
-
-    uint8_t *buf = aligned_alloc(16, pic_size);
-    if (unlikely(buf == NULL))
-        goto error;
-
-    /* Fill the p_pixels field for each plane */
-    for (int i = 0; i < pic->i_planes; i++)
-    {
-        pic->p[i].p_pixels = buf;
-        buf += plane_sizes[i];
-    }
-
-    return pic;
-error:
-    free(pic);
-    return NULL;
+    return picture_NewFromResource( p_fmt, NULL );
 }
 
 picture_t *picture_New( vlc_fourcc_t i_chroma, int i_width, int i_height, int i_sar_num, int i_sar_den )

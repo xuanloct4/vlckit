@@ -101,10 +101,6 @@ ifdef HAVE_SOLARIS
 POSTPROCCONF += --enable-pic
 endif
 
-ifdef HAVE_NACL
-POSTPROCCONF += --target-os=linux
-endif
-
 # Build
 
 ifdef GPL
@@ -123,7 +119,6 @@ $(TARBALLS)/postproc-$(POSTPROC_VERSION).tar.xz:
 
 postproc: postproc-$(POSTPROC_VERSION).tar.xz .sum-postproc
 	$(UNPACK)
-	$(APPLY) $(SRC)/postproc/win-pic.patch
 	$(MOVE)
 
 .postproc: postproc

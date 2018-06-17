@@ -45,7 +45,7 @@
 /*****************************************************************************
  * decoder_sys_t : daala decoder descriptor
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     /* Module mode */
     bool b_packetizer;
@@ -71,7 +71,7 @@ typedef struct
      * Common properties
      */
     mtime_t i_pts;
-} decoder_sys_t;
+};
 
 /*****************************************************************************
  * Local prototypes
@@ -431,7 +431,7 @@ static void *ProcessPacket( decoder_t *p_dec, daala_packet *p_dpacket,
     }
 
     /* Date management */
-    if( p_block->i_pts != VLC_TS_INVALID && p_block->i_pts != p_sys->i_pts )
+    if( p_block->i_pts > VLC_TS_INVALID && p_block->i_pts != p_sys->i_pts )
     {
         p_sys->i_pts = p_block->i_pts;
     }
@@ -579,12 +579,12 @@ static void daala_CopyPicture( picture_t *p_pic,
 }
 
 #ifdef ENABLE_SOUT
-typedef struct
+struct encoder_sys_t
 {
     daala_info      di;                     /* daala bitstream settings */
     daala_comment   dc;                     /* daala comment header */
     daala_enc_ctx   *dcx;                   /* daala context */
-} encoder_sys_t;
+};
 
 static int OpenEncoder( vlc_object_t *p_this )
 {

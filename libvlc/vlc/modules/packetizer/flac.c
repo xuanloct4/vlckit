@@ -54,7 +54,7 @@ vlc_module_end()
 /*****************************************************************************
  * decoder_sys_t : FLAC decoder descriptor
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     /*
      * Input properties
@@ -83,7 +83,7 @@ typedef struct
     uint8_t *p_buf;
 
     int i_next_block_flags;
-} decoder_sys_t;
+};
 
 static const int pi_channels_maps[9] =
 {
@@ -487,23 +487,25 @@ static block_t *Packetize(decoder_t *p_dec, block_t **pp_block)
         p_dec->fmt_out.audio.i_physical_channels = pi_channels_maps[p_sys->stream_info.channels];
 
         if( p_sys->bytestream.p_block->i_pts > date_Get( &p_sys->pts ) &&
-            p_sys->bytestream.p_block->i_pts != VLC_TS_INVALID )
+            p_sys->bytestream.p_block->i_pts > VLC_TS_INVALID )
         {
             date_Init( &p_sys->pts, p_sys->headerinfo.i_rate, 1 );
             date_Set( &p_sys->pts, p_sys->bytestream.p_block->i_pts );
             p_sys->bytestream.p_block->i_pts = VLC_TS_INVALID;
         }
 
-
-        out = block_heap_Alloc( p_sys->p_buf, p_sys->i_frame_size );
-        if( out )
+        if( date_Get( &p_sys->pts ) > VLC_TS_INVALID )
         {
-            out->i_dts = out->i_pts = date_Get( &p_sys->pts );
-            out->i_flags = p_sys->i_next_block_flags;
-            p_sys->i_next_block_flags = 0;
+            out = block_heap_Alloc( p_sys->p_buf, p_sys->i_frame_size );
+            if( out )
+            {
+                out->i_dts = out->i_pts = date_Get( &p_sys->pts );
+                out->i_flags = p_sys->i_next_block_flags;
+                p_sys->i_next_block_flags = 0;
+            }
+            else
+                p_sys->p_buf = NULL;
         }
-        else
-            p_sys->p_buf = NULL;
 
         date_Increment( &p_sys->pts, p_sys->headerinfo.i_frame_length );
         if( out )
@@ -552,6 +554,7 @@ static int Open(vlc_object_t *p_this)
     p_sys->i_next_block_flags = 0;
     block_BytestreamInit(&p_sys->bytestream);
     date_Init( &p_sys->pts, 1, 1 );
+    date_Set( &p_sys->pts, VLC_TS_INVALID );
 
     /* */
     es_format_Copy(&p_dec->fmt_out, &p_dec->fmt_in);

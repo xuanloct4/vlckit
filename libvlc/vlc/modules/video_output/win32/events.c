@@ -35,8 +35,8 @@
 
 #include <vlc_common.h>
 #include <vlc_vout_display.h>
+#include <vlc_atomic.h>
 
-#include <stdatomic.h>
 #include <windows.h>
 #include <windowsx.h>                                        /* GET_X_LPARAM */
 #include <shellapi.h>                                         /* ExtractIcon */
@@ -699,6 +699,7 @@ static int Win32VoutCreateWindow( event_thread_t *p_event )
     #if defined(MODULE_NAME_IS_direct3d9) || defined(MODULE_NAME_IS_direct3d11)
     else
     {
+        vout_display_DeleteWindow(vd, NULL);
         p_event->parent_window = NULL;
         p_event->hparent = GetDesktopHandle(vd);
     }
@@ -884,6 +885,10 @@ static void Win32VoutCloseWindow( event_thread_t *p_event )
     if( p_event->hfswnd )
         DestroyWindow( p_event->hfswnd );
 
+    #if defined(MODULE_NAME_IS_direct3d9) || defined(MODULE_NAME_IS_direct3d11)
+    if( !p_event->use_desktop )
+    #endif
+        vout_display_DeleteWindow( vd, p_event->parent_window );
     p_event->hwnd = NULL;
 
     HINSTANCE hInstance = GetModuleHandle(NULL);

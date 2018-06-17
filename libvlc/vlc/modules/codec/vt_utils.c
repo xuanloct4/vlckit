@@ -22,7 +22,7 @@
 # include "config.h"
 #endif
 
-#include <stdatomic.h>
+#include <vlc_atomic.h>
 
 #include "vt_utils.h"
 

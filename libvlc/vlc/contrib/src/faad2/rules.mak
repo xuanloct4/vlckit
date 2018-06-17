@@ -32,5 +32,5 @@ endif
 	$(RECONF)
 	cd $< && $(HOSTVARS) ./configure --without-drm $(HOSTCONF)
 	cd $< && sed -i.orig "s/shrext_cmds/shrext/g" libtool
-	cd $< && $(MAKE) -C libfaad install
+	cd $</libfaad && $(MAKE) install
 	touch $@

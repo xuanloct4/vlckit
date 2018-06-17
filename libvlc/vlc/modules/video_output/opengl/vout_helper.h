@@ -34,8 +34,8 @@
 #ifdef HAVE_LIBPLACEBO
 #include <libplacebo/shaders/colorspace.h>
 
-#define RENDER_INTENT_TEXT N_("Rendering intent for color conversion")
-#define RENDER_INTENT_LONGTEXT N_("The algorithm used to convert between color spaces")
+#define RENDER_INTENT_TEXT "Rendering intent for color conversion"
+#define RENDER_INTENT_LONGTEXT "The algorithm used to convert between color spaces"
 
 static const int intent_values[] = {
     PL_INTENT_PERCEPTUAL,
@@ -51,8 +51,8 @@ static const char * const intent_text[] = {
     "Saturation",
 };
 
-#define PRIM_TEXT N_("Display primaries")
-#define PRIM_LONGTEXT N_("The primaries associated with the output display")
+#define PRIM_TEXT "Display primaries"
+#define PRIM_LONGTEXT "The primaries associated with the output display"
 
 static const int prim_values[] = {
     PL_COLOR_PRIM_UNKNOWN,
@@ -86,8 +86,8 @@ static const char * const prim_text[] = {
     "Sony S-Gamut",
 };
 
-#define TRC_TEXT N_("Display gamma / transfer function")
-#define TRC_LONGTEXT N_("The gamma/transfer function associated with the output display")
+#define TRC_TEXT "Display gamma / transfer function"
+#define TRC_LONGTEXT "The gamma/transfer function associated with the output display"
 
 static const int trc_values[] = {
     PL_COLOR_TRC_UNKNOWN,
@@ -121,8 +121,8 @@ static const char * const trc_text[] = {
     "Sony S-Log2",
 };
 
-#define TONEMAPPING_TEXT N_("Tone-mapping algorithm")
-#define TONEMAPPING_LONGTEXT N_("Algorithm to use when converting from wide gamut to standard gamut, or from HDR to SDR")
+#define TONEMAPPING_TEXT "Tone-mapping algorithm"
+#define TONEMAPPING_LONGTEXT "Algorithm to use when converting from wide gamut to standard gamut, or from HDR to SDR"
 
 static const int tone_values[] = {
     PL_TONE_MAPPING_HABLE,
@@ -142,17 +142,17 @@ static const char * const tone_text[] = {
     "Hard clip out-of-gamut",
 };
 
-#define TONEMAP_PARAM_TEXT N_("Tone-mapping parameter")
-#define TONEMAP_PARAM_LONGTEXT N_("This parameter can be used to tune the tone-mapping curve. Specifics depend on the curve used.")
+#define TONEMAP_PARAM_TEXT "Tone-mapping parameter"
+#define TONEMAP_PARAM_LONGTEXT "This parameter can be used to tune the tone-mapping curve. Specifics depend on the curve used."
 
-#define TONEMAP_DESAT_TEXT N_("Tone-mapping desaturation coefficient")
-#define TONEMAP_DESAT_LONGTEXT N_("How strongly to desaturate overbright colors towards white. 0.0 disables this behavior.")
+#define TONEMAP_DESAT_TEXT "Tone-mapping desaturation coefficient"
+#define TONEMAP_DESAT_LONGTEXT "How strongly to desaturate overbright colors towards white. 0.0 disables this behavior."
 
-#define TONEMAP_WARN_TEXT N_("Highlight clipped pixels")
-#define TONEMAP_WARN_LONGTEXT N_("Debugging tool to indicate which pixels were clipped as part of the tone mapping process.")
+#define TONEMAP_WARN_TEXT "Highlight clipped pixels"
+#define TONEMAP_WARN_LONGTEXT "Debugging tool to indicate which pixels were clipped as part of the tone mapping process."
 
-#define DITHER_TEXT N_("Dithering algorithm")
-#define DITHER_LONGTEXT N_("The algorithm to use when dithering to a lower bit depth (degrades performance on some platforms).")
+#define DITHER_TEXT "Dithering algorithm"
+#define DITHER_LONGTEXT "The algorithm to use when dithering to a lower bit depth (degrades performance on some platforms)."
 
 static const int dither_values[] = {
     -1, // no dithering
@@ -168,11 +168,11 @@ static const char * const dither_text[] = {
     "Bayer matrix (ordered dither)",
 };
 
-#define DEPTH_TEXT N_("Dither depth override (0 = framebuffer depth)")
-#define DEPTH_LONGTEXT N_("Overrides the detected framebuffer depth. Useful to dither to lower bit depths than otherwise required.")
+#define DEPTH_TEXT "Dither depth override (0 = framebuffer depth)"
+#define DEPTH_LONGTEXT "Overrides the detected framebuffer depth. Useful to dither to lower bit depths than otherwise required."
 
 #define add_glopts_placebo() \
-    set_section(N_("Colorspace conversion"), NULL) \
+    set_section("Colorspace conversion", NULL) \
     add_integer("rendering-intent", pl_color_map_default_params.intent, \
                 RENDER_INTENT_TEXT, RENDER_INTENT_LONGTEXT, false) \
             change_integer_list(intent_values, intent_text) \
@@ -180,7 +180,7 @@ static const char * const dither_text[] = {
             change_integer_list(prim_values, prim_text) \
     add_integer("target-trc", PL_COLOR_TRC_UNKNOWN, TRC_TEXT, TRC_LONGTEXT, false) \
             change_integer_list(trc_values, trc_text) \
-    set_section(N_("Tone mapping"), NULL) \
+    set_section("Tone mapping", NULL) \
     add_integer("tone-mapping", PL_TONE_MAPPING_HABLE, \
                 TONEMAPPING_TEXT, TONEMAPPING_LONGTEXT, false) \
             change_integer_list(tone_values, tone_text) \
@@ -189,7 +189,7 @@ static const char * const dither_text[] = {
     add_float("tone-mapping-desat", pl_color_map_default_params.tone_mapping_desaturate, \
               TONEMAP_DESAT_TEXT, TONEMAP_DESAT_LONGTEXT, false) \
     add_bool("tone-mapping-warn", false, TONEMAP_WARN_TEXT, TONEMAP_WARN_LONGTEXT, false) \
-    set_section(N_("Dithering"), NULL) \
+    set_section("Dithering", NULL) \
     add_integer("dither-algo", -1, DITHER_TEXT, DITHER_LONGTEXT, false) \
             change_integer_list(dither_values, dither_text) \
     add_integer_with_range("dither-depth", 0, 0, 16, DEPTH_TEXT, DEPTH_LONGTEXT, false)
@@ -197,13 +197,17 @@ static const char * const dither_text[] = {
 #define add_glopts_placebo()
 #endif
 
-#define GLCONV_TEXT N_("Open GL/GLES hardware converter")
-#define GLCONV_LONGTEXT N_( \
-    "Force a \"glconv\" module.")
+#define GLCONV_TEXT "Open GL/GLES hardware converter"
+#define GLCONV_LONGTEXT "Force a \"glconv\" module."
 
 #define add_glopts() \
-    add_module("glconv", "glconv", NULL, GLCONV_TEXT, GLCONV_LONGTEXT) \
+    add_module ("glconv", "glconv", NULL, GLCONV_TEXT, GLCONV_LONGTEXT, true) \
     add_glopts_placebo ()
+
+static const vlc_fourcc_t gl_subpicture_chromas[] = {
+    VLC_CODEC_RGBA,
+    0
+};
 
 typedef struct vout_display_opengl_t vout_display_opengl_t;
 

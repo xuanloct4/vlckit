@@ -305,10 +305,19 @@ void PlaylistManager::drain()
     es_out_Control(p_demux->out, ES_OUT_RESET_PCR);
 }
 
-mtime_t PlaylistManager::getResumeTime() const
+mtime_t PlaylistManager::getPCR() const
 {
-    vlc_mutex_locker locker(const_cast<vlc_mutex_t *>(&demux.lock));
-    return demux.i_nzpcr;
+    mtime_t minpcr = VLC_TS_INVALID;
+    std::vector<AbstractStream *>::const_iterator it;
+    for(it=streams.begin(); it!=streams.end(); ++it)
+    {
+        const mtime_t pcr = (*it)->getPCR();
+        if(minpcr == VLC_TS_INVALID)
+            minpcr = pcr;
+        else if(pcr > VLC_TS_INVALID)
+            minpcr = std::min(minpcr, pcr);
+    }
+    return minpcr;
 }
 
 mtime_t PlaylistManager::getFirstDTS() const
@@ -320,7 +329,7 @@ mtime_t PlaylistManager::getFirstDTS() const
         const mtime_t dts = (*it)->getFirstDTS();
         if(mindts == VLC_TS_INVALID)
             mindts = dts;
-        else if(dts != VLC_TS_INVALID)
+        else if(dts > VLC_TS_INVALID)
             mindts = std::min(mindts, dts);
     }
     return mindts;
@@ -395,14 +404,25 @@ mtime_t PlaylistManager::getCurrentPlaybackTime() const
 
 void PlaylistManager::pruneLiveStream()
 {
-    mtime_t minValidPos = getResumeTime();
-    if(minValidPos != VLC_TS_INVALID)
+    mtime_t minValidPos = 0;
+    std::vector<AbstractStream *>::const_iterator it;
+    for(it=streams.begin(); it!=streams.end(); it++)
+    {
+        const AbstractStream *st = *it;
+        if(st->isDisabled() || !st->isSelected())
+            continue;
+        const mtime_t t = st->getPlaybackTime();
+        if(minValidPos == 0 || t < minValidPos)
+            minValidPos = t;
+    }
+
+    if(minValidPos)
         playlist->pruneByPlaybackTime(minValidPos);
 }
 
 bool PlaylistManager::reactivateStream(AbstractStream *stream)
 {
-    return stream->reactivate(getResumeTime());
+    return stream->reactivate(getPCR());
 }
 
 #define DEMUX_INCREMENT (CLOCK_FREQ / 20)
@@ -742,7 +762,7 @@ AbstractAdaptationLogic *PlaylistManager::createLogic(AbstractAdaptationLogic::L
         case AbstractAdaptationLogic::NearOptimal:
         {
             NearOptimalAdaptationLogic *noplogic =
-                    new (std::nothrow) NearOptimalAdaptationLogic();
+                    new (std::nothrow) NearOptimalAdaptationLogic(VLC_OBJECT(p_demux));
             if(noplogic)
                 conn->setDownloadRateObserver(noplogic);
             logic = noplogic;

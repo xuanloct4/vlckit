@@ -162,7 +162,7 @@ struct vod_media_t
     mtime_t i_length;
 };
 
-typedef struct
+struct vod_sys_t
 {
     /* RTSP server */
     httpd_host_t *p_rtsp_host;
@@ -182,7 +182,7 @@ typedef struct
     /* */
     vlc_thread_t thread;
     block_fifo_t *p_fifo_cmd;
-} vod_sys_t;
+};
 
 /* rtsp delayed command (to avoid deadlock between vlm/httpd) */
 typedef enum
@@ -678,9 +678,8 @@ static int MediaAddES( vod_t *p_vod, vod_media_t *p_media, es_format_t *p_fmt )
             return VLC_EGENERIC;
     }
 
-    vod_sys_t *p_sys = p_vod->p_sys;
     p_es->p_rtsp_url =
-        httpd_UrlNew( p_sys->p_rtsp_host, psz_urlc, NULL, NULL );
+        httpd_UrlNew( p_vod->p_sys->p_rtsp_host, psz_urlc, NULL, NULL );
 
     if( !p_es->p_rtsp_url )
     {
@@ -761,8 +760,7 @@ static void CommandPush( vod_t *p_vod, rtsp_cmd_type_t i_type, vod_media_t *p_me
     p_cmd = block_Alloc( sizeof(rtsp_cmd_t) );
     memcpy( p_cmd->p_buffer, &cmd, sizeof(cmd) );
 
-    vod_sys_t *p_sys = p_vod->p_sys;
-    block_FifoPut( p_sys->p_fifo_cmd, p_cmd );
+    block_FifoPut( p_vod->p_sys->p_fifo_cmd, p_cmd );
 }
 
 static void* CommandThread( void *obj )
@@ -870,10 +868,9 @@ static rtsp_client_t *RtspClientNew( vod_media_t *p_media, char *psz_session )
     p_rtsp->psz_session = psz_session;
     TAB_APPEND( p_media->i_rtsp, p_media->rtsp, p_rtsp );
 
-    vod_sys_t *p_sys = p_media->p_vod->p_sys;
-    p_sys->i_connections++;
+    p_media->p_vod->p_sys->i_connections++;
     msg_Dbg( p_media->p_vod, "new session: %s, connections: %d",
-             psz_session, p_sys->i_throttle_users );
+             psz_session, p_media->p_vod->p_sys->i_throttle_users );
 
     return p_rtsp;
 }
@@ -891,10 +888,9 @@ static rtsp_client_t *RtspClientGet( vod_media_t *p_media, const char *psz_sessi
 
 static void RtspClientDel( vod_media_t *p_media, rtsp_client_t *p_rtsp )
 {
-    vod_sys_t *p_sys = p_media->p_vod->p_sys;
-    p_sys->i_connections--;
+    p_media->p_vod->p_sys->i_connections--;
     msg_Dbg( p_media->p_vod, "closing session: %s, connections: %d",
-             p_rtsp->psz_session, p_sys->i_throttle_users );
+             p_rtsp->psz_session, p_media->p_vod->p_sys->i_throttle_users );
 
     while( p_rtsp->i_es )
     {
@@ -937,7 +933,6 @@ static int RtspCallback( httpd_callback_sys_t *p_args, httpd_client_t *cl,
 {
     vod_media_t *p_media = (vod_media_t*)p_args;
     vod_t *p_vod = p_media->p_vod;
-    vod_sys_t *p_sys = p_vod->p_sys;
     const char *psz_transport = NULL;
     const char *psz_playnow = NULL; /* support option: x-playNow */
     const char *psz_session = NULL;
@@ -979,7 +974,7 @@ static int RtspCallback( httpd_callback_sys_t *p_args, httpd_client_t *cl,
                 if( strstr( psz_transport, "MP2T/H2221/UDP" ) ||
                     strstr( psz_transport, "RAW/RAW/UDP" ) )
                 {
-                    p_media->psz_mux = p_sys->psz_raw_mux;
+                    p_media->psz_mux = p_vod->p_sys->psz_raw_mux;
                     p_media->b_raw = true;
                 }
 
@@ -998,8 +993,8 @@ static int RtspCallback( httpd_callback_sys_t *p_args, httpd_client_t *cl,
                 if( !psz_session || !*psz_session )
                 {
                     char *psz_new;
-                    if( ( p_sys->i_throttle_users > 0 ) &&
-                        ( p_sys->i_connections >= p_sys->i_throttle_users ) )
+                    if( ( p_vod->p_sys->i_throttle_users > 0 ) &&
+                        ( p_vod->p_sys->i_connections >= p_vod->p_sys->i_throttle_users ) )
                     {
                         answer->i_status = 503;
                         answer->i_body = 0;
@@ -1257,9 +1252,9 @@ static int RtspCallback( httpd_callback_sys_t *p_args, httpd_client_t *cl,
 
     if( psz_session )
     {
-         if( p_sys->i_session_timeout >= 0 )
+         if( p_media->p_vod->p_sys->i_session_timeout >= 0 )
              httpd_MsgAdd( answer, "Session", "%s;timeout=%i", psz_session,
-               p_sys->i_session_timeout );
+               p_media->p_vod->p_sys->i_session_timeout );
          else
               httpd_MsgAdd( answer, "Session", "%s", psz_session );
     }
@@ -1274,7 +1269,6 @@ static int RtspCallbackES( httpd_callback_sys_t *p_args, httpd_client_t *cl,
     media_es_t *p_es = (media_es_t*)p_args;
     vod_media_t *p_media = p_es->p_media;
     vod_t *p_vod = p_media->p_vod;
-    vod_sys_t *p_sys = p_vod->p_sys;
     rtsp_client_t *p_rtsp = NULL;
     const char *psz_transport = NULL;
     const char *psz_playnow = NULL; /* support option: x-playNow */
@@ -1325,8 +1319,8 @@ static int RtspCallbackES( httpd_callback_sys_t *p_args, httpd_client_t *cl,
                 if( !psz_session || !*psz_session )
                 {
                     char *psz_new;
-                    if( ( p_sys->i_throttle_users > 0 ) &&
-                        ( p_sys->i_connections >= p_sys->i_throttle_users ) )
+                    if( ( p_vod->p_sys->i_throttle_users > 0 ) &&
+                        ( p_vod->p_sys->i_connections >= p_vod->p_sys->i_throttle_users ) )
                     {
                         answer->i_status = 503;
                         answer->i_body = 0;

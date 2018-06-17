@@ -125,8 +125,8 @@ vlc_module_begin ()
         RMTOSD_HOST_LONGTEXT, false )
     add_integer_with_range( RMTOSD_CFG "port", 20001, 1, 0xFFFF,
         RMTOSD_PORT_TEXT, RMTOSD_PORT_LONGTEXT, false )
-    add_password(RMTOSD_CFG "password", "", RMTOSD_PASSWORD_TEXT,
-                 RMTOSD_PASSWORD_LONGTEXT)
+    add_password( RMTOSD_CFG "password", "", RMTOSD_PASSWORD_TEXT,
+        RMTOSD_PASSWORD_LONGTEXT, false )
     add_integer_with_range( RMTOSD_CFG "update", RMTOSD_UPDATE_DEFAULT,
         RMTOSD_UPDATE_MIN, RMTOSD_UPDATE_MAX, RMTOSD_UPDATE_TEXT,
         RMTOSD_UPDATE_LONGTEXT, true )
@@ -147,8 +147,6 @@ vlc_module_end ()
  *****************************************************************************/
 #define CHALLENGESIZE 16
 #define MAX_VNC_SERVER_NAME_LENGTH 255
-
-typedef struct filter_sys_t filter_sys_t;
 
 /* subsource functions */
 static subpicture_t *Filter( filter_t *, mtime_t );
@@ -185,7 +183,7 @@ static inline bool raw_line(  filter_sys_t* p_sys,
                               uint16_t i_x, uint16_t i_y,
                               uint16_t i_w );
 
-static int vnc_encrypt_bytes( unsigned char *bytes, char *passwd );
+static void vnc_encrypt_bytes( unsigned char *bytes, char *passwd );
 
 
 /*****************************************************************************
@@ -362,9 +360,9 @@ static int vnc_connect( filter_t *p_filter )
 
     msg_Dbg( p_filter, "Server version is %s", pv );
 
-    static const char version[sz_rfbProtocolVersionMsg] = "RFB 003.003\n";
+    strncpy(pv, "RFB 003.003\n", sz_rfbProtocolVersionMsg);
 
-    if( !write_exact(p_filter, fd, version, sz_rfbProtocolVersionMsg) )
+    if( !write_exact(p_filter, fd, pv, sz_rfbProtocolVersionMsg) )
     {
         msg_Err( p_filter, "Could not write version message" );
         goto error;
@@ -394,9 +392,7 @@ static int vnc_connect( filter_t *p_filter )
             goto error;
         }
 
-        int err = vnc_encrypt_bytes( challenge, p_sys->psz_passwd );
-	if (err != VLC_SUCCESS)
-	    return false;
+        vnc_encrypt_bytes( challenge, p_sys->psz_passwd );
 
         if( !write_exact(p_filter, fd, challenge, CHALLENGESIZE ) )
         {
@@ -1316,7 +1312,7 @@ static int KeyEvent( vlc_object_t *p_this, char const *psz_var,
     return VLC_SUCCESS;
 }
 
-static int vnc_encrypt_bytes( unsigned char *bytes, char *passwd )
+static void vnc_encrypt_bytes( unsigned char *bytes, char *passwd )
 {
     unsigned char key[8];
 
@@ -1324,9 +1320,7 @@ static int vnc_encrypt_bytes( unsigned char *bytes, char *passwd )
         key[i] = i < strlen( passwd ) ? passwd[i] : '\0';
 
     gcry_cipher_hd_t ctx;
-    int err = gcry_cipher_open( &ctx, GCRY_CIPHER_DES, GCRY_CIPHER_MODE_ECB,0);
-    if (err)
-	return VLC_EGENERIC;
+    gcry_cipher_open( &ctx, GCRY_CIPHER_DES, GCRY_CIPHER_MODE_ECB,0);
 
     /* reverse bits of the key */
     for( unsigned i = 0 ; i < 8 ; i++ )
@@ -1343,6 +1337,5 @@ static int vnc_encrypt_bytes( unsigned char *bytes, char *passwd )
     gcry_cipher_setkey( ctx, key, 8 );
     gcry_cipher_encrypt( ctx, bytes, CHALLENGESIZE, bytes, CHALLENGESIZE );
     gcry_cipher_close( ctx );
-    return VLC_SUCCESS;
 }
 

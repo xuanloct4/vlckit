@@ -132,7 +132,7 @@ typedef struct scene_t {
 /*****************************************************************************
  * filter_sys_t: private data
  *****************************************************************************/
-typedef struct
+struct filter_sys_t
 {
     image_handler_t *p_image;
     scene_t scene;
@@ -146,7 +146,7 @@ typedef struct
     int32_t i_ratio;  /* save every n-th frame */
     int32_t i_frames; /* frames count */
     bool  b_replace;
-} filter_sys_t;
+};
 
 /*****************************************************************************
  * Create: initialize and set pf_video_filter()
@@ -209,7 +209,7 @@ static int Create( vlc_object_t *p_this )
 static void Destroy( vlc_object_t *p_this )
 {
     filter_t *p_filter = (filter_t *)p_this;
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t *) p_filter->p_sys;
 
     image_HandlerDelete( p_sys->p_image );
 

@@ -87,11 +87,11 @@ vlc_module_begin()
     set_category( CAT_INPUT )
     set_subcategory( SUBCAT_INPUT_ACCESS )
     set_description( N_("RDP Remote Desktop") )
-    set_capability( "access", 0 )
+    set_capability( "access_demux", 0 )
 
     add_string( CFG_PREFIX "user", NULL, USER_TEXT, USER_LONGTEXT, false )
         change_safe()
-    add_password(CFG_PREFIX "password", NULL, PASS_TEXT, PASS_LONGTEXT)
+    add_password( CFG_PREFIX "password", NULL, PASS_TEXT, PASS_LONGTEXT, false )
         change_safe()
     add_float( CFG_PREFIX "fps", 5, RDP_FPS, RDP_FPS_LONGTEXT, true )
 
@@ -103,7 +103,7 @@ vlc_module_end()
 
 #define RDP_MAX_FD 32
 
-typedef struct
+struct demux_sys_t
 {
     vlc_thread_t thread;
     freerdp *p_instance;
@@ -121,7 +121,7 @@ typedef struct
     int i_port;
     /* cancelability */
     int i_cancel_state;
-} demux_sys_t;
+};
 
 /* context */
 
@@ -279,7 +279,6 @@ static bool authenticateHandler( freerdp *p_instance, char** ppsz_username,
  *****************************************************************************/
 static int Control( demux_t *p_demux, int i_query, va_list args )
 {
-    demux_sys_t *p_sys = p_demux->p_sys;
     bool *pb;
     int64_t *pi64;
     double *p_dbl;
@@ -309,7 +308,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
         case DEMUX_GET_TIME:
             pi64 = va_arg( args, int64_t * );
-            *pi64 = mdate() - p_sys->i_starttime;
+            *pi64 = mdate() - p_demux->p_sys->i_starttime;
             return VLC_SUCCESS;
 
         case DEMUX_GET_LENGTH:
@@ -319,7 +318,7 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
         case DEMUX_GET_FPS:
             p_dbl = va_arg( args, double * );
-            *p_dbl = p_sys->f_fps;
+            *p_dbl = p_demux->p_sys->f_fps;
             return VLC_SUCCESS;
 
         case DEMUX_GET_META:
@@ -426,15 +425,12 @@ static int Open( vlc_object_t *p_this )
     demux_t      *p_demux = (demux_t*)p_this;
     demux_sys_t  *p_sys;
 
-    if (p_demux->out == NULL)
-        return VLC_EGENERIC;
-
     p_sys = vlc_obj_calloc( p_this, 1, sizeof(demux_sys_t) );
     if( !p_sys ) return VLC_ENOMEM;
 
     p_sys->f_fps = var_InheritFloat( p_demux, CFG_PREFIX "fps" );
     if ( p_sys->f_fps <= 0 ) p_sys->f_fps = 1.0;
-    p_sys->i_frame_interval = CLOCK_FREQ / p_sys->f_fps;
+    p_sys->i_frame_interval = 1000000 / p_sys->f_fps;
 
 #if FREERDP_VERSION_MAJOR == 1 && FREERDP_VERSION_MINOR < 2
     freerdp_channels_global_init();

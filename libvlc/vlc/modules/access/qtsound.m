@@ -61,7 +61,7 @@ set_description(N_("QuickTime Sound Capture"))
 set_category(CAT_INPUT)
 set_subcategory(SUBCAT_INPUT_ACCESS)
 add_shortcut("qtsound")
-set_capability("access", 0)
+set_capability("access_demux", 0)
 set_callbacks(Open, Close)
 vlc_module_end ()
 
@@ -97,7 +97,7 @@ vlc_module_end ()
         p_qtsound = p_demux;
         currentAudioBuffer = nil;
         date_Init(&date, 44100, 1);
-        date_Set(&date, VLC_TS_0);
+        date_Set(&date,0);
         currentPts = 0;
         previousPts = 0;
     }
@@ -220,12 +220,12 @@ vlc_module_end ()
  * Struct
  *****************************************************************************/
 
-typedef struct demux_sys_t {
+struct demux_sys_t {
     QTCaptureSession * session;
     QTCaptureDevice * audiodevice;
     VLCDecompressedAudioOutput * audiooutput;
     es_out_id_t *p_es_audio;
-} demux_sys_t;
+};
 
 /*****************************************************************************
  * Open: initialize interface
@@ -243,9 +243,6 @@ static int Open(vlc_object_t *p_this)
     QTFormatDescription *audio_format;
     QTCaptureDeviceInput *audioInput;
     NSError *o_returnedAudioError;
-
-    if (p_demux->out == NULL)
-        return VLC_EGENERIC;
 
     @autoreleasepool {
         if(p_demux->psz_location && *p_demux->psz_location)
@@ -447,6 +444,9 @@ static int Open(vlc_object_t *p_this)
         /* Set up p_demux */
         p_demux->pf_demux = Demux;
         p_demux->pf_control = Control;
+        p_demux->info.i_update = 0;
+        p_demux->info.i_title = 0;
+        p_demux->info.i_seekpoint = 0;
         
         msg_Dbg(p_demux, "New audio es %d channels %dHz",
                 audiofmt.audio.i_channels, audiofmt.audio.i_rate);
@@ -517,7 +517,7 @@ static int Demux(demux_t *p_demux)
             block_Release(p_blocka);
 
             // Nothing to transfer yet, just forget
-            msleep(VLC_HARD_MIN_SLEEP);
+            msleep(10000);
             return 1;
         }
 

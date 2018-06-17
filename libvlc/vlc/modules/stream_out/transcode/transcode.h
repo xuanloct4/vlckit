@@ -14,9 +14,7 @@
 /*100ms is around the limit where people are noticing lipsync issues*/
 #define MASTER_SYNC_MAX_DRIFT 100000
 
-typedef struct sout_stream_id_sys_t sout_stream_id_sys_t;
-
-typedef struct
+struct sout_stream_sys_t
 {
     sout_stream_id_sys_t *id_video;
     block_t         *p_buffers;
@@ -63,14 +61,12 @@ typedef struct
     config_chain_t  *p_spu_cfg;
     spu_t           *p_spu;
     filter_t        *p_spu_blend;
-    unsigned int     i_spu_width; /* render width */
-    unsigned int     i_spu_height;
 
     /* Sync */
     bool            b_master_sync;
     /* i_master drift is how much audio buffer is ahead of calculated pts */
     mtime_t         i_master_drift;
-} sout_stream_sys_t;
+};
 
 struct aout_filters;
 
@@ -131,18 +127,6 @@ struct sout_stream_id_sys_t
     date_t          next_output_pts; /**< output calculated PTS */
 
 };
-
-struct decoder_owner
-{
-    decoder_t dec;
-    sout_stream_t *p_stream;
-    sout_stream_id_sys_t *id;
-};
-
-static inline struct decoder_owner *dec_get_owner( decoder_t *p_dec )
-{
-    return container_of( p_dec, struct decoder_owner, dec );
-}
 
 /* SPU */
 

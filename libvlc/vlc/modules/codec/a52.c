@@ -55,7 +55,7 @@
 static int  Open ( vlc_object_t * );
 static void Close( vlc_object_t * );
 
-typedef struct
+struct decoder_sys_t
 {
     a52_state_t     *p_liba52; /* liba52 internal structure */
     bool            b_dynrng; /* see below */
@@ -65,7 +65,7 @@ typedef struct
 
     uint8_t         pi_chan_table[AOUT_CHAN_MAX]; /* channel reordering */
     bool            b_synced;
-} decoder_sys_t;
+};
 
 #define DYNRNG_TEXT N_("A/52 dynamic range compression")
 #define DYNRNG_LONGTEXT N_( \

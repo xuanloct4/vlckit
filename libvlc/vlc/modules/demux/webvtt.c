@@ -42,7 +42,7 @@ struct index_entry_s
     unsigned active;
 };
 
-typedef struct
+struct demux_sys_t
 {
     es_out_id_t *es;
     bool         b_slave;
@@ -72,7 +72,7 @@ typedef struct
     } index;
 
     webvtt_text_parser_t *p_streamparser;
-} demux_sys_t;
+};
 
 #define WEBVTT_PREALLOC 64
 
@@ -340,7 +340,7 @@ static void BuildIndex( demux_t *p_demux )
     }
 }
 
-static block_t *demux_From( demux_t *p_demux, mtime_t i_start )
+static block_t *demux_Range( demux_t *p_demux, mtime_t i_start, mtime_t i_end )
 {
     demux_sys_t *p_sys = p_demux->p_sys;
 
@@ -483,13 +483,8 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
 
         case DEMUX_SET_NEXT_DEMUX_TIME:
             p_sys->b_slave = true;
-            p_sys->i_next_demux_time = va_arg( args, mtime_t ) - VLC_TS_0;
+            p_sys->i_next_demux_time = va_arg( args, int64_t ) - VLC_TS_0;
             return VLC_SUCCESS;
-
-        case DEMUX_CAN_PAUSE:
-        case DEMUX_SET_PAUSE_STATE:
-        case DEMUX_CAN_CONTROL_PACE:
-            return demux_vaControlHelper( p_demux->s, 0, -1, 0, 1, i_query, args );
 
         case DEMUX_GET_PTS_DELAY:
         case DEMUX_GET_FPS:
@@ -533,7 +528,7 @@ static int Demux( demux_t *p_demux )
 {
     demux_sys_t *p_sys = p_demux->p_sys;
 
-    mtime_t i_barrier = p_sys->i_next_demux_time;
+    int64_t i_barrier = p_sys->i_next_demux_time;
 
     while( p_sys->index.i_current < p_sys->index.i_count &&
            p_sys->index.p_array[p_sys->index.i_current].time <= i_barrier )
@@ -551,7 +546,7 @@ static int Demux( demux_t *p_demux )
             }
         }
 
-        block_t *p_block = demux_From( p_demux, i_start_time );
+        block_t *p_block = demux_Range( p_demux, i_start_time, i_end_time );
         if( p_block )
         {
             p_block->i_length = i_end_time - i_start_time;

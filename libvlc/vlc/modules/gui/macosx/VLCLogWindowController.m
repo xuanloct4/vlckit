@@ -94,8 +94,10 @@ static void MsgCallback(void *data, int type, const vlc_log_t *item, const char 
     [self.window setTitle:_NS("Messages")];
 
 #define setupButton(target, title, desc)                                              \
-    target.accessibilityTitle = title;                                                \
-    target.accessibilityLabel = desc;                                                 \
+    [target accessibilitySetOverrideValue:title                                       \
+                             forAttribute:NSAccessibilityTitleAttribute];             \
+    [target accessibilitySetOverrideValue:desc                                        \
+                             forAttribute:NSAccessibilityDescriptionAttribute];       \
     [target setToolTip:desc];
 
     setupButton(_saveButton,
@@ -195,7 +197,7 @@ static void MsgCallback(void *data, int type, const vlc_log_t *item, const char 
     [saveFolderPanel setAllowedFileTypes: [NSArray arrayWithObject:@"txt"]];
     [saveFolderPanel setNameFieldStringValue:[NSString stringWithFormat: _NS("VLC Debug Log (%s).txt"), VERSION_MESSAGE]];
     [saveFolderPanel beginSheetModalForWindow: self.window completionHandler:^(NSInteger returnCode) {
-        if (returnCode != NSModalResponseOK) {
+        if (returnCode != NSOKButton) {
             return;
         }
         NSMutableString *string = [[NSMutableString alloc] init];

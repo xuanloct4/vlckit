@@ -30,10 +30,9 @@
 
 #include <assert.h>
 
-#include <math.h>
-
 #include <vlc_common.h>
 #include <vlc_aout.h>
+#include <vlc_input.h>
 
 #include "aout_internal.h"
 #include "libvlc.h"
@@ -74,13 +73,19 @@ int aout_DecNew( audio_output_t *p_aout,
 
     aout_owner_t *owner = aout_owner(p_aout);
 
+    /* TODO: reduce lock scope depending on decoder's real need */
+    aout_OutputLock (p_aout);
+
     /* Create the audio output stream */
     owner->volume = aout_volume_New (p_aout, p_replay_gain);
 
-    atomic_store_explicit(&owner->restart, 0, memory_order_relaxed);
+    atomic_store (&owner->restart, 0);
     owner->input_format = *p_format;
     owner->mixer_format = owner->input_format;
     owner->request_vout = *p_request_vout;
+
+    var_Change (p_aout, "stereo-mode", VLC_VAR_SETVALUE,
+                &(vlc_value_t) { .i_int = owner->initial_stereo_mode }, NULL);
 
     owner->filters_cfg = AOUT_FILTERS_CFG_INIT;
     if (aout_OutputNew (p_aout, &owner->mixer_format, &owner->filters_cfg))
@@ -97,17 +102,19 @@ int aout_DecNew( audio_output_t *p_aout,
 error:
         aout_volume_Delete (owner->volume);
         owner->volume = NULL;
+        aout_OutputUnlock (p_aout);
         return -1;
     }
 
-    owner->sync.rate = 1.f;
+
     owner->sync.end = VLC_TS_INVALID;
     owner->sync.resamp_type = AOUT_RESAMPLING_NONE;
     owner->sync.discontinuity = true;
+    aout_OutputUnlock (p_aout);
 
     atomic_init (&owner->buffers_lost, 0);
     atomic_init (&owner->buffers_played, 0);
-    atomic_store_explicit(&owner->vp.update, true, memory_order_relaxed);
+    atomic_store (&owner->vp.update, true);
     return 0;
 }
 
@@ -118,6 +125,7 @@ void aout_DecDelete (audio_output_t *aout)
 {
     aout_owner_t *owner = aout_owner (aout);
 
+    aout_OutputLock (aout);
     if (owner->mixer_format.i_format)
     {
         aout_FiltersDelete (aout, owner->filters);
@@ -125,15 +133,15 @@ void aout_DecDelete (audio_output_t *aout)
     }
     aout_volume_Delete (owner->volume);
     owner->volume = NULL;
+    aout_OutputUnlock (aout);
 }
 
 static int aout_CheckReady (audio_output_t *aout)
 {
     aout_owner_t *owner = aout_owner (aout);
-    int status = AOUT_DEC_SUCCESS;
 
-    int restart = atomic_exchange_explicit(&owner->restart, 0,
-                                           memory_order_acquire);
+    int status = AOUT_DEC_SUCCESS;
+    int restart = atomic_exchange (&owner->restart, 0);
     if (unlikely(restart))
     {
         if (owner->mixer_format.i_format)
@@ -189,7 +197,7 @@ static int aout_CheckReady (audio_output_t *aout)
 void aout_RequestRestart (audio_output_t *aout, unsigned mode)
 {
     aout_owner_t *owner = aout_owner (aout);
-    atomic_fetch_or_explicit(&owner->restart, mode, memory_order_release);
+    atomic_fetch_or (&owner->restart, mode);
     msg_Dbg (aout, "restart requested (%u)", mode);
 }
 
@@ -222,13 +230,13 @@ static void aout_DecSilence (audio_output_t *aout, mtime_t length, mtime_t pts)
     block->i_pts = pts;
     block->i_dts = pts;
     block->i_length = length;
-    aout->play(aout, block, pts);
+    aout_OutputPlay (aout, block);
 }
 
-static void aout_DecSynchronize(audio_output_t *aout, mtime_t dec_pts)
+static void aout_DecSynchronize (audio_output_t *aout, mtime_t dec_pts,
+                                 int input_rate)
 {
     aout_owner_t *owner = aout_owner (aout);
-    const float rate = owner->sync.rate;
     mtime_t drift;
 
     /**
@@ -247,7 +255,7 @@ static void aout_DecSynchronize(audio_output_t *aout, mtime_t dec_pts)
      * all samples in the buffer will have been played. Then:
      *    pts = mdate() + delay
      */
-    if (aout->time_get(aout, &drift) != 0)
+    if (aout_OutputTimeGet (aout, &drift) != 0)
         return; /* nothing can be done if timing is unknown */
     drift += mdate () - dec_pts;
 
@@ -258,7 +266,7 @@ static void aout_DecSynchronize(audio_output_t *aout, mtime_t dec_pts)
      * where supported. The other alternative is to flush the buffers
      * completely. */
     if (drift > (owner->sync.discontinuity ? 0
-                : lroundf(+3 * AOUT_MAX_PTS_DELAY * rate)))
+                  : +3 * input_rate * AOUT_MAX_PTS_DELAY / INPUT_RATE_DEFAULT))
     {
         if (!owner->sync.discontinuity)
             msg_Warn (aout, "playback way too late (%"PRId64"): "
@@ -266,14 +274,14 @@ static void aout_DecSynchronize(audio_output_t *aout, mtime_t dec_pts)
         else
             msg_Dbg (aout, "playback too late (%"PRId64"): "
                      "flushing buffers", drift);
-        aout->flush(aout, false);
+        aout_OutputFlush (aout, false);
 
         aout_StopResampling (aout);
         owner->sync.end = VLC_TS_INVALID;
         owner->sync.discontinuity = true;
 
         /* Now the output might be too early... Recheck. */
-        if (aout->time_get(aout, &drift) != 0)
+        if (aout_OutputTimeGet (aout, &drift) != 0)
             return; /* nothing can be done if timing is unknown */
         drift += mdate () - dec_pts;
     }
@@ -281,7 +289,7 @@ static void aout_DecSynchronize(audio_output_t *aout, mtime_t dec_pts)
     /* Early audio output.
      * This is rare except at startup when the buffers are still empty. */
     if (drift < (owner->sync.discontinuity ? 0
-                : lroundf(-3 * AOUT_MAX_PTS_ADVANCE * rate)))
+                : -3 * input_rate * AOUT_MAX_PTS_ADVANCE / INPUT_RATE_DEFAULT))
     {
         if (!owner->sync.discontinuity)
             msg_Warn (aout, "playback way too early (%"PRId64"): "
@@ -346,31 +354,47 @@ static void aout_DecSynchronize(audio_output_t *aout, mtime_t dec_pts)
 /*****************************************************************************
  * aout_DecPlay : filter & mix the decoded buffer
  *****************************************************************************/
-int aout_DecPlay(audio_output_t *aout, block_t *block)
+int aout_DecPlay (audio_output_t *aout, block_t *block, int input_rate)
 {
     aout_owner_t *owner = aout_owner (aout);
 
-    assert (block->i_pts != VLC_TS_INVALID);
+    assert (input_rate >= INPUT_RATE_DEFAULT / AOUT_MAX_INPUT_RATE);
+    assert (input_rate <= INPUT_RATE_DEFAULT * AOUT_MAX_INPUT_RATE);
+    assert (block->i_pts >= VLC_TS_0);
 
     block->i_length = CLOCK_FREQ * block->i_nb_samples
                                  / owner->input_format.i_rate;
 
+    aout_OutputLock (aout);
     int ret = aout_CheckReady (aout);
     if (unlikely(ret == AOUT_DEC_FAILED))
         goto drop; /* Pipeline is unrecoverably broken :-( */
 
+    const mtime_t now = mdate (), advance = block->i_pts - now;
+    if (advance < -AOUT_MAX_PTS_DELAY)
+    {   /* Late buffer can be caused by bugs in the decoder, by scheduling
+         * latency spikes (excessive load, SIGSTOP, etc.) or if buffering is
+         * insufficient. We assume the PTS is wrong and play the buffer anyway:
+         * Hopefully video has encountered a similar PTS problem as audio. */
+        msg_Warn (aout, "buffer too late (%"PRId64" us): dropped", advance);
+        goto drop;
+    }
+    if (advance > AOUT_MAX_ADVANCE_TIME)
+    {   /* Early buffers can only be caused by bugs in the decoder. */
+        msg_Err (aout, "buffer too early (%"PRId64" us): dropped", advance);
+        goto drop;
+    }
     if (block->i_flags & BLOCK_FLAG_DISCONTINUITY)
         owner->sync.discontinuity = true;
 
-    if (atomic_load_explicit(&owner->vp.update, memory_order_relaxed))
+    if (atomic_exchange(&owner->vp.update, false))
     {
         vlc_mutex_lock (&owner->vp.lock);
         aout_FiltersChangeViewpoint (owner->filters, &owner->vp.value);
-        atomic_store_explicit(&owner->vp.update, false, memory_order_relaxed);
         vlc_mutex_unlock (&owner->vp.lock);
     }
 
-    block = aout_FiltersPlay(owner->filters, block, owner->sync.rate);
+    block = aout_FiltersPlay (owner->filters, block, input_rate);
     if (block == NULL)
         goto lost;
 
@@ -378,20 +402,22 @@ int aout_DecPlay(audio_output_t *aout, block_t *block)
     aout_volume_Amplify (owner->volume, block);
 
     /* Drift correction */
-    aout_DecSynchronize(aout, block->i_pts);
+    aout_DecSynchronize (aout, block->i_pts, input_rate);
 
     /* Output */
     owner->sync.end = block->i_pts + block->i_length + 1;
     owner->sync.discontinuity = false;
-    aout->play(aout, block, block->i_pts);
-    atomic_fetch_add_explicit(&owner->buffers_played, 1, memory_order_relaxed);
+    aout_OutputPlay (aout, block);
+    atomic_fetch_add(&owner->buffers_played, 1);
+out:
+    aout_OutputUnlock (aout);
     return ret;
 drop:
     owner->sync.discontinuity = true;
     block_Release (block);
 lost:
-    atomic_fetch_add_explicit(&owner->buffers_lost, 1, memory_order_relaxed);
-    return ret;
+    atomic_fetch_add(&owner->buffers_lost, 1);
+    goto out;
 }
 
 void aout_DecGetResetStats(audio_output_t *aout, unsigned *restrict lost,
@@ -399,16 +425,15 @@ void aout_DecGetResetStats(audio_output_t *aout, unsigned *restrict lost,
 {
     aout_owner_t *owner = aout_owner (aout);
 
-    *lost = atomic_exchange_explicit(&owner->buffers_lost, 0,
-                                     memory_order_relaxed);
-    *played = atomic_exchange_explicit(&owner->buffers_played, 0,
-                                       memory_order_relaxed);
+    *lost = atomic_exchange(&owner->buffers_lost, 0);
+    *played = atomic_exchange(&owner->buffers_played, 0);
 }
 
 void aout_DecChangePause (audio_output_t *aout, bool paused, mtime_t date)
 {
     aout_owner_t *owner = aout_owner (aout);
 
+    aout_OutputLock (aout);
     if (owner->sync.end != VLC_TS_INVALID)
     {
         if (paused)
@@ -416,22 +441,16 @@ void aout_DecChangePause (audio_output_t *aout, bool paused, mtime_t date)
         else
             owner->sync.end += date;
     }
-
     if (owner->mixer_format.i_format)
-        aout->pause(aout, paused, date);
-}
-
-void aout_DecChangeRate(audio_output_t *aout, float rate)
-{
-    aout_owner_t *owner = aout_owner(aout);
-
-    owner->sync.rate = rate;
+        aout_OutputPause (aout, paused, date);
+    aout_OutputUnlock (aout);
 }
 
 void aout_DecFlush (audio_output_t *aout, bool wait)
 {
     aout_owner_t *owner = aout_owner (aout);
 
+    aout_OutputLock (aout);
     owner->sync.end = VLC_TS_INVALID;
     if (owner->mixer_format.i_format)
     {
@@ -439,11 +458,22 @@ void aout_DecFlush (audio_output_t *aout, bool wait)
         {
             block_t *block = aout_FiltersDrain (owner->filters);
             if (block)
-                aout->play(aout, block, block->i_pts);
+                aout_OutputPlay (aout, block);
         }
         else
             aout_FiltersFlush (owner->filters);
-
-        aout->flush(aout, wait);
+        aout_OutputFlush (aout, wait);
     }
+    aout_OutputUnlock (aout);
+}
+
+void aout_ChangeViewpoint(audio_output_t *aout,
+                          const vlc_viewpoint_t *p_viewpoint)
+{
+    aout_owner_t *owner = aout_owner (aout);
+
+    vlc_mutex_lock (&owner->vp.lock);
+    owner->vp.value = *p_viewpoint;
+    atomic_store(&owner->vp.update, true);
+    vlc_mutex_unlock (&owner->vp.lock);
 }

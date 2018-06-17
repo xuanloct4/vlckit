@@ -37,9 +37,10 @@ void system_Configure ( libvlc_int_t *, int, const char *const [] );
 #if defined(_WIN32) || defined(__OS2__)
 void system_End(void);
 #ifndef __OS2__
-size_t EnumClockSource( const char *, char ***, char *** );
+size_t EnumClockSource( vlc_object_t *, const char *, char ***, char *** );
 #endif
 #endif
+void vlc_CPU_init(void);
 void vlc_CPU_dump(vlc_object_t *);
 
 /*
@@ -177,6 +178,9 @@ typedef struct libvlc_priv_t
 {
     libvlc_int_t       public_data;
 
+    /* Logging */
+    bool               b_stats;     ///< Whether to collect stats
+
     /* Singleton objects */
     vlc_logger_t      *logger;
     vlm_t             *p_vlm;  ///< the VLM singleton (or NULL)
@@ -199,9 +203,65 @@ int intf_InsertItem(libvlc_int_t *, const char *mrl, unsigned optc,
                     const char * const *optv, unsigned flags);
 void intf_DestroyAll( libvlc_int_t * );
 
+#define libvlc_stats( o ) (libvlc_priv((VLC_OBJECT(o))->obj.libvlc)->b_stats)
+
 /*
  * Variables stuff
  */
 void var_OptionParse (vlc_object_t *, const char *, bool trusted);
+
+/*
+ * Stats stuff
+ */
+enum
+{
+    STATS_COUNTER,
+    STATS_DERIVATIVE,
+};
+
+typedef struct counter_sample_t
+{
+    uint64_t value;
+    mtime_t  date;
+} counter_sample_t;
+
+typedef struct counter_t
+{
+    int                 i_compute_type;
+    int                 i_samples;
+    counter_sample_t ** pp_samples;
+
+    mtime_t             last_update;
+} counter_t;
+
+enum
+{
+    STATS_INPUT_BITRATE,
+    STATS_READ_BYTES,
+    STATS_READ_PACKETS,
+    STATS_DEMUX_READ,
+    STATS_DEMUX_BITRATE,
+    STATS_DEMUX_CORRUPTED,
+    STATS_DEMUX_DISCONTINUITY,
+    STATS_PLAYED_ABUFFERS,
+    STATS_LOST_ABUFFERS,
+    STATS_DECODED_AUDIO,
+    STATS_DECODED_VIDEO,
+    STATS_DECODED_SUB,
+    STATS_CLIENT_CONNECTIONS,
+    STATS_ACTIVE_CONNECTIONS,
+    STATS_SOUT_SENT_PACKETS,
+    STATS_SOUT_SENT_BYTES,
+    STATS_SOUT_SEND_BITRATE,
+    STATS_DISPLAYED_PICTURES,
+    STATS_LOST_PICTURES,
+};
+
+counter_t * stats_CounterCreate (int);
+void stats_Update (counter_t *, uint64_t, uint64_t *);
+void stats_CounterClean (counter_t * );
+
+void stats_ComputeInputStats(input_thread_t*, input_stats_t*);
+void stats_ReinitInputStats(input_stats_t *);
 
 #endif

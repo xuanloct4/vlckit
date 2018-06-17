@@ -31,7 +31,6 @@
 #include <vlc_vout.h>
 #include <vlc_filter.h>
 
-#include <limits.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -93,17 +92,11 @@ static int skip_space( char **psz_command )
 static int parse_digit( char **psz_command, int32_t *value )
 {
     char *psz_temp;
-    long l = strtol( *psz_command, &psz_temp, 10 );
-
+    *value = strtol( *psz_command, &psz_temp, 10 );
     if( psz_temp == *psz_command )
     {
         return VLC_EGENERIC;
     }
-#if LONG_MAX > INT32_MAX
-    if( l > INT32_MAX || l < INT32_MIN )
-        return VLC_EGENERIC;
-#endif
-    *value = l;
     *psz_command = psz_temp;
     return VLC_SUCCESS;
 }
@@ -238,12 +231,8 @@ static int parser_SetTextAlpha( char *psz_command, char *psz_end,
     skip_space( &psz_command );
     if( isdigit( (unsigned char)*psz_command ) )
     {
-        int32_t value;
-
-        if( parse_digit( &psz_command, &value ) == VLC_EGENERIC )
+        if( parse_digit( &psz_command, &p_params->fontstyle.i_font_alpha ) == VLC_EGENERIC )
             return VLC_EGENERIC;
-
-        p_params->fontstyle.i_font_alpha = value;
     }
     return VLC_SUCCESS;
 }
@@ -424,7 +413,7 @@ static int exec_DataSharedMem( filter_t *p_filter,
                                commandparams_t *p_results )
 {
 #if defined(HAVE_SYS_SHM_H)
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
     struct shmid_ds shminfo;
     overlay_t *p_ovl;
     size_t i_size;
@@ -561,7 +550,7 @@ static int exec_DeleteImage( filter_t *p_filter,
                              commandparams_t *p_results )
 {
     VLC_UNUSED(p_results);
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
     p_sys->b_updated = true;
 
     return ListRemove( &p_sys->overlays, p_params->i_id );
@@ -573,7 +562,7 @@ static int exec_EndAtomic( filter_t *p_filter,
 {
     VLC_UNUSED(p_params);
     VLC_UNUSED(p_results);
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
     QueueTransfer( &p_sys->pending, &p_sys->atomic );
     p_sys->b_atomic = false;
     return VLC_SUCCESS;
@@ -584,7 +573,7 @@ static int exec_GenImage( filter_t *p_filter,
                           commandparams_t *p_results )
 {
     VLC_UNUSED(p_params);
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
 
     overlay_t *p_ovl = OverlayCreate();
     if( p_ovl == NULL )
@@ -602,7 +591,7 @@ static int exec_GetAlpha( filter_t *p_filter,
                           const commandparams_t *p_params,
                           commandparams_t *p_results )
 {
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
     overlay_t *p_ovl = ListGet( &p_sys->overlays, p_params->i_id );
     if( p_ovl == NULL )
         return VLC_EGENERIC;
@@ -615,7 +604,7 @@ static int exec_GetPosition( filter_t *p_filter,
                              const commandparams_t *p_params,
                              commandparams_t *p_results )
 {
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
     overlay_t *p_ovl = ListGet( &p_sys->overlays, p_params->i_id );
     if( p_ovl == NULL )
         return VLC_EGENERIC;
@@ -629,7 +618,7 @@ static int exec_GetTextAlpha( filter_t *p_filter,
                               const commandparams_t *p_params,
                               commandparams_t *p_results )
 {
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
     overlay_t *p_ovl = ListGet( &p_sys->overlays, p_params->i_id );
     if( p_ovl == NULL )
         return VLC_EGENERIC;
@@ -643,7 +632,7 @@ static int exec_GetTextColor( filter_t *p_filter,
                               const commandparams_t *p_params,
                               commandparams_t *p_results )
 {
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
     overlay_t *p_ovl = ListGet( &p_sys->overlays, p_params->i_id );
     if( p_ovl == NULL )
         return VLC_EGENERIC;
@@ -657,7 +646,7 @@ static int exec_GetTextSize( filter_t *p_filter,
                              const commandparams_t *p_params,
                              commandparams_t *p_results )
 {
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
     overlay_t *p_ovl = ListGet( &p_sys->overlays, p_params->i_id );
     if( p_ovl == NULL )
         return VLC_EGENERIC;
@@ -670,7 +659,7 @@ static int exec_GetVisibility( filter_t *p_filter,
                                const commandparams_t *p_params,
                                commandparams_t *p_results )
 {
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
 
     overlay_t *p_ovl = ListGet( &p_sys->overlays, p_params->i_id );
     if( p_ovl == NULL )
@@ -685,7 +674,7 @@ static int exec_SetAlpha( filter_t *p_filter,
                           commandparams_t *p_results )
 {
     VLC_UNUSED(p_results);
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
 
     overlay_t *p_ovl = ListGet( &p_sys->overlays, p_params->i_id );
     if( p_ovl == NULL )
@@ -701,7 +690,7 @@ static int exec_SetPosition( filter_t *p_filter,
                              commandparams_t *p_results )
 {
     VLC_UNUSED(p_results);
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
 
     overlay_t *p_ovl = ListGet( &p_sys->overlays, p_params->i_id );
     if( p_ovl == NULL )
@@ -719,7 +708,7 @@ static int exec_SetTextAlpha( filter_t *p_filter,
                               commandparams_t *p_results )
 {
     VLC_UNUSED(p_results);
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
 
     overlay_t *p_ovl = ListGet( &p_sys->overlays, p_params->i_id );
     if( p_ovl == NULL )
@@ -736,7 +725,7 @@ static int exec_SetTextColor( filter_t *p_filter,
                               commandparams_t *p_results )
 {
     VLC_UNUSED(p_results);
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
 
     overlay_t *p_ovl = ListGet( &p_sys->overlays, p_params->i_id );
     if( p_ovl == NULL )
@@ -753,7 +742,7 @@ static int exec_SetTextSize( filter_t *p_filter,
                               commandparams_t *p_results )
 {
     VLC_UNUSED(p_results);
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
 
     overlay_t *p_ovl = ListGet( &p_sys->overlays, p_params->i_id );
     if( p_ovl == NULL )
@@ -769,7 +758,7 @@ static int exec_SetVisibility( filter_t *p_filter,
                                commandparams_t *p_results )
 {
     VLC_UNUSED(p_results);
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
 
     overlay_t *p_ovl = ListGet( &p_sys->overlays, p_params->i_id );
     if( p_ovl == NULL )
@@ -784,7 +773,7 @@ static int exec_StartAtomic( filter_t *p_filter,
                              const commandparams_t *p_params,
                              commandparams_t *p_results )
 {
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
     VLC_UNUSED(p_params);
     VLC_UNUSED(p_results);
 
@@ -903,7 +892,7 @@ static const commanddesc_static_t p_commands[] =
 
 void RegisterCommand( filter_t *p_filter )
 {
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
     size_t i_index = 0;
 
     p_sys->i_commands = ARRAY_SIZE(p_commands);
@@ -927,7 +916,7 @@ void RegisterCommand( filter_t *p_filter )
 
 void UnregisterCommand( filter_t *p_filter )
 {
-    filter_sys_t *p_sys = p_filter->p_sys;
+    filter_sys_t *p_sys = (filter_sys_t*) p_filter->p_sys;
     size_t i_index = 0;
 
     for( i_index = 0; i_index < p_sys->i_commands; i_index++ )

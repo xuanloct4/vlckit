@@ -43,7 +43,7 @@ vlc_module_begin ()
     set_description (N_("Time code subpicture elementary stream generator"))
     set_category (CAT_INPUT)
     set_subcategory (SUBCAT_INPUT_ACCESS)
-    set_capability ("access", 0)
+    set_capability ("access_demux", 0)
     set_callbacks (Open, NULL)
 
     add_string ("timecode-fps", "25/1", FPS_TEXT, FPS_TEXT, false)
@@ -51,12 +51,12 @@ vlc_module_begin ()
         change_safe ()
 vlc_module_end ()
 
-typedef struct
+struct demux_sys_t
 {
     es_out_id_t *es;
     date_t date;
     mtime_t next_time;
-} demux_sys_t;
+};
 
 static int DemuxOnce (demux_t *demux, bool master)
 {
@@ -65,7 +65,7 @@ static int DemuxOnce (demux_t *demux, bool master)
     lldiv_t d;
     unsigned h, m, s, f;
 
-    d = lldiv (pts - VLC_TS_0, CLOCK_FREQ);
+    d = lldiv (pts, CLOCK_FREQ);
     f = d.rem * sys->date.i_divider_num / sys->date.i_divider_den / CLOCK_FREQ;
     d = lldiv (d.quot, 60);
     s = d.rem;
@@ -134,7 +134,7 @@ static int Control (demux_t *demux, int query, va_list args)
 
         case DEMUX_SET_NEXT_DEMUX_TIME:
         {
-            const mtime_t pts = va_arg (args, mtime_t );
+            const mtime_t pts = va_arg (args, int64_t );
 
             if (sys->next_time == VLC_TS_INVALID) /* first invocation? */
             {
@@ -167,10 +167,8 @@ static int Control (demux_t *demux, int query, va_list args)
 static int Open (vlc_object_t *obj)
 {
     demux_t *demux = (demux_t *)obj;
-    if (demux->out == NULL)
-        return VLC_EGENERIC;
-
     demux_sys_t *sys = vlc_obj_malloc(obj, sizeof (*sys));
+
     if (unlikely(sys == NULL))
         return VLC_ENOMEM;
 

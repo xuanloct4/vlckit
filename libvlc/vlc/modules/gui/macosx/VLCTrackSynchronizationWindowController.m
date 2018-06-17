@@ -59,7 +59,7 @@
     [[_sv_speedTextField formatter] setFormat:[NSString stringWithFormat:@"#,##0.000 %@", _NS("fps")]];
     [_sv_durLabel setStringValue: _NS("Subtitle duration factor:")];
 
-    int i_mode = (int)var_InheritInteger(getIntf(), SUBSDELAY_CFG_MODE);
+    int i_mode = var_InheritInteger(getIntf(), SUBSDELAY_CFG_MODE);
     NSString * o_toolTip, * o_suffix;
 
     switch (i_mode) {
@@ -97,7 +97,7 @@
     if ([self.window isVisible])
         [self.window orderOut:sender];
     else {
-        [self.window setLevel: [[[VLCMain sharedInstance] voutProvider] currentStatusWindowLevel]];
+        [self.window setLevel: [[[VLCMain sharedInstance] voutController] currentStatusWindowLevel]];
         [self.window makeKeyAndOrderFront:sender];
 
         [self updateValues];

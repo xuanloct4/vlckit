@@ -53,6 +53,7 @@ static void RestoreStateOnCancel( void* p_opaque )
 {
     VLC_UNUSED(p_opaque);
     SetThreadExecutionState( ES_CONTINUOUS );
+    SystemParametersInfo(SPI_SETSCREENSAVEACTIVE, 1, NULL, 0);
 }
 
 static void* Run(void* obj)
@@ -79,12 +80,18 @@ static void* Run(void* obj)
 
         bool suspend = (mask & VLC_INHIBIT_DISPLAY) != 0;
         if (suspend)
+        {
             /* Prevent monitor from powering off */
             prev_state = SetThreadExecutionState( ES_DISPLAY_REQUIRED |
                                                   ES_SYSTEM_REQUIRED |
                                                   ES_CONTINUOUS );
+            SystemParametersInfo(SPI_SETSCREENSAVEACTIVE, 0, NULL, 0);
+        }
         else
+        {
             SetThreadExecutionState( prev_state );
+            SystemParametersInfo(SPI_SETSCREENSAVEACTIVE, 1, NULL, 0);
+        }
     }
     vlc_assert_unreachable();
 }

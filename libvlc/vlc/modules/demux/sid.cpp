@@ -57,7 +57,7 @@ vlc_module_begin ()
     set_callbacks (Open, Close)
 vlc_module_end ()
 
-struct demux_sid
+struct demux_sys_t
 {
     sidplay2 *player;
     sid2_config_t config;
@@ -69,9 +69,6 @@ struct demux_sid
     int block_size;
     es_out_id_t *es;
     date_t pts;
-
-    int last_title;
-    bool title_changed;
 };
 
 
@@ -81,7 +78,7 @@ static int Control (demux_t *, int, va_list);
 static int Open (vlc_object_t *obj)
 {
     demux_t *demux = (demux_t *)obj;
-    demux_sid *sys = NULL;
+    demux_sys_t *sys = NULL;
     es_format_t fmt;
     bool result = false;
     SidTune *tune = NULL;
@@ -124,7 +121,7 @@ static int Open (vlc_object_t *obj)
     if (unlikely(player==NULL))
         goto error;
 
-    sys = reinterpret_cast<demux_sid*>(calloc (1, sizeof(demux_sid)));
+    sys = (demux_sys_t*) calloc (1, sizeof(demux_sys_t));
     if (unlikely(sys==NULL))
         goto error;
 
@@ -166,7 +163,7 @@ static int Open (vlc_object_t *obj)
     sys->es = es_out_Add (demux->out, &fmt);
 
     date_Init (&sys->pts, fmt.audio.i_rate, 1);
-    date_Set(&sys->pts, VLC_TS_0);
+    date_Set (&sys->pts, 0);
 
     sys->tune->selectSong (0);
     result = (sys->player->load (sys->tune) >=0 );
@@ -194,7 +191,7 @@ error:
 static void Close (vlc_object_t *obj)
 {
     demux_t *demux = (demux_t *)obj;
-    demux_sid *sys = reinterpret_cast<demux_sid*>(demux->p_sys);
+    demux_sys_t *sys = demux->p_sys;
 
     delete sys->player;
     delete sys->config.sidEmulation;
@@ -204,24 +201,24 @@ static void Close (vlc_object_t *obj)
 
 static int Demux (demux_t *demux)
 {
-    demux_sid *sys = reinterpret_cast<demux_sid*>(demux->p_sys);
+    demux_sys_t *sys = demux->p_sys;
 
     block_t *block = block_Alloc( sys->block_size);
     if (unlikely(block==NULL))
-        return VLC_DEMUXER_EOF;
+        return 0;
 
     if (!sys->tune->getStatus()) {
         block_Release (block);
-        return VLC_DEMUXER_EOF;
+        return 0;
     }
 
     int i_read = sys->player->play ((void*)block->p_buffer, block->i_buffer);
     if (i_read <= 0) {
         block_Release (block);
-        return VLC_DEMUXER_EOF;
+        return 0;
     }
     block->i_buffer = i_read;
-    block->i_pts = block->i_dts = date_Get (&sys->pts);
+    block->i_pts = block->i_dts = VLC_TS_0 + date_Get (&sys->pts);
 
     es_out_SetPCR (demux->out, block->i_pts);
 
@@ -229,13 +226,13 @@ static int Demux (demux_t *demux)
 
     date_Increment (&sys->pts, i_read / sys->bytes_per_frame);
 
-    return VLC_DEMUXER_SUCCESS;
+    return 1;
 }
 
 
 static int Control (demux_t *demux, int query, va_list args)
 {
-    demux_sid *sys = reinterpret_cast<demux_sid*>(demux->p_sys);
+    demux_sys_t *sys = demux->p_sys;
 
     switch (query)
     {
@@ -279,34 +276,12 @@ static int Control (demux_t *demux, int query, va_list args)
             if (!result)
                 return  VLC_EGENERIC;
 
-            sys->last_title = i_idx;
-            sys->title_changed = true;
+            demux->info.i_title = i_idx;
+            demux->info.i_update = INPUT_UPDATE_TITLE;
             msg_Dbg( demux, "set song %i", i_idx);
 
             return VLC_SUCCESS;
         }
-
-        case DEMUX_TEST_AND_CLEAR_FLAGS: {
-            unsigned *restrict flags = va_arg(args, unsigned *);
-
-            if ((*flags & INPUT_UPDATE_TITLE) && sys->title_changed) {
-                *flags = INPUT_UPDATE_TITLE;
-                sys->title_changed = false;
-            } else
-                *flags = 0;
-            return VLC_SUCCESS;
-        }
-
-        case DEMUX_GET_TITLE:
-            *va_arg(args, int *) = sys->last_title;
-            return VLC_SUCCESS;
-
-        case DEMUX_CAN_PAUSE:
-        case DEMUX_SET_PAUSE_STATE:
-        case DEMUX_CAN_CONTROL_PACE:
-        case DEMUX_GET_PTS_DELAY:
-            return demux_vaControlHelper( demux->s, 0, -1, 0,
-                                          sys->bytes_per_frame, query, args );
     }
 
     return VLC_EGENERIC;

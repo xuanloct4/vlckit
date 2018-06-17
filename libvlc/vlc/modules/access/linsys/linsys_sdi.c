@@ -55,7 +55,7 @@
 #define SDI_MODE_FILE     "/sys/class/sdi/sdirx%u/mode"
 #define READ_TIMEOUT      80000
 #define RESYNC_TIMEOUT    500000
-#define CLOCK_GAP         (CLOCK_FREQ/2)
+#define CLOCK_GAP         INT64_C(500000)
 #define START_DATE        INT64_C(4294967296)
 
 #define DEMUX_BUFFER_SIZE 1350000
@@ -106,7 +106,7 @@ vlc_module_begin()
     add_string( "linsys-sdi-telx-lang", "", TELX_LANG_TEXT, TELX_LANG_LONGTEXT,
                 true )
 
-    set_capability( "access", 0 )
+    set_capability( "access_demux", 0 )
     add_shortcut( "linsys-sdi" )
     set_callbacks( Open, Close )
 
@@ -146,7 +146,7 @@ enum {
     STATE_SYNC,
 };
 
-typedef struct
+struct demux_sys_t
 {
     /* device reader */
     int              i_fd;
@@ -186,7 +186,7 @@ typedef struct
     es_out_id_t      *p_es_video;
     sdi_audio_t      p_audios[MAX_AUDIOS];
     es_out_id_t      *p_es_telx;
-} demux_sys_t;
+};
 
 static int Control( demux_t *, int, va_list );
 static int DemuxControl( demux_t *, int, va_list );
@@ -211,9 +211,6 @@ static int DemuxOpen( vlc_object_t *p_this )
     demux_t     *p_demux = (demux_t *)p_this;
     demux_sys_t *p_sys;
     char        *psz_parser;
-
-    if (p_demux->out == NULL)
-        return VLC_EGENERIC;
 
     /* Fill p_demux field */
     p_demux->pf_demux = DemuxDemux;
@@ -428,7 +425,7 @@ static int StartDecode( demux_t *p_demux )
     char *psz_parser;
 
     p_sys->i_next_date = START_DATE;
-    p_sys->i_incr = CLOCK_FREQ * p_sys->i_frame_rate_base / p_sys->i_frame_rate;
+    p_sys->i_incr = 1000000 * p_sys->i_frame_rate_base / p_sys->i_frame_rate;
     p_sys->i_block_size = p_sys->i_width * p_sys->i_height * 3 / 2
                            + sizeof(struct block_extension_t);
     if( NewFrame( p_demux ) != VLC_SUCCESS )
@@ -724,9 +721,15 @@ static void DecodeWSS( demux_t *p_demux )
     {
         unsigned int i_old_aspect = p_sys->i_aspect;
         uint8_t *p = p_sliced[0].data;
-        int i_aspect = p[0] & 7;
+        int i_aspect, i_parity;
 
-        if ( !parity(p[0] & 15) )
+        i_aspect = p[0] & 15;
+        i_parity = i_aspect;
+        i_parity ^= i_parity >> 2;
+        i_parity ^= i_parity >> 1;
+        i_aspect &= 7;
+
+        if ( !(i_parity & 1) )
             msg_Warn( p_demux, "WSS parity error" );
         else if ( i_aspect == 7 )
             p_sys->i_aspect = 16 * VOUT_ASPECT_FACTOR / 9;
@@ -931,7 +934,7 @@ static int DecodeAudio( demux_t *p_demux, sdi_audio_t *p_audio )
     if( unlikely( !p_block ) )
         return VLC_ENOMEM;
     p_block->i_dts = p_block->i_pts = p_sys->i_next_date
-        + (mtime_t)p_audio->i_delay * CLOCK_FREQ / p_audio->i_rate;
+        + (mtime_t)p_audio->i_delay * INT64_C(1000000) / p_audio->i_rate;
     p_output = (int16_t *)p_block->p_buffer;
 
     if ( p_audio->i_left_samples == p_audio->i_nb_samples &&

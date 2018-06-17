@@ -536,7 +536,7 @@ struct picture_free_t
 /*****************************************************************************
  * decoder_sys_t : Schroedinger decoder descriptor
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     /*
      * Dirac properties
@@ -545,7 +545,7 @@ typedef struct
     mtime_t i_frame_pts_delta;
     SchroDecoder *p_schro;
     SchroVideoFormat *p_format;
-} decoder_sys_t;
+};
 
 /*****************************************************************************
  * OpenDecoder: probe the decoder and return score
@@ -782,7 +782,7 @@ static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
         p_schrobuffer = schro_buffer_new_with_data( p_block->p_buffer, p_block->i_buffer );
         p_schrobuffer->free = SchroBufferFree;
         p_schrobuffer->priv = p_block;
-        if( p_block->i_pts != VLC_TS_INVALID ) {
+        if( p_block->i_pts > VLC_TS_INVALID ) {
             mtime_t *p_pts = malloc( sizeof(*p_pts) );
             if( p_pts ) {
                 *p_pts = p_block->i_pts;
@@ -844,7 +844,7 @@ static int DecodeBlock( decoder_t *p_dec, block_t *p_block )
                 p_pic->date = *(mtime_t*) p_tag->value;
                 schro_tag_free( p_tag );
             }
-            else if( p_sys->i_lastpts != VLC_TS_INVALID )
+            else if( p_sys->i_lastpts > VLC_TS_INVALID )
             {
                 /* NB, this shouldn't happen since the packetizer does a
                  * very thorough job of inventing timestamps.  The
@@ -891,7 +891,7 @@ struct picture_pts_t
  * encoder_sys_t : Schroedinger encoder descriptor
  *****************************************************************************/
 #define SCHRO_PTS_TLB_SIZE 256
-typedef struct
+struct encoder_sys_t
 {
     /*
      * Schro properties
@@ -907,12 +907,12 @@ typedef struct
     block_t *p_chain;
 
     struct picture_pts_t pts_tlb[SCHRO_PTS_TLB_SIZE];
-    unsigned i_pts_offset;
-    unsigned i_field_duration;
+    mtime_t i_pts_offset;
+    mtime_t i_field_time;
 
     bool b_eos_signalled;
     bool b_eos_pulled;
-} encoder_sys_t;
+};
 
 static struct
 {
@@ -1455,17 +1455,16 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pic )
             }
         }
 
-        date_Init( &date, p_enc->fmt_in.video.i_frame_rate * 2, p_enc->fmt_in.video.i_frame_rate_base );
-        date_Set( &date, VLC_TS_0 );
+        date_Init( &date, p_enc->fmt_in.video.i_frame_rate, p_enc->fmt_in.video.i_frame_rate_base );
         /* FIXME - Unlike dirac-research codec Schro doesn't have a function that returns the delay in pics yet.
          *   Use a default of 1
          */
-        date_Increment( &date, 2 /* 2 fields, 1 frame */ );
-        p_sys->i_pts_offset = date_Get( &date ) - VLC_TS_0;
+        date_Increment( &date, 1 );
+        p_sys->i_pts_offset = date_Get( &date );
         if( schro_encoder_setting_get_double( p_sys->p_schro, "interlaced_coding" ) > 0.0 ) {
-            date_Set( &date, VLC_TS_0 );
-            date_Increment( &date, 1 /* field */ );
-            p_sys->i_field_duration = date_Get( &date ) - VLC_TS_0;
+            date_Set( &date, 0 );
+            date_Increment( &date, 1);
+            p_sys->i_field_time = date_Get( &date ) / 2;
         }
 
         schro_video_format_set_std_signal_range( p_sys->p_format, SCHRO_SIGNAL_RANGE_8BIT_VIDEO );
@@ -1504,13 +1503,13 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pic )
          * pts lookaside buffer and dts queue, offset to correspond
          * to a one field delay. */
         if( schro_encoder_setting_get_double( p_sys->p_schro, "interlaced_coding" ) > 0.0 ) {
-            StorePicturePTS( p_enc, p_sys->i_input_picnum, p_pic->date + p_sys->i_field_duration );
+            StorePicturePTS( p_enc, p_sys->i_input_picnum, p_pic->date + p_sys->i_field_time );
             p_sys->i_input_picnum++;
 
             p_block = block_Alloc( 1 );
             if( !p_block )
                 return NULL;
-            p_block->i_dts = p_pic->date - p_sys->i_pts_offset + p_sys->i_field_duration;
+            p_block->i_dts = p_pic->date - p_sys->i_pts_offset + p_sys->i_field_time;
             block_FifoPut( p_sys->p_dts_fifo, p_block );
             p_block = NULL;
         }

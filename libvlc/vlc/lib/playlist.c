@@ -34,9 +34,11 @@
 
 #include <assert.h>
 
-void libvlc_playlist_play( libvlc_instance_t *p_instance )
+void libvlc_playlist_play( libvlc_instance_t *p_instance, int i_id,
+                           int i_options, char **ppsz_options )
 {
     libvlc_InternalPlay( p_instance->p_libvlc_int );
+    VLC_UNUSED(i_id); VLC_UNUSED(i_options); VLC_UNUSED(ppsz_options);
 }
 
 int libvlc_add_intf( libvlc_instance_t *p_instance, const char *name )

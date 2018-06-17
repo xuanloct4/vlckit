@@ -82,8 +82,7 @@ void ReleasePictureSys(picture_sys_t *p_sys)
 }
 
 /* map texture planes to resource views */
-#undef D3D11_AllocateShaderView
-int D3D11_AllocateShaderView(vlc_object_t *obj, ID3D11Device *d3ddevice,
+int AllocateShaderView(vlc_object_t *obj, ID3D11Device *d3ddevice,
                               const d3d_format_t *format,
                               ID3D11Texture2D *p_texture[D3D11_MAX_SHADER_VIEW], UINT slice_index,
                               ID3D11ShaderResourceView *resourceView[D3D11_MAX_SHADER_VIEW])
@@ -443,7 +442,6 @@ const d3d_format_t *FindD3D11Format(ID3D11Device *d3ddevice,
     return NULL;
 }
 
-#undef AllocateTextures
 int AllocateTextures( vlc_object_t *obj, d3d11_device_t *d3d_dev,
                       const d3d_format_t *cfg, const video_format_t *fmt,
                       unsigned pool_size, ID3D11Texture2D *textures[] )
@@ -568,23 +566,8 @@ error:
     return VLC_EGENERIC;
 }
 
-#if !VLC_WINSTORE_APP
-static HINSTANCE Direct3D11LoadShaderLibrary(void)
-{
-    HINSTANCE instance = NULL;
-    /* d3dcompiler_47 is the latest on windows 8.1 */
-    for (int i = 47; i > 41; --i) {
-        TCHAR filename[19];
-        _sntprintf(filename, 19, TEXT("D3DCOMPILER_%d.dll"), i);
-        instance = LoadLibrary(filename);
-        if (instance) break;
-    }
-    return instance;
-}
-#endif
-
 #undef D3D11_Create
-int D3D11_Create(vlc_object_t *obj, d3d11_handle_t *hd3d, bool with_shaders)
+int D3D11_Create(vlc_object_t *obj, d3d11_handle_t *hd3d)
 {
 #if !VLC_WINSTORE_APP
     hd3d->hdll = LoadLibrary(TEXT("D3D11.DLL"));
@@ -594,30 +577,6 @@ int D3D11_Create(vlc_object_t *obj, d3d11_handle_t *hd3d, bool with_shaders)
         return VLC_EGENERIC;
     }
 
-    if (with_shaders)
-    {
-        hd3d->compiler_dll = Direct3D11LoadShaderLibrary();
-        if (!hd3d->compiler_dll) {
-            msg_Err(obj, "cannot load d3dcompiler.dll, aborting");
-            FreeLibrary(hd3d->hdll);
-            return VLC_EGENERIC;
-        }
-
-        hd3d->OurD3DCompile = (void *)GetProcAddress(hd3d->compiler_dll, "D3DCompile");
-        if (!hd3d->OurD3DCompile) {
-            msg_Err(obj, "Cannot locate reference to D3DCompile in d3dcompiler DLL");
-            FreeLibrary(hd3d->compiler_dll);
-            FreeLibrary(hd3d->hdll);
-            return VLC_EGENERIC;
-        }
-    }
-#endif
-    return VLC_SUCCESS;
-}
-
-void D3D11_Destroy(d3d11_handle_t *hd3d)
-{
-#if !VLC_WINSTORE_APP
 # if !defined(NDEBUG) && defined(HAVE_DXGIDEBUG_H)
     if (IsDebuggerPresent())
     {
@@ -633,15 +592,15 @@ void D3D11_Destroy(d3d11_handle_t *hd3d)
         }
     }
 # endif
+#endif
+    return VLC_SUCCESS;
+}
+
+void D3D11_Destroy(d3d11_handle_t *hd3d)
+{
+#if !VLC_WINSTORE_APP
     if (hd3d->hdll)
         FreeLibrary(hd3d->hdll);
-
-    if (hd3d->compiler_dll)
-    {
-        FreeLibrary(hd3d->compiler_dll);
-        hd3d->compiler_dll = NULL;
-    }
-    hd3d->OurD3DCompile = NULL;
 
 #if !defined(NDEBUG) && defined(HAVE_DXGIDEBUG_H)
     if (hd3d->dxgidebug_dll)
@@ -649,3 +608,35 @@ void D3D11_Destroy(d3d11_handle_t *hd3d)
 #endif
 #endif
 }
+
+#ifndef NDEBUG
+#undef D3D11_LogProcessorSupport
+void D3D11_LogProcessorSupport(vlc_object_t *o,
+                               ID3D11VideoProcessorEnumerator *processorEnumerator)
+{
+    UINT flags;
+    HRESULT hr;
+    for (int format = 0; format < 188; format++) {
+        hr = ID3D11VideoProcessorEnumerator_CheckVideoProcessorFormat(processorEnumerator, format, &flags);
+        if (FAILED(hr))
+            continue;
+        const char *name = DxgiFormatToStr(format);
+        const char *support = NULL;
+        if ((flags & (D3D11_VIDEO_PROCESSOR_FORMAT_SUPPORT_INPUT|D3D11_VIDEO_PROCESSOR_FORMAT_SUPPORT_OUTPUT))
+                 == (D3D11_VIDEO_PROCESSOR_FORMAT_SUPPORT_INPUT|D3D11_VIDEO_PROCESSOR_FORMAT_SUPPORT_OUTPUT))
+            support = "input/output";
+        else if (flags & D3D11_VIDEO_PROCESSOR_FORMAT_SUPPORT_INPUT)
+            support = "input";
+        else if (flags & D3D11_VIDEO_PROCESSOR_FORMAT_SUPPORT_OUTPUT)
+            support = "output";
+        if (support)
+        {
+            if (name)
+                msg_Dbg(o, "processor format %s is supported for %s", name, support);
+            else
+                msg_Dbg(o, "processor format (%d) is supported for %s", format, support);
+        }
+    }
+}
+
+#endif

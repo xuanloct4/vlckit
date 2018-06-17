@@ -73,7 +73,7 @@ static int PacketizeValidate(void *p_private, block_t *);
 static bool ParseSEICallback( const hxxx_sei_data_t *, void * );
 static block_t *GetCc( decoder_t *, decoder_cc_desc_t * );
 
-typedef struct
+struct decoder_sys_t
 {
     /* */
     packetizer_t packetizer;
@@ -106,7 +106,7 @@ typedef struct
 
     /* */
     cc_storage_t *p_ccs;
-} decoder_sys_t;
+};
 
 #define BLOCK_FLAG_DROP (1 << BLOCK_FLAG_PRIVATE_SHIFT)
 
@@ -187,7 +187,7 @@ static int Open(vlc_object_t *p_this)
     INITQ(frame);
     INITQ(post);
 
-    packetizer_Init(&p_sys->packetizer,
+    packetizer_Init(&p_dec->p_sys->packetizer,
                     p_hevc_startcode, sizeof(p_hevc_startcode), startcode_FindAnnexB,
                     p_hevc_startcode, 1, 5,
                     PacketizeReset, PacketizeParse, PacketizeValidate, p_dec);
@@ -204,6 +204,7 @@ static int Open(vlc_object_t *p_this)
                                 p_dec->fmt_in.video.i_frame_rate_base );
     else
         date_Init( &p_sys->dts, 2 * 30000, 1001 );
+    date_Set( &p_sys->dts, VLC_TS_INVALID );
     p_sys->pts = VLC_TS_INVALID;
     p_sys->b_need_ts = true;
 
@@ -317,8 +318,7 @@ static void PacketizeFlush( decoder_t *p_dec )
  *****************************************************************************/
 static block_t *GetCc( decoder_t *p_dec, decoder_cc_desc_t *p_desc )
 {
-    decoder_sys_t *p_sys = p_dec->p_sys;
-    return cc_storage_get_current( p_sys->p_ccs, p_desc );
+    return cc_storage_get_current( p_dec->p_sys->p_ccs, p_desc );
 }
 
 /****************************************************************************
@@ -849,7 +849,7 @@ static block_t *ParseNALBlock(decoder_t *p_dec, bool *pb_ts_used, block_t *p_fra
 
     if(p_sys->b_need_ts)
     {
-        if(p_frag->i_dts != VLC_TS_INVALID)
+        if(p_frag->i_dts > VLC_TS_INVALID)
             date_Set(&p_sys->dts, p_frag->i_dts);
         p_sys->pts = p_frag->i_pts;
         if(date_Get( &p_sys->dts ) != VLC_TS_INVALID)
@@ -892,7 +892,7 @@ static block_t *ParseNALBlock(decoder_t *p_dec, bool *pb_ts_used, block_t *p_fra
     if(p_output)
     {
         SetOutputBlockProperties( p_dec, p_output );
-        if (dts != VLC_TS_INVALID)
+        if (dts > VLC_TS_INVALID)
             date_Set(&p_sys->dts, dts);
         p_sys->pts = pts;
         *pb_ts_used = true;

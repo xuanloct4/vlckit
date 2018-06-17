@@ -32,6 +32,7 @@
 #include <vlc_common.h>
 #include <vlc_plugin.h>
 #include <vlc_codec.h>
+#include <vlc_memory.h>
 #include <vlc_charset.h>
 
 #include "substext.h" /* required for font scaling / updater */
@@ -99,12 +100,11 @@ typedef struct {
     const char *str;
 } cct_number_t;
 
-typedef struct
-{
+struct decoder_sys_t {
     stl_sg_t groups[STL_GROUPS_MAX + 1];
     cct_number_value_t cct;
     uint8_t i_fps;
-} decoder_sys_t;
+};
 
 static cct_number_t cct_nums[] = { {CCT_ISO_6937_2, "ISO_6937-2"},
                                    {CCT_ISO_8859_5, "ISO_8859-5"},
@@ -248,10 +248,10 @@ static void GroupApplyStyle(stl_sg_t *p_group, uint8_t code)
 
 static int64_t ParseTimeCode(const uint8_t *data, double fps)
 {
-    return CLOCK_FREQ * (data[0] * 3600 +
-                         data[1] *   60 +
-                         data[2] *    1 +
-                         data[3] /  fps);
+    return INT64_C(1000000) * (data[0] * 3600 +
+                               data[1] *   60 +
+                               data[2] *    1 +
+                               data[3] /  fps);
 }
 
 static void ClearTeletextStyles(stl_sg_t *p_group)
@@ -332,7 +332,7 @@ static bool ParseTTI(stl_sg_t *p_group, const uint8_t *p_data, const char *psz_c
     return false;
 }
 
-static void FillSubpictureUpdater(stl_sg_t *p_group, subtext_updater_sys_t *p_spu_sys)
+static void FillSubpictureUpdater(stl_sg_t *p_group, subpicture_updater_sys_t *p_spu_sys)
 {
     if(p_group->i_accumulating)
     {
@@ -382,8 +382,6 @@ static int Decode(decoder_t *p_dec, block_t *p_block)
     if (p_block == NULL) /* No Drain */
         return VLCDEC_SUCCESS;
 
-    decoder_sys_t *p_sys = p_dec->p_sys;
-
     if(p_block->i_buffer < STL_TTI_SIZE)
         p_block->i_flags |= BLOCK_FLAG_CORRUPTED;
 
@@ -398,11 +396,11 @@ static int Decode(decoder_t *p_dec, block_t *p_block)
         }
     }
 
-    const char *psz_charset = cct_nums[p_sys->cct - CCT_BEGIN].str;
+    const char *psz_charset = cct_nums[p_dec->p_sys->cct - CCT_BEGIN].str;
     for (size_t i = 0; i < p_block->i_buffer / STL_TTI_SIZE; i++)
     {
-        stl_sg_t *p_group = &p_sys->groups[p_block->p_buffer[0]];
-        if(ParseTTI(p_group, &p_block->p_buffer[i * STL_TTI_SIZE], psz_charset, p_sys->i_fps) &&
+        stl_sg_t *p_group = &p_dec->p_sys->groups[p_block->p_buffer[0]];
+        if(ParseTTI(p_group, &p_block->p_buffer[i * STL_TTI_SIZE], psz_charset, p_dec->p_sys->i_fps) &&
            p_group->p_segment != NULL )
         {
             /* output */
@@ -429,7 +427,7 @@ static int Decode(decoder_t *p_dec, block_t *p_block)
         }
     }
 
-    ResetGroups(p_sys);
+    ResetGroups(p_dec->p_sys);
 
     block_Release(p_block);
     return VLCDEC_SUCCESS;

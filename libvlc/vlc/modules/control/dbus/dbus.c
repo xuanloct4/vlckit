@@ -384,7 +384,7 @@ static void toggle_timeout(DBusTimeout *to, void *data)
 static int next_timeout(intf_thread_t *intf)
 {
     intf_sys_t *sys = intf->p_sys;
-    mtime_t next_timeout = INT64_MAX;
+    mtime_t next_timeout = LAST_MDATE;
     unsigned count = vlc_array_count(&sys->timeouts);
 
     for (unsigned i = 0; i < count; i++)
@@ -400,7 +400,7 @@ static int next_timeout(intf_thread_t *intf)
             next_timeout = *expiry;
     }
 
-    if (next_timeout >= INT64_MAX)
+    if (next_timeout >= LAST_MDATE)
         return -1;
 
     next_timeout /= 1000;
@@ -832,8 +832,7 @@ static void *Run( void *data )
         if( i_events > 0 )
         {
             mtime_t now = mdate();
-            if( events_last_date == VLC_TS_INVALID
-             || now - events_last_date > EVENTS_DELAY )
+            if( now - events_last_date > EVENTS_DELAY )
             {
                 /* Send events every EVENTS_DELAY */
                 events_last_date = now;

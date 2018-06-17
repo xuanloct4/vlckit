@@ -24,8 +24,7 @@
 #ifndef LIBVLC_AOUT_INTERNAL_H
 # define LIBVLC_AOUT_INTERNAL_H 1
 
-# include <stdatomic.h>
-
+# include <vlc_atomic.h>
 # include <vlc_viewpoint.h>
 
 /* Max input rate factor (1/4 -> 4) */
@@ -57,6 +56,14 @@ typedef struct
     struct
     {
         vlc_mutex_t lock;
+        char *device;
+        float volume;
+        signed char mute;
+    } req;
+
+    struct
+    {
+        vlc_mutex_t lock;
         aout_dev_t *list;
         unsigned count;
     } dev;
@@ -71,13 +78,12 @@ typedef struct
     struct
     {
         mtime_t end; /**< Last seen PTS */
-        float rate; /**< Play-out speed rate */
-        mtime_t resamp_start_drift; /**< Resampler drift absolute value */
+        unsigned resamp_start_drift; /**< Resampler drift absolute value */
         int resamp_type; /**< Resampler mode (FIXME: redundant / resampling) */
         bool discontinuity;
     } sync;
 
-    int requested_stereo_mode; /**< Requested stereo mode set by the user */
+    int initial_stereo_mode; /**< Initial stereo mode set by options */
 
     audio_sample_format_t input_format;
     audio_sample_format_t mixer_format;
@@ -121,7 +127,13 @@ void aout_Destroy (audio_output_t *);
 
 int aout_OutputNew(audio_output_t *, audio_sample_format_t *,
                    aout_filters_cfg_t *filters_cfg);
+int aout_OutputTimeGet(audio_output_t *, mtime_t *);
+void aout_OutputPlay(audio_output_t *, block_t *);
+void aout_OutputPause( audio_output_t * p_aout, bool, mtime_t );
+void aout_OutputFlush( audio_output_t * p_aout, bool );
 void aout_OutputDelete( audio_output_t * p_aout );
+void aout_OutputLock(audio_output_t *);
+void aout_OutputUnlock(audio_output_t *);
 
 
 /* From common.c : */
@@ -141,10 +153,9 @@ bool aout_ChangeFilterString( vlc_object_t *manager, vlc_object_t *aout,
 int aout_DecNew(audio_output_t *, const audio_sample_format_t *,
                 const audio_replay_gain_t *, const aout_request_vout_t *);
 void aout_DecDelete(audio_output_t *);
-int aout_DecPlay(audio_output_t *aout, block_t *block);
+int aout_DecPlay(audio_output_t *, block_t *, int i_input_rate);
 void aout_DecGetResetStats(audio_output_t *, unsigned *, unsigned *);
 void aout_DecChangePause(audio_output_t *, bool b_paused, mtime_t i_date);
-void aout_DecChangeRate(audio_output_t *aout, float rate);
 void aout_DecFlush(audio_output_t *, bool wait);
 void aout_RequestRestart (audio_output_t *, unsigned);
 
@@ -168,5 +179,8 @@ static inline void aout_SetWavePhysicalChannels(audio_sample_format_t *fmt)
 
 /* From filters.c */
 bool aout_FiltersCanResample (aout_filters_t *filters);
+
+void aout_ChangeViewpoint(audio_output_t *aout,
+                          const vlc_viewpoint_t *p_viewpoint);
 
 #endif /* !LIBVLC_AOUT_INTERNAL_H */

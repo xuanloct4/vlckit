@@ -40,7 +40,7 @@ static int OpenDemux( vlc_object_t * );
 vlc_module_begin ()
     set_shortname( N_("Dummy") )
     set_description( N_("Dummy input") )
-    set_capability( "access", 0 )
+    set_capability( "access_demux", 0 )
     set_callbacks( OpenDemux, NULL )
     add_shortcut( "dummy", "vlc" )
 vlc_module_end ()
@@ -56,15 +56,15 @@ static int DemuxNoOp( demux_t *demux )
 static int DemuxHold( demux_t *demux )
 {
     (void) demux;
-    msleep( VLC_HARD_MIN_SLEEP ); /* FIXME!!! */
+    msleep( 10000 ); /* FIXME!!! */
     return 1;
 }
 
-typedef struct
+struct demux_sys_t
 {
     mtime_t end;
     mtime_t length;
-} demux_sys_t;
+};
 
 static int DemuxPause( demux_t *demux )
 {
@@ -74,7 +74,7 @@ static int DemuxPause( demux_t *demux )
     if( now >= p_sys->end )
         return 0;
 
-    msleep( VLC_HARD_MIN_SLEEP ); /* FIXME!!! */
+    msleep( 10000 ); /* FIXME!!! */
     return 1;
 }
 
@@ -141,7 +141,7 @@ static int ControlPause( demux_t *demux, int query, va_list args )
 static int OpenDemux( vlc_object_t *p_this )
 {
     demux_t *p_demux = (demux_t*)p_this;
-    const char *psz_name = p_demux->psz_location;
+    char * psz_name = p_demux->psz_location;
 
     p_demux->p_sys = NULL;
 

@@ -107,7 +107,7 @@
     if ([self.window isVisible])
         [self.window orderOut:sender];
     else {
-        [self.window setLevel: [[[VLCMain sharedInstance] voutProvider] currentStatusWindowLevel]];
+        [self.window setLevel: [[[VLCMain sharedInstance] voutController] currentStatusWindowLevel]];
         [self.window makeKeyAndOrderFront:sender];
     }
 }
@@ -160,7 +160,8 @@
     input_thread_t * p_input = pl_CurrentInput(getIntf());
     seekpoint_t **pp_bookmarks;
     int i_bookmarks;
-    int row = (int)[_dataTable selectedRow];
+    int row;
+    row = [_dataTable selectedRow];
 
     if (!p_input)
         return;
@@ -184,7 +185,7 @@
     p_old_input = p_input;
     vlc_object_release(p_input);
 
-    [self.window beginSheet:_editBookmarksWindow completionHandler:nil];
+    [NSApp beginSheet: _editBookmarksWindow modalForWindow: self.window modalDelegate: _editBookmarksWindow didEndSelector: nil contextInfo: nil];
 
     // Clear the bookmark list
     for (int i = 0; i < i_bookmarks; i++)
@@ -203,26 +204,15 @@
 {
     /* save field contents and close sheet */
      seekpoint_t **pp_bookmarks;
-    int i_bookmarks;
-    NSInteger i;
+    int i_bookmarks, i;
     input_thread_t * p_input = pl_CurrentInput(getIntf());
 
     if (!p_input) {
-        NSAlert *alert = [[NSAlert alloc] init];
-        [alert setAlertStyle:NSCriticalAlertStyle];
-        [alert setMessageText:_NS("No input")];
-        [alert setInformativeText:_NS("No input found. A stream must be playing or paused for bookmarks to work.")];
-        [alert beginSheetModalForWindow:self.window
-                      completionHandler:nil];
+        NSBeginCriticalAlertSheet(_NS("No input"), _NS("OK"), @"", @"", self.window, nil, nil, nil, nil, @"%@",_NS("No input found. A stream must be playing or paused for bookmarks to work."));
         return;
     }
     if (p_old_input != p_input) {
-        NSAlert *alert = [[NSAlert alloc] init];
-        [alert setAlertStyle:NSCriticalAlertStyle];
-        [alert setMessageText:_NS("Input has changed")];
-        [alert setInformativeText:_NS("Input has changed, unable to save bookmark. Suspending playback with \"Pause\" while editing bookmarks to ensure to keep the same input.")];
-        [alert beginSheetModalForWindow:self.window
-                      completionHandler:nil];
+        NSBeginCriticalAlertSheet(_NS("Input has changed"), _NS("OK"), @"", @"", self.window, nil, nil, nil, nil, @"%@",_NS("Input has changed, unable to save bookmark. Suspending playback with \"Pause\" while editing bookmarks to ensure to keep the same input."));
         vlc_object_release(p_input);
         return;
     }
@@ -289,7 +279,7 @@ clear:
     if (!p_input)
         return;
 
-    int i_focused = (int)[_dataTable selectedRow];
+    int i_focused = [_dataTable selectedRow];
 
     if (i_focused >= 0)
         input_Control(p_input, INPUT_DEL_BOOKMARK, i_focused);

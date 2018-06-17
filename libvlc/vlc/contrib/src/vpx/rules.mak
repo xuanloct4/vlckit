@@ -20,19 +20,9 @@ libvpx: libvpx-$(VPX_VERSION).tar.bz2 .sum-vpx
 ifdef HAVE_ANDROID
 	$(APPLY) $(SRC)/vpx/libvpx-android.patch
 endif
-	$(APPLY) $(SRC)/vpx/0001-ads2gas-Add-a-noelf-option.patch
-	$(APPLY) $(SRC)/vpx/0002-configure-Add-an-armv7-win32-gcc-target.patch
-	$(APPLY) $(SRC)/vpx/0003-configure-Add-an-arm64-win64-gcc-target.patch
-ifdef HAVE_WINSTORE
-	$(APPLY) $(SRC)/vpx/libvpx-pthread-w32.patch
-endif
 	$(MOVE)
 
 DEPS_vpx =
-
-ifdef HAVE_WIN32
-DEPS_vpx += pthreads $(DEPS_pthreads)
-endif
 
 ifdef HAVE_CROSS_COMPILE
 VPX_CROSS := $(HOST)-
@@ -64,8 +54,6 @@ else ifeq ($(ARCH),sparc)
 VPX_ARCH := sparc
 else ifeq ($(ARCH),x86_64)
 VPX_ARCH := x86_64
-else ifeq ($(ARCH),aarch64)
-VPX_ARCH := arm64
 endif
 
 ifdef HAVE_ANDROID
@@ -73,7 +61,11 @@ VPX_OS := android
 else ifdef HAVE_LINUX
 VPX_OS := linux
 else ifdef HAVE_MACOSX
+ifeq ($(OSX_VERSION),10.5)
+VPX_OS := darwin9
+else
 VPX_OS := darwin10
+endif
 VPX_CROSS :=
 else ifdef HAVE_IOS
 ifeq ($(ARCH),arm)
@@ -107,16 +99,8 @@ VPX_CONF := \
 	--disable-dependency-tracking \
 	--enable-vp9-highbitdepth
 
-ifndef HAVE_WIN32
 ifndef HAVE_IOS
 VPX_CONF += --enable-runtime-cpu-detect
-endif
-else
-# WIN32
-ifeq ($(filter arm aarch64, $(ARCH)),)
-# Only enable runtime cpu detect on architectures other than arm/aarch64
-VPX_CONF += --enable-runtime-cpu-detect
-endif
 endif
 
 ifndef BUILD_ENCODERS

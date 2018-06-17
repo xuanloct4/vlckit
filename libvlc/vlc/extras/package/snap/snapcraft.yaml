@@ -63,13 +63,13 @@ parts:
       cd extras/tools
       ./bootstrap
       make -j $(getconf _NPROCESSORS_ONLN) .protoc
-      make -j $(getconf _NPROCESSORS_ONLN) .nasm
       cd ../../
       export PATH=$PWD/extras/tools/build/bin:$PATH
       cd contrib && mkdir linux && cd linux
       ../bootstrap \
         --enable-libdsm \
         --enable-dvdcss \
+        --enable-protobuf \
         --disable-upnp \
         --disable-srt \
         --disable-chromaprint
@@ -142,7 +142,6 @@ parts:
       - libxext-dev
       - libxi-dev
       - libxinerama-dev
-      - libxkbcommon-x11-dev
       - libxml2-dev
       - libxpm-dev
       - libzvbi-dev
@@ -185,7 +184,6 @@ parts:
       - libxext6
       - libxi6
       - libxinerama1
-      - libxkbcommon-x11-0
       - libxpm4
       - vdpau-va-driver
       - i965-va-driver

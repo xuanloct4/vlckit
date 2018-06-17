@@ -82,7 +82,7 @@ vlc_module_end ()
  * Local prototypes
  *****************************************************************************/
 
-typedef struct
+struct demux_sys_t
 {
     ps_psm_t    psm;
     ps_track_t  tk[PS_TK_COUNT];
@@ -110,11 +110,7 @@ typedef struct
         CDXA_PS,
         PSMF_PS,
     } format;
-
-    int         current_title;
-    int         current_seekpoint;
-    unsigned    updates;
-} demux_sys_t;
+};
 
 static int Demux  ( demux_t *p_demux );
 static int Control( demux_t *p_demux, int i_query, va_list args );
@@ -227,9 +223,6 @@ static int OpenCommon( vlc_object_t *p_this, bool b_force )
     p_sys->b_bad_scr   = false;
     p_sys->b_seekable  = false;
     p_sys->format      = format;
-    p_sys->current_title = 0;
-    p_sys->current_seekpoint = 0;
-    p_sys->updates = 0;
 
     vlc_stream_Control( p_demux->s, STREAM_CAN_SEEK, &p_sys->b_seekable );
 
@@ -308,7 +301,7 @@ static int Probe( demux_t *p_demux, bool b_end )
     {
         ps_track_t *tk = &p_sys->tk[ps_id_to_tk(i_id)];
         if( !ps_pkt_parse_pes( VLC_OBJECT(p_demux), p_pkt, tk->i_skip ) &&
-             p_pkt->i_pts != VLC_TS_INVALID )
+             p_pkt->i_pts > VLC_TS_INVALID )
         {
             if( b_end && p_pkt->i_pts > tk->i_last_pts )
             {
@@ -401,7 +394,7 @@ static void NotifyDiscontinuity( ps_track_t *p_tk, es_out_t *out )
 
 static void CheckPCR( demux_sys_t *p_sys, es_out_t *out, mtime_t i_scr )
 {
-    if( p_sys->i_scr != VLC_TS_INVALID &&
+    if( p_sys->i_scr > VLC_TS_INVALID &&
         llabs( p_sys->i_scr - i_scr ) > CLOCK_FREQ )
         NotifyDiscontinuity( p_sys->tk, out );
 }
@@ -581,7 +574,7 @@ static int Demux( demux_t *p_demux )
             if( p_sys->i_pack_scr >= 0 && !p_sys->b_bad_scr )
             {
                 if( (tk->fmt.i_cat == AUDIO_ES || tk->fmt.i_cat == VIDEO_ES) &&
-                    tk->i_first_pts != VLC_TS_INVALID && tk->i_first_pts - p_sys->i_pack_scr > 2 * CLOCK_FREQ )
+                    tk->i_first_pts > VLC_TS_INVALID && tk->i_first_pts - p_sys->i_pack_scr > 2 * CLOCK_FREQ )
                 {
                     msg_Warn( p_demux, "Incorrect SCR timing offset by of %"PRId64 "ms, disabling",
                                        tk->i_first_pts - p_sys->i_pack_scr / 1000 );
@@ -614,7 +607,7 @@ static int Demux( demux_t *p_demux )
 
                 if( ((!b_new && !p_sys->b_have_pack) || p_sys->b_bad_scr) &&
                     p_sys->i_scr_track_id == tk->i_id &&
-                    p_pkt->i_pts != VLC_TS_INVALID )
+                    p_pkt->i_pts > VLC_TS_INVALID )
                 {
                     /* A hack to sync the A/V on PES files. */
                     msg_Dbg( p_demux, "force SCR: %"PRId64, p_pkt->i_pts );
@@ -626,7 +619,7 @@ static int Demux( demux_t *p_demux )
                 }
 
                 if( tk->fmt.i_codec == VLC_CODEC_TELETEXT &&
-                    p_pkt->i_pts == VLC_TS_INVALID && p_sys->i_scr >= 0 )
+                    p_pkt->i_pts <= VLC_TS_INVALID && p_sys->i_scr >= 0 )
                 {
                     /* Teletext may have missing PTS (ETSI EN 300 472 Annexe A)
                      * In this case use the last SCR + 40ms */
@@ -680,14 +673,6 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
     {
         case DEMUX_CAN_SEEK:
             *va_arg( args, bool * ) = p_sys->b_seekable;
-            return VLC_SUCCESS;
-
-        case DEMUX_GET_TITLE:
-            *va_arg( args, int * ) = p_sys->current_title;
-            return VLC_SUCCESS;
-
-        case DEMUX_GET_SEEKPOINT:
-            *va_arg( args, int * ) = p_sys->current_seekpoint;
             return VLC_SUCCESS;
 
         case DEMUX_GET_POSITION:
@@ -792,29 +777,12 @@ static int Control( demux_t *p_demux, int i_query, va_list args )
             return vlc_stream_vaControl( p_demux->s, STREAM_SET_SEEKPOINT,
                                          args );
 
-        case DEMUX_TEST_AND_CLEAR_FLAGS:
-        {
-            unsigned *restrict flags = va_arg(args, unsigned *);
-            *flags &= p_sys->updates;
-            p_sys->updates &= ~*flags;
-            return VLC_SUCCESS;
-        }
-
         case DEMUX_GET_META:
             return vlc_stream_vaControl( p_demux->s, STREAM_GET_META, args );
 
         case DEMUX_GET_FPS:
-            break;
-
-        case DEMUX_CAN_PAUSE:
-        case DEMUX_SET_PAUSE_STATE:
-        case DEMUX_CAN_CONTROL_PACE:
-        case DEMUX_GET_PTS_DELAY:
-            return demux_vaControlHelper( p_demux->s, 0, -1, 0, 1, i_query, args );
-
         default:
             break;
-
     }
     return VLC_EGENERIC;
 }

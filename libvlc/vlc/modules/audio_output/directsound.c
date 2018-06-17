@@ -36,6 +36,7 @@
 #include <vlc_plugin.h>
 #include <vlc_aout.h>
 #include <vlc_charset.h>
+#include <vlc_memory.h>
 
 #include "audio_output/windows_audio_common.h"
 #include "audio_output/mmdevice.h"
@@ -48,7 +49,8 @@ static void Close( vlc_object_t * );
 static HRESULT StreamStart( aout_stream_t *, audio_sample_format_t *,
                             const GUID * );
 static HRESULT StreamStop( aout_stream_t * );
-static int ReloadDirectXDevices( const char *, char ***, char *** );
+static int ReloadDirectXDevices( vlc_object_t *, const char *,
+                                 char ***, char *** );
 static void * PlayedDataEraser( void * );
 /* Speaker setup override options list */
 static const char *const speaker_list[] = { "Windows default", "Mono", "Stereo",
@@ -127,7 +129,7 @@ typedef struct aout_stream_sys
  * This structure is part of the audio output thread descriptor.
  * It describes the direct sound specific properties of an audio device.
  */
-typedef struct
+struct aout_sys_t
 {
     aout_stream_sys_t s;
     struct
@@ -136,7 +138,7 @@ typedef struct
         LONG          mb;
         bool          mute;
     } volume;
-} aout_sys_t;
+};
 
 static HRESULT Flush( aout_stream_sys_t *sys, bool drain);
 static HRESULT TimeGet( aout_stream_sys_t *sys, mtime_t *delay )
@@ -183,8 +185,7 @@ static HRESULT StreamTimeGet( aout_stream_t *s, mtime_t *delay )
 
 static int OutputTimeGet( audio_output_t *aout, mtime_t *delay )
 {
-    aout_sys_t *sys = aout->sys;
-    return (TimeGet( &sys->s, delay ) == DS_OK) ? 0 : -1;
+    return (TimeGet( &aout->sys->s, delay ) == DS_OK) ? 0 : -1;
 }
 
 /**
@@ -303,11 +304,9 @@ static HRESULT StreamPlay( aout_stream_t *s, block_t *block )
     return Play( VLC_OBJECT(s), s->sys, block );
 }
 
-static void OutputPlay( audio_output_t *aout, block_t *block, mtime_t date )
+static void OutputPlay( audio_output_t *aout, block_t *block )
 {
-    aout_sys_t *sys = aout->sys;
-    Play( VLC_OBJECT(aout), &sys->s, block );
-    (void) date;
+    Play( VLC_OBJECT(aout), &aout->sys->s, block );
 }
 
 static HRESULT Pause( aout_stream_sys_t *sys, bool pause )
@@ -336,8 +335,7 @@ static HRESULT StreamPause( aout_stream_t *s, bool pause )
 
 static void OutputPause( audio_output_t *aout, bool pause, mtime_t date )
 {
-    aout_sys_t *sys = aout->sys;
-    Pause( &sys->s, pause );
+    Pause( &aout->sys->s, pause );
     (void) date;
 }
 
@@ -363,8 +361,8 @@ static HRESULT StreamFlush( aout_stream_t *s )
 
 static void OutputFlush( audio_output_t *aout, bool drain )
 {
-    aout_sys_t *sys = aout->sys;
-    Flush( &sys->s, drain );
+    aout_stream_sys_t *sys = &aout->sys->s;
+    Flush( sys, drain );
 }
 
 /**
@@ -520,7 +518,7 @@ static HRESULT CreateDSBufferPCM( vlc_object_t *obj, aout_stream_sys_t *sys,
                                   int i_rate, bool b_probe )
 {
     HRESULT hr;
-    unsigned i_nb_channels = vlc_popcount( i_channels );
+    unsigned i_nb_channels = popcount( i_channels );
 
     if( var_GetBool( obj, "directx-audio-float32" ) )
     {
@@ -589,8 +587,7 @@ static HRESULT StreamStop( aout_stream_t *s )
 static void OutputStop( audio_output_t *aout )
 {
     msg_Dbg( aout, "closing audio device" );
-    aout_sys_t *sys = aout->sys;
-    Stop( &sys->s );
+    Stop( &aout->sys->s );
 }
 
 static HRESULT Start( vlc_object_t *obj, aout_stream_sys_t *sys,
@@ -938,7 +935,7 @@ static int VolumeSet( audio_output_t *p_aout, float volume )
     aout_VolumeReport( p_aout, volume );
 
     if( var_InheritBool( p_aout, "volume-save" ) )
-        config_PutFloat( "directx-volume", volume );
+        config_PutFloat( p_aout, "directx-volume", volume );
     return ret;
 }
 
@@ -969,14 +966,13 @@ static int OutputStart( audio_output_t *p_aout,
         return -1;
     }
 
-    aout_sys_t *sys = p_aout->sys;
-    HRESULT hr = Start( VLC_OBJECT(p_aout), &sys->s, fmt );
+    HRESULT hr = Start( VLC_OBJECT(p_aout), &p_aout->sys->s, fmt );
     if( FAILED(hr) )
         return -1;
 
     /* Force volume update */
-    VolumeSet( p_aout, sys->volume.volume );
-    MuteSet( p_aout, sys->volume.mute );
+    VolumeSet( p_aout, p_aout->sys->volume.volume );
+    MuteSet( p_aout, p_aout->sys->volume.mute );
 
     /* then launch the notification thread */
     p_aout->time_get = OutputTimeGet;
@@ -1023,7 +1019,7 @@ static int CALLBACK DeviceEnumCallback( LPGUID guid, LPCWSTR desc,
 /**
  * Stores the list of devices in preferences
  */
-static int ReloadDirectXDevices( char const *psz_name,
+static int ReloadDirectXDevices( vlc_object_t *p_this, char const *psz_name,
                                  char ***values, char ***descs )
 {
     ds_list_t list = {
@@ -1037,6 +1033,7 @@ static int ReloadDirectXDevices( char const *psz_name,
     (void) psz_name;
 
     DirectSoundEnumerate( DeviceEnumCallback, &list );
+    msg_Dbg( p_this, "found %u devices", list.count );
 
     *values = list.ids;
     *descs = list.names;
@@ -1072,8 +1069,7 @@ static int Open(vlc_object_t *obj)
 
     /* DirectSound does not support hot-plug events (unless with WASAPI) */
     char **ids, **names;
-    int count = ReloadDirectXDevices(NULL, &ids, &names);
-    msg_Dbg(obj, "found %d devices", count);
+    int count = ReloadDirectXDevices(obj, NULL, &ids, &names);
     if (count >= 0)
     {
         for (int i = 0; i < count; i++)
@@ -1105,8 +1101,7 @@ static void Close(vlc_object_t *obj)
 static void * PlayedDataEraser( void * data )
 {
     const audio_output_t *aout = (audio_output_t *) data;
-    aout_sys_t *aout_sys = aout->sys;
-    aout_stream_sys_t *p_sys = &aout_sys->s;
+    aout_stream_sys_t *p_sys = &aout->sys->s;
     void *p_write_position, *p_wrap_around;
     unsigned long l_bytes1, l_bytes2;
     DWORD i_read;

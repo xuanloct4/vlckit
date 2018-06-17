@@ -44,6 +44,11 @@
  * Video output display modules interface
  */
 
+/* XXX
+ * Do NOT use video_format_t::i_aspect but i_sar_num/den everywhere. i_aspect
+ * will be removed as soon as possible.
+ *
+ */
 typedef struct vout_display_t vout_display_t;
 typedef struct vout_display_sys_t vout_display_sys_t;
 typedef struct vout_display_owner_t vout_display_owner_t;
@@ -63,16 +68,28 @@ typedef enum
 } vout_display_align_t;
 
 /**
+ * Window management state.
+ */
+enum {
+    VOUT_WINDOW_STATE_NORMAL=0,
+    VOUT_WINDOW_STATE_ABOVE=1,
+    VOUT_WINDOW_STATE_BELOW=2,
+    VOUT_WINDOW_STACK_MASK=3,
+};
+
+/**
  * Initial/Current configuration for a vout_display_t
  */
 typedef struct {
-    struct vout_window_t *window; /**< Window */
 #if defined(_WIN32) || defined(__OS2__)
     bool is_fullscreen VLC_DEPRECATED;  /* Is the display fullscreen */
 #endif
 
     /* Display properties */
     struct {
+        /* Window title (may be NULL) */
+        const char *title;
+
         /* Display size */
         unsigned  width;
         unsigned  height;
@@ -94,8 +111,8 @@ typedef struct {
      * It will be applied to the whole display if b_display_filled is set, otherwise
      * only on the video source */
     struct {
-        unsigned num;
-        unsigned den;
+        int num;
+        int den;
     } zoom;
 
     vlc_viewpoint_t viewpoint;
@@ -111,6 +128,9 @@ typedef struct {
 typedef struct {
     bool is_slow;                           /* The picture memory has slow read/write */
     bool has_double_click;                  /* Is double-click generated */
+    bool needs_hide_mouse;                  /* Needs VOUT_DISPLAY_HIDE_MOUSE,
+                                             * needs to call vout_display_SendEventMouseMoved()
+                                             * or vout_display_SendEventMouseState() */
     bool has_pictures_invalid;              /* Will VOUT_DISPLAY_EVENT_PICTURES_INVALID be used */
     const vlc_fourcc_t *subpicture_chromas; /* List of supported chromas for subpicture rendering. */
 } vout_display_info_t;
@@ -119,6 +139,10 @@ typedef struct {
  * Control query for vout_display_t
  */
 enum {
+    /* Hide the mouse. It will be sent when
+     * vout_display_t::info.needs_hide_mouse is true */
+    VOUT_DISPLAY_HIDE_MOUSE VLC_DEPRECATED_ENUM,
+
     /* Ask to reset the internal buffers after a VOUT_DISPLAY_EVENT_PICTURES_INVALID
      * request.
      */
@@ -132,7 +156,8 @@ enum {
      * after being requested externally or by VOUT_DISPLAY_WINDOW_STATE */
     VOUT_DISPLAY_CHANGE_WINDOW_STATE VLC_DEPRECATED_ENUM,   /* unsigned state */
 #endif
-    /* Ask the module to acknowledge the display size change */
+    /* Ask the module to acknowledge/refuse the display size change requested
+     * (externally or by VOUT_DISPLAY_EVENT_DISPLAY_SIZE) */
     VOUT_DISPLAY_CHANGE_DISPLAY_SIZE,   /* const vout_display_cfg_t *p_cfg */
 
     /* Ask the module to acknowledge/refuse fill display state change after
@@ -176,6 +201,18 @@ enum {
     VOUT_DISPLAY_EVENT_WINDOW_STATE,
 #endif
 
+    VOUT_DISPLAY_EVENT_DISPLAY_SIZE,        /* The display size need to change : int i_width, int i_height */
+
+    /* */
+    VOUT_DISPLAY_EVENT_CLOSE,
+    VOUT_DISPLAY_EVENT_KEY,
+
+    /* Full mouse state.
+     * You can use it OR use the other mouse events. The core will do
+     * the conversion.
+     */
+    VOUT_DISPLAY_EVENT_MOUSE_STATE,
+
     /* Mouse event */
     VOUT_DISPLAY_EVENT_MOUSE_MOVED,
     VOUT_DISPLAY_EVENT_MOUSE_PRESSED,
@@ -206,10 +243,18 @@ struct vout_display_owner_t {
      * from multiple threads.
      */
     void            (*event)(vout_display_t *, int, va_list);
+
+    /* Window management
+     *
+     * These functions are set prior to the module instantiation and must not
+     * be overwritten nor used directly (use the vout_display_*Window
+     * wrapper */
+    vout_window_t *(*window_new)(vout_display_t *, unsigned type);
+    void           (*window_del)(vout_display_t *, vout_window_t *);
 };
 
 struct vout_display_t {
-    struct vlc_common_members obj;
+    VLC_COMMON_MEMBERS
 
     /* Module */
     module_t *module;
@@ -267,8 +312,7 @@ struct vout_display_t {
      * You cannot change the pixel content of the picture_t or of the
      * subpicture_t.
      */
-    void       (*prepare)(vout_display_t *, picture_t *, subpicture_t *,
-                          mtime_t date);
+    void       (*prepare)(vout_display_t *, picture_t *, subpicture_t *);
 
     /* Display a picture and an optional subpicture (mandatory).
      *
@@ -284,6 +328,9 @@ struct vout_display_t {
 
     /* Control on the module (mandatory) */
     int        (*control)(vout_display_t *, int, va_list);
+
+    /* Manage pending event (optional) */
+    void       (*manage)(vout_display_t *) VLC_DEPRECATED;
 
     /* Private place holder for the vout_display_t module (optional)
      *
@@ -306,43 +353,38 @@ static inline void vout_display_SendEvent(vout_display_t *vd, int query, ...)
     va_end(args);
 }
 
-VLC_DEPRECATED /* Use vout_window_ReportSize() in window provider instead. */
-static inline void vout_display_SendEventDisplaySize(vout_display_t *vd,
-                                                     int width, int height)
+static inline void vout_display_SendEventDisplaySize(vout_display_t *vd, int width, int height)
 {
-    vout_window_ReportSize(vd->cfg->window, width, height);
+    vout_display_SendEvent(vd, VOUT_DISPLAY_EVENT_DISPLAY_SIZE, width, height);
 }
-
 static inline void vout_display_SendEventPicturesInvalid(vout_display_t *vd)
 {
     vout_display_SendEvent(vd, VOUT_DISPLAY_EVENT_PICTURES_INVALID);
 }
-
-VLC_DEPRECATED /* Use vout_window_ReportClose() in window provider instead. */
 static inline void vout_display_SendEventClose(vout_display_t *vd)
 {
-    vout_window_ReportClose(vd->cfg->window);
+    vout_display_SendEvent(vd, VOUT_DISPLAY_EVENT_CLOSE);
 }
-
-#if defined(_WIN32) || defined(__OS2__)
-VLC_DEPRECATED
-/* Use vout_window_ReportKeyPress() in window provider instead. */
 static inline void vout_display_SendEventKey(vout_display_t *vd, int key)
 {
-    vout_window_ReportKeyPress(vd->cfg->window, key);
+    vout_display_SendEvent(vd, VOUT_DISPLAY_EVENT_KEY, key);
 }
-
-static inline void vout_display_SendEventFullscreen(vout_display_t *vd, bool is_fullscreen)
+#if defined(_WIN32) || defined(__OS2__)
+static inline void vout_display_SendEventFullscreen(vout_display_t *vd, bool is_fullscreen,
+                                                    bool is_window_fullscreen)
 {
-    vout_display_SendEvent(vd, VOUT_DISPLAY_EVENT_FULLSCREEN, is_fullscreen);
+    vout_display_SendEvent(vd, VOUT_DISPLAY_EVENT_FULLSCREEN, is_fullscreen, is_window_fullscreen);
 }
-
-VLC_DEPRECATED /* Core needs not know about this. Don't call. */
 static inline void vout_display_SendWindowState(vout_display_t *vd, unsigned state)
 {
     vout_display_SendEvent(vd, VOUT_DISPLAY_EVENT_WINDOW_STATE, state);
 }
 #endif
+/* The mouse position (State and Moved event) must be expressed against vout_display_t::source unit */
+static inline void vout_display_SendEventMouseState(vout_display_t *vd, int x, int y, int button_mask)
+{
+    vout_display_SendEvent(vd, VOUT_DISPLAY_EVENT_MOUSE_STATE, x, y, button_mask);
+}
 static inline void vout_display_SendEventMouseMoved(vout_display_t *vd, int x, int y)
 {
     vout_display_SendEvent(vd, VOUT_DISPLAY_EVENT_MOUSE_MOVED, x, y);
@@ -370,14 +412,24 @@ static inline void vout_display_SendEventViewpointMoved(vout_display_t *vd,
  */
 static inline vout_window_t *vout_display_NewWindow(vout_display_t *vd, unsigned type)
 {
-    vout_window_t *wnd = vd->cfg->window;
-
-    return (type == wnd->type) ? wnd : NULL;
+    return vd->owner.window_new(vd, type);
+}
+/**
+ * Deletes a window created by vout_display_NewWindow if window is non NULL
+ * or any unused windows otherwise.
+ */
+static inline void vout_display_DeleteWindow(vout_display_t *vd,
+                                             vout_window_t *window)
+{
+    vd->owner.window_del(vd, window);
 }
 
 static inline bool vout_display_IsWindowed(vout_display_t *vd)
 {
-    return vd->cfg->window->type != VOUT_WINDOW_TYPE_DUMMY;
+    vout_window_t *window = vout_display_NewWindow(vd, VOUT_WINDOW_TYPE_INVALID);
+    if (window != NULL)
+        vout_display_DeleteWindow(vd, window);
+    return window != NULL;
 }
 
 /**

@@ -267,13 +267,10 @@
         if ([[[_streamTypePopup selectedItem] title] isEqualToString:@"HTTP"]) {
             NSString *muxformat = [self.currentProfile firstObject];
             if ([muxformat isEqualToString:@"wav"] || [muxformat isEqualToString:@"mov"] || [muxformat isEqualToString:@"mp4"] || [muxformat isEqualToString:@"mkv"]) {
-                NSAlert *alert = [[NSAlert alloc] init];
-                [alert setAlertStyle:NSInformationalAlertStyle];
-                [alert setMessageText:_NS("Invalid container format for HTTP streaming")];
-                [alert setInformativeText:[NSString stringWithFormat:_NS("Media encapsulated as %@ cannot be streamed through the HTTP protocol for technical reasons."),
-                                           [[self currentEncapsulationFormatAsFileExtension:YES] uppercaseString]]];
-                [alert beginSheetModalForWindow:self.window
-                              completionHandler:nil];
+                NSBeginInformationalAlertSheet(_NS("Invalid container format for HTTP streaming"), _NS("OK"), @"", @"", self.window,
+                                               nil, nil, nil, nil,
+                                               _NS("Media encapsulated as %@ cannot be streamed through the HTTP protocol for technical reasons."),
+                                               [[self currentEncapsulationFormatAsFileExtension:YES] uppercaseString]);
                 return;
             }
         }
@@ -316,7 +313,7 @@
     [openPanel setResolvesAliases:YES];
     [openPanel setAllowsMultipleSelection:NO];
     [openPanel beginSheetModalForWindow:self.window completionHandler:^(NSInteger returnCode) {
-        if (returnCode == NSModalResponseOK)
+        if (returnCode == NSOKButton)
         {
             [self setMRL: toNSStr(vlc_path2uri([[[openPanel URL] path] UTF8String], NULL))];
             [self updateOKButton];
@@ -345,7 +342,7 @@
     __unsafe_unretained typeof(self) _self = self;
     [_popupPanel runModalForWindow:self.window completionHandler:^(NSInteger returnCode, NSInteger selectedIndex) {
 
-        if (returnCode != NSModalResponseOK)
+        if (returnCode != NSOKButton)
             return;
 
         /* remove requested profile from the arrays */
@@ -416,7 +413,7 @@
     if ([[_customizeEncapMatrix selectedCell] tag] != RAW) // there is no clever guess for this
         [saveFilePanel setAllowedFileTypes:[NSArray arrayWithObject:[self currentEncapsulationFormatAsFileExtension:YES]]];
     [saveFilePanel beginSheetModalForWindow:self.window completionHandler:^(NSInteger returnCode) {
-        if (returnCode == NSModalResponseOK) {
+        if (returnCode == NSOKButton) {
             [self setOutputDestination:[[saveFilePanel URL] path]];
             [_fileDestinationFileName setStringValue: [[NSFileManager defaultManager] displayNameAtPath:_outputDestination]];
             [[_fileDestinationFileNameStub animator] setHidden: YES];
@@ -435,7 +432,7 @@
 
 - (IBAction)customizeProfile:(id)sender
 {
-    [self.window beginSheet:_customizePanel completionHandler:nil];
+    [NSApp beginSheet:_customizePanel modalForWindow:self.window modalDelegate:self didEndSelector:NULL contextInfo:nil];
 }
 
 - (IBAction)closeCustomizationSheet:(id)sender
@@ -446,6 +443,8 @@
     if (sender == _customizeOkButton)
         [self updateCurrentProfile];
 }
+
+
 
 - (IBAction)videoSettingsChanged:(id)sender
 {
@@ -478,7 +477,7 @@
 
     __unsafe_unretained typeof(self) _self = self;
     [_textfieldPanel runModalForWindow:_customizePanel completionHandler:^(NSInteger returnCode, NSString *resultingText) {
-        if (returnCode != NSModalResponseOK || [resultingText length] == 0)
+        if (returnCode != NSOKButton || [resultingText length] == 0)
             return;
 
         /* prepare current data */
@@ -508,7 +507,7 @@
 
 - (IBAction)showStreamPanel:(id)sender
 {
-    [self.window beginSheet:_streamPanel completionHandler:nil];
+    [NSApp beginSheet:_streamPanel modalForWindow:self.window modalDelegate:self didEndSelector:NULL contextInfo:nil];
 }
 
 - (IBAction)closeStreamPanel:(id)sender
@@ -529,32 +528,23 @@
 
     /* catch obvious errors */
     if ([[_streamAddressField stringValue] length] == 0) {
-        NSAlert *alert = [[NSAlert alloc] init];
-        [alert setAlertStyle:NSInformationalAlertStyle];
-        [alert setMessageText:_NS("No Address given")];
-        [alert setInformativeText:_NS("In order to stream, a valid destination address is required.")];
-        [alert beginSheetModalForWindow:_streamPanel
-                      completionHandler:nil];
+        NSBeginInformationalAlertSheet(_NS("No Address given"),
+                                       _NS("OK"), @"", @"", _streamPanel, nil, nil, nil, nil,
+                                       @"%@", _NS("In order to stream, a valid destination address is required."));
         return;
     }
 
     if ([_streamSAPCheckbox state] && [[_streamChannelField stringValue] length] == 0) {
-        NSAlert *alert = [[NSAlert alloc] init];
-        [alert setAlertStyle:NSInformationalAlertStyle];
-        [alert setMessageText:_NS("No Channel Name given")];
-        [alert setInformativeText:_NS("SAP stream announcement is enabled. However, no channel name is provided.")];
-        [alert beginSheetModalForWindow:_streamPanel
-                      completionHandler:nil];
+        NSBeginInformationalAlertSheet(_NS("No Channel Name given"),
+                                       _NS("OK"), @"", @"", _streamPanel, nil, nil, nil, nil,
+                                       @"%@", _NS("SAP stream announcement is enabled. However, no channel name is provided."));
         return;
     }
 
     if ([_streamSDPMatrix isEnabled] && [_streamSDPMatrix selectedCell] != [_streamSDPMatrix cellWithTag:0] && [[_streamSDPField stringValue] length] == 0) {
-        NSAlert *alert = [[NSAlert alloc] init];
-        [alert setAlertStyle:NSInformationalAlertStyle];
-        [alert setMessageText:_NS("No SDP URL given")];
-        [alert setInformativeText:_NS("A SDP export is requested, but no URL is provided.")];
-        [alert beginSheetModalForWindow:_streamPanel
-                      completionHandler:nil];
+        NSBeginInformationalAlertSheet(_NS("No SDP URL given"),
+                                       _NS("OK"), @"", @"", _streamPanel, nil, nil, nil, nil,
+                                       @"%@", _NS("A SDP export is requested, but no URL is provided."));
         return;
     }
 
@@ -603,7 +593,7 @@
     [saveFilePanel setCanCreateDirectories: YES];
     [saveFilePanel setAllowedFileTypes:[NSArray arrayWithObject:@"sdp"]];
     [saveFilePanel beginSheetModalForWindow:_streamPanel completionHandler:^(NSInteger returnCode) {
-        if (returnCode == NSModalResponseOK)
+        if (returnCode == NSOKButton)
             [_streamSDPField setStringValue:[[saveFilePanel URL] path]];
     }];
 }

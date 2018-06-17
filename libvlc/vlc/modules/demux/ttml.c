@@ -29,6 +29,7 @@
 #include <vlc_demux.h>
 #include <vlc_xml.h>
 #include <vlc_strings.h>
+#include <vlc_memory.h>
 #include <vlc_memstream.h>
 #include <vlc_es_out.h>
 #include <vlc_charset.h>          /* FromCharset */
@@ -41,12 +42,12 @@
 
 //#define TTML_DEMUX_DEBUG
 
-typedef struct
+struct demux_sys_t
 {
     xml_t*          p_xml;
     xml_reader_t*   p_reader;
     es_out_id_t*    p_es;
-    mtime_t         i_next_demux_time;
+    int64_t         i_next_demux_time;
     bool            b_slave;
     bool            b_first_time;
 
@@ -65,7 +66,7 @@ typedef struct
         size_t   i_count;
         size_t   i_current;
     } times;
-} demux_sys_t;
+};
 
 static char *tt_genTiming( tt_time_t t )
 {
@@ -233,7 +234,8 @@ static int Control( demux_t* p_demux, int i_query, va_list args )
             }
             break;
         case DEMUX_SET_NEXT_DEMUX_TIME:
-            p_sys->i_next_demux_time = va_arg( args, mtime_t );
+            i64 = va_arg( args, int64_t );
+            p_sys->i_next_demux_time = i64;
             p_sys->b_slave = true;
             return VLC_SUCCESS;
         case DEMUX_GET_LENGTH:
@@ -275,11 +277,6 @@ static int Control( demux_t* p_demux, int i_query, va_list args )
                 return VLC_SUCCESS;
             }
             break;
-        case DEMUX_CAN_PAUSE:
-        case DEMUX_SET_PAUSE_STATE:
-        case DEMUX_CAN_CONTROL_PACE:
-            return demux_vaControlHelper( p_demux->s, 0, -1, 0, 1, i_query, args );
-
         case DEMUX_GET_PTS_DELAY:
         case DEMUX_GET_FPS:
         case DEMUX_GET_META:
@@ -348,9 +345,9 @@ static int Demux( demux_t* p_demux )
     while( p_sys->times.i_current + 1 < p_sys->times.i_count &&
            tt_time_Convert( &p_sys->times.p_array[p_sys->times.i_current] ) <= p_sys->i_next_demux_time )
     {
-        const mtime_t i_playbacktime =
+        const int64_t i_playbacktime =
                 tt_time_Convert( &p_sys->times.p_array[p_sys->times.i_current] );
-        const mtime_t i_playbackendtime =
+        const int64_t i_playbackendtime =
                 tt_time_Convert( &p_sys->times.p_array[p_sys->times.i_current + 1] ) - 1;
 
         if ( !p_sys->b_slave && p_sys->b_first_time )

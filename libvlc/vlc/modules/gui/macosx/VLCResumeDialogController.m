@@ -76,7 +76,7 @@
                                                        userInfo:nil
                                                         repeats:YES];
 
-    [w setLevel:[[[VLCMain sharedInstance] voutProvider] currentStatusWindowLevel]];
+    [w setLevel:[[[VLCMain sharedInstance] voutController] currentStatusWindowLevel]];
     [w center];
 
     [w makeKeyAndOrderFront:nil];
@@ -99,7 +99,7 @@
 
 - (IBAction)buttonClicked:(id)sender
 {
-    enum ResumeResult resumeResult = RESUME_FAIL;
+    enum ResumeResult resumeResult;
 
     if (sender == o_restart_btn)
         resumeResult = RESUME_RESTART;
@@ -118,7 +118,7 @@
 {
     int newState = [sender state] == NSOnState ? 1 : 0;
     msg_Dbg(getIntf(), "Changing resume setting to %i", newState);
-    config_PutInt("macosx-continue-playback", newState);
+    config_PutInt(getIntf(), "macosx-continue-playback", newState);
 }
 
 - (void)updateCocoaWindowLevel:(NSInteger)i_level

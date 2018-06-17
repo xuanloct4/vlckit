@@ -67,7 +67,7 @@ static const char *const ppsz_color_descriptions[] = {
 /*****************************************************************************
  * filter_sys_t: marquee filter descriptor
  *****************************************************************************/
-typedef struct
+struct filter_sys_t
 {
     vlc_mutex_t lock;
 
@@ -83,7 +83,7 @@ typedef struct
 
     mtime_t last_time;
     mtime_t i_refresh;
-} filter_sys_t;
+};
 
 #define MSG_TEXT N_("Text")
 #define MSG_LONGTEXT N_( \
@@ -146,7 +146,7 @@ vlc_module_begin ()
     set_subcategory( SUBCAT_VIDEO_SUBPIC )
     add_string( CFG_PREFIX "marquee", "VLC", MSG_TEXT, MSG_LONGTEXT,
                 false )
-    add_loadfile(CFG_PREFIX "file", NULL, FILE_TEXT, FILE_LONGTEXT)
+    add_loadfile( CFG_PREFIX "file", NULL, FILE_TEXT, FILE_LONGTEXT, true )
 
     set_section( N_("Position"), NULL )
     add_integer( CFG_PREFIX "x", 0, POSX_TEXT, POSX_LONGTEXT, true )
@@ -158,7 +158,8 @@ vlc_module_begin ()
     /* 5 sets the default to top [1] left [4] */
     add_integer_with_range( CFG_PREFIX "opacity", 255, 0, 255,
         OPACITY_TEXT, OPACITY_LONGTEXT, false )
-    add_rgb(CFG_PREFIX "color", 0xFFFFFF, COLOR_TEXT, COLOR_LONGTEXT)
+    add_rgb( CFG_PREFIX "color", 0xFFFFFF, COLOR_TEXT, COLOR_LONGTEXT,
+                 false )
         change_integer_list( pi_color_values, ppsz_color_descriptions )
     add_integer( CFG_PREFIX "size", 0, SIZE_TEXT, SIZE_LONGTEXT,
                  false )

@@ -34,7 +34,6 @@ namespace adaptive
             static const unsigned WEBVTT      = 3;
             static const unsigned TTML        = 4;
             static const unsigned PACKEDAAC   = 5;
-            static const unsigned WEBM        = 6;
             static const unsigned UNKNOWN     = 0xFF; /* will probe */
 
             StreamFormat( unsigned = UNSUPPORTED );

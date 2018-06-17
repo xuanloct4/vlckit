@@ -45,7 +45,7 @@
 /*****************************************************************************
  * decoder_sys_t : decoder descriptor
  *****************************************************************************/
-typedef struct
+struct decoder_sys_t
 {
     /*
      * Input properties
@@ -67,7 +67,7 @@ typedef struct
     unsigned int i_layer, i_bit_rate;
 
     bool   b_discontinuity;
-} decoder_sys_t;
+};
 
 #define MAD_BUFFER_GUARD 8
 #define MPGA_HEADER_SIZE 4
@@ -309,8 +309,7 @@ static block_t *DecodeBlock( decoder_t *p_dec, block_t **pp_block )
             }
         }
 
-        if( p_block->i_pts == VLC_TS_INVALID &&
-            date_Get( &p_sys->end_date ) == VLC_TS_INVALID )
+        if( !date_Get( &p_sys->end_date ) && p_block->i_pts <= VLC_TS_INVALID )
         {
             /* We've just started the stream, wait for the first PTS. */
             msg_Dbg( p_dec, "waiting for PTS" );
@@ -350,7 +349,7 @@ static block_t *DecodeBlock( decoder_t *p_dec, block_t **pp_block )
         case STATE_SYNC:
             /* New frame, set the Presentation Time Stamp */
             p_sys->i_pts = p_sys->bytestream.p_block->i_pts;
-            if( p_sys->i_pts != VLC_TS_INVALID &&
+            if( p_sys->i_pts > VLC_TS_INVALID &&
                 p_sys->i_pts != date_Get( &p_sys->end_date ) )
             {
                 if( p_dec->fmt_in.i_original_fourcc == VLC_FOURCC( 'D','V','R',' ') )
@@ -400,7 +399,7 @@ static block_t *DecodeBlock( decoder_t *p_dec, block_t **pp_block )
             if( p_sys->i_bit_rate == 0 )
             {
                 /* Free bitrate, but 99% emulated startcode :( */
-                if( p_sys->i_free_frame_size == MPGA_HEADER_SIZE )
+                if( p_dec->p_sys->i_free_frame_size == MPGA_HEADER_SIZE )
                 {
                     msg_Dbg( p_dec, "free bitrate mode");
                 }
@@ -630,6 +629,7 @@ static int Open( vlc_object_t *p_this )
     /* Misc init */
     p_sys->i_state = STATE_NOSYNC;
     date_Init( &p_sys->end_date, 1, 1 );
+    date_Set( &p_sys->end_date, VLC_TS_INVALID );
     block_BytestreamInit( &p_sys->bytestream );
     p_sys->i_pts = VLC_TS_INVALID;
     p_sys->b_discontinuity = false;

@@ -43,7 +43,7 @@
 #ifdef _WIN32
 #   include <winsock2.h>
 #   include <ws2tcpip.h>
-#elif defined (HAVE_SYS_SOCKET_H)
+#else
 #   include <sys/socket.h>
 #endif
 
@@ -109,7 +109,7 @@ static int Control( sout_access_out_t *, int, va_list );
 static void* ThreadWrite( void * );
 static block_t *NewUDPPacket( sout_access_out_t *, mtime_t );
 
-typedef struct
+struct sout_access_out_sys_t
 {
     mtime_t       i_caching;
     int           i_handle;
@@ -121,7 +121,7 @@ typedef struct
     block_t      *p_buffer;
 
     vlc_thread_t  thread;
-} sout_access_out_sys_t;
+};
 
 #define DEFAULT_PORT 1234
 
