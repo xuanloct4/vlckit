@@ -2,3 +2,6 @@
 	path = vlckitSwiftSample
 	url = https://github.com/maknapp/vlckitSwiftSample.git
 
+[submodule "libvlc/vlc"]
+	path = libvlc/vlc
+	url = https://git.videolan.org/git/vlc/vlc-3.0.git
