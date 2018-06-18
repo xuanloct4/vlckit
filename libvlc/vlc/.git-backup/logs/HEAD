@@ -1,0 +1,17 @@
+0000000000000000000000000000000000000000 bede4ea7c3d61f07d794b02151e518906c56d306 loctv <loc.tran@ascendcorp.com> 1529289504 +0700	clone: from https://git.videolan.org/git/vlc/vlc-3.0.git
+bede4ea7c3d61f07d794b02151e518906c56d306 d3c5d180f307bcd6832506024db9d1c5b2cae961 loctv <loc.tran@ascendcorp.com> 1529289543 +0700	checkout: moving from master to localBranch
+d3c5d180f307bcd6832506024db9d1c5b2cae961 7fc593eef287dfdeaf170b947d09b8c611168a84 loctv <loc.tran@ascendcorp.com> 1529289648 +0700	am: arm_neon: work-around libtool issue
+7fc593eef287dfdeaf170b947d09b8c611168a84 edff349ced25feb54f4ed32d6321444635245dd7 loctv <loc.tran@ascendcorp.com> 1529289648 +0700	am: disable neon volume plugin
+edff349ced25feb54f4ed32d6321444635245dd7 b4dfa18ecf3a4f073c3fa2540b696f816428ed18 loctv <loc.tran@ascendcorp.com> 1529289648 +0700	am: Enable System DL
+b4dfa18ecf3a4f073c3fa2540b696f816428ed18 9d0dca7909a2e815b2312a80c11ec99b57689593 loctv <loc.tran@ascendcorp.com> 1529289649 +0700	am: http: add vlc_http_cookies_clear
+9d0dca7909a2e815b2312a80c11ec99b57689593 0808f9a4d04083a3a84ab9300fc158dd071a58ea loctv <loc.tran@ascendcorp.com> 1529289649 +0700	am: libvlc_media: add cookie_jar API
+0808f9a4d04083a3a84ab9300fc158dd071a58ea 549fcb301fd38d08d5a698937be223783f2e73c2 loctv <loc.tran@ascendcorp.com> 1529289649 +0700	am: contrib/gcrypt: work-around a libtool limitation
+549fcb301fd38d08d5a698937be223783f2e73c2 a3e73f4c1fcff1c34b01f9a5f45ec7bbfc1a8fb6 loctv <loc.tran@ascendcorp.com> 1529289649 +0700	am: contrib/gcrypt: fix tvOS compilation
+a3e73f4c1fcff1c34b01f9a5f45ec7bbfc1a8fb6 6bd16b723b673132caf2dc87be99a8321b169bc7 loctv <loc.tran@ascendcorp.com> 1529289649 +0700	am: contrib/gcrypt: update patches
+6bd16b723b673132caf2dc87be99a8321b169bc7 5fbe7c0a1f72040e6a83f42c1aee906dc8b6e0d9 loctv <loc.tran@ascendcorp.com> 1529289649 +0700	am: Replace thread local with pthread TSD
+5fbe7c0a1f72040e6a83f42c1aee906dc8b6e0d9 1ed6803f107c18ae4b331ab7866011507486a93a loctv <loc.tran@ascendcorp.com> 1529289649 +0700	am: contrib: use live555 version that is compatible with LGPL2
+1ed6803f107c18ae4b331ab7866011507486a93a 51d49d5559f2b70f800dcf87cf3e06020e66d4ca loctv <loc.tran@ascendcorp.com> 1529289649 +0700	am: libvlc: add a basic API to change freetype's color, bold, font and size variables on-the-fly
+51d49d5559f2b70f800dcf87cf3e06020e66d4ca d16f6a3aebb77e9adf2afbe64d8f45e83fa67897 loctv <loc.tran@ascendcorp.com> 1529289649 +0700	am: Work around lack of __thread storage qualifier on old macOS
+d16f6a3aebb77e9adf2afbe64d8f45e83fa67897 96dc47486633fc46f6aabd2095c289451017ab6c loctv <loc.tran@ascendcorp.com> 1529289649 +0700	am: modules:common: Use the full module name as MODULE_NAME
+96dc47486633fc46f6aabd2095c289451017ab6c 3c95d9f4144981cf1ca695fa2d186c90d4664cd9 loctv <loc.tran@ascendcorp.com> 1529289649 +0700	am: add auto deinterlacer-mode which is also valid
+3c95d9f4144981cf1ca695fa2d186c90d4664cd9 7165cf4357903c557cff6edcab89d253bc92569c loctv <loc.tran@ascendcorp.com> 1529289649 +0700	am: Users will be able to change the deinterlace mode without forcing it.
